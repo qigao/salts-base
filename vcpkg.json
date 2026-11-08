@@ -1,0 +1,33 @@
+{
+  "name": "salts-utils",
+  "version-semver": "0.1.0",
+  "dependencies": [
+    {
+      "name": "pkgconf",
+      "host": true
+    },
+    {
+      "name": "simde"
+    },
+    "lua",
+    "quickjs-ng",
+    {
+      "name": "zstd"
+    },
+    "media": {
+      "description": "One static Media owner for Capture and PCM Playback",
+      "dependencies": [
+        "miniaudio",
+        {
+          "name": "libyuv",
+          "platform": "windows | android | linux"
+        },
+        {
+          "name": "libjpeg-turbo",
+          "platform": "windows"
+        }
+      ]
+    }
+  ],
+  "builtin-baseline": "b1b19307e2d2ec1eefbdb7ea069de7d4bcd31f01"
+}

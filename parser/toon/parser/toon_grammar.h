@@ -1,0 +1,14 @@
+#define TOON_TOKEN_COLON                            1
+#define TOON_TOKEN_LBRACKET                         2
+#define TOON_TOKEN_RBRACKET                         3
+#define TOON_TOKEN_LBRACE                           4
+#define TOON_TOKEN_RBRACE                           5
+#define TOON_TOKEN_COMMA                            6
+#define TOON_TOKEN_NEWLINE                          7
+#define TOON_TOKEN_INDENT                           8
+#define TOON_TOKEN_DEDENT                           9
+#define TOON_TOKEN_KEY                             10
+#define TOON_TOKEN_VALUE                           11
+#define TOON_TOKEN_NUMBER                          12
+#define TOON_TOKEN_BOOL                            13
+#define TOON_TOKEN_NULL                            14

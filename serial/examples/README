@@ -1,0 +1,64 @@
+SaltsSerial examples
+====================
+
+These examples use the public SaltsSerial ABI from `serial/include/serial.h`,
+included as <serial.h> and linked through Salts::Serial. They do not include
+private headers or call libserialport APIs.
+
+Examples
+--------
+
+- `list_ports.c` - enumerates visible port names.
+- `port_info.c` - reads metadata for one named port.
+- `port_config.c` - configures and opens one handle.
+- `send_receive.c` - performs blocking write/read.
+- `await_events.c` - waits for readiness through an event set.
+- `handle_errors.c` - handles result codes at the application boundary.
+
+Build
+-----
+
+Run from the SaltsCore root after loading the configured .env and compiler
+runtime environment. These commands use the Windows llvm-mingw user preset;
+other platforms use their matching versioned user presets.
+
+```sh
+cmake --preset native-release-user
+cmake --build --preset native-release-user
+```
+
+All six examples are part of the regular build graph. Their target names are
+`saltscore_serial_example_<source-stem>`. For local work on just one example:
+
+```sh
+cmake --build --preset native-release-user --target saltscore_serial_example_list_ports
+```
+
+Run
+---
+
+Windows executables for this preset are in `build/native-release-user/bin`:
+
+```text
+build/native-release-user/bin/saltscore_serial_example_list_ports.exe
+build/native-release-user/bin/saltscore_serial_example_port_info.exe COM1
+build/native-release-user/bin/saltscore_serial_example_port_config.exe COM3
+build/native-release-user/bin/saltscore_serial_example_send_receive.exe COM3
+build/native-release-user/bin/saltscore_serial_example_await_events.exe COM3
+```
+
+Most examples require real serial hardware or a configured virtual port, so
+these programs are built but are not registered as unattended CTest cases.
+
+Validation
+----------
+
+Formal public-API, injected-backend and storage tests run through CTest:
+
+```sh
+ctest --preset native-release-user -R '^saltscore[.]serial_'
+```
+
+Unix builds additionally run the native pseudo-terminal regression under the
+same filter. Physical configuration and disconnect behavior require hardware
+fixtures.
