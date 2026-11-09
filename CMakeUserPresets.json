@@ -113,7 +113,7 @@
     {
       "name": "ci-preinstalled",
       "hidden": true,
-      "description": "CI consumes an externally provisioned vcpkg-cache binary installation; no resolver or dependency build runs",
+      "description": "CI consumes restored preinstalled vcpkg-cache archives; no resolver or dependency build runs",
       "environment": {
         "VCPKG_INSTALLED_DIR": "$penv{SALTS_CI_VCPKG_INSTALLED_DIR}"
       },

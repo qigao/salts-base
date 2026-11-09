@@ -8,53 +8,133 @@ on:
 
 permissions:
   contents: read
-  packages: read
+
+env:
+  VCPKG_CACHE_RELEASE: v0.1.2
 
 concurrency:
   group: native-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  prepare:
+    name: Download shared inputs once
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check out released cache infrastructure
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: qigao/vcpkg-cache
+          ref: ${{ env.VCPKG_CACHE_RELEASE }}
+          path: build/ci-infrastructure/vcpkg-cache
+          persist-credentials: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Reuse verified download blobs and Unicode data
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            build/ci-inputs/blobs
+            build/ci-inputs/unicode-data
+          key: shared-inputs-v1-${{ hashFiles('cmake/*.lock.json', 'cmake/dependencies/*.lock.json', 'unicode/data/sources.lock.json', 'build/ci-infrastructure/vcpkg-cache/compiler-contracts/release-obfuscation.json') }}
+      - name: Download locked dependency archives and host-tool packages
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $reader = 'build/ci-infrastructure/vcpkg-cache/scripts/restore-native-dependency.py'
+          $locks = @(Get-ChildItem -LiteralPath cmake/dependencies -Filter '*.lock.json')
+          foreach ($lock in $locks) {
+            & python $reader download $lock.FullName --destination build/ci-inputs/blobs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          foreach ($lock in (Get-Item cmake/lemon.lock.json, cmake/re2c.lock.json)) {
+            $identity = Get-Content -LiteralPath $lock.FullName -Raw | ConvertFrom-Json
+            $restoreArguments = @('download', $lock.FullName, '--destination', 'build/ci-inputs/blobs')
+            if (-not (Test-Path -LiteralPath "build/ci-inputs/blobs/$($identity.sha256)" -PathType Leaf)) {
+              $name = "$($identity.source.id).$($identity.source.version).nupkg"
+              & gh release download $env:VCPKG_CACHE_RELEASE --repo qigao/vcpkg-cache `
+                --pattern $name --dir build/ci-host-tool-archives
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $restoreArguments += @('--archive', "build/ci-host-tool-archives/$name")
+            }
+            & python $reader @restoreArguments
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          $contract = Get-Content 'build/ci-infrastructure/vcpkg-cache/compiler-contracts/release-obfuscation.json' -Raw | ConvertFrom-Json
+          $compiler = $contract.sources.'llvm-mingw'
+          $asset = $compiler.assets | Where-Object host -EQ windows-x64
+          $url = "https://github.com/$($compiler.repository)/releases/download/$($compiler.release_tag)/$($asset.name)"
+          @{schema=1; source=@{kind='url'; url=$url}; sha256=$asset.sha256} |
+            ConvertTo-Json -Depth 4 | Set-Content build/ci-inputs/compiler.lock.json -Encoding utf8
+          & python $reader download build/ci-inputs/compiler.lock.json --destination build/ci-inputs/blobs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Download pinned Unicode inputs
+        run: |
+          $data = [IO.Path]::GetFullPath('build/ci-inputs/unicode-data/17.0.0')
+          & cmake "-DSALTS_UNICODE_DATA_DIR=$data" -P unicode/data/Download.cmake
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Archive the same infrastructure sources for every runner
+        run: |
+          $archive = [IO.Path]::GetFullPath('build/ci-inputs/infrastructure.tar')
+          & git -C build/ci-infrastructure/vcpkg-cache archive --format=tar HEAD --output $archive
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: shared-inputs-${{ github.run_id }}
+          path: build/ci-inputs/
+          overwrite: true
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+
   native:
-    # Public fork code must not run automatically on provisioned self-hosted hosts.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: ${{ matrix.id }}
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
         include:
           - id: windows-msvc-x64
-            runner: [self-hosted, Windows, X64, salts-native-ci]
+            runner: windows-2025
             profile: msvc-release-user
             triplet: x64-windows
             test: true
           - id: windows-llvm-mingw-x64
-            runner: [self-hosted, Windows, X64, salts-native-ci]
+            runner: windows-2025
             profile: llvm-mingw-x64-release-user
             triplet: qigao-x64-windows-llvm-mingw
             test: true
           - id: linux-clang-x64
-            runner: [self-hosted, Linux, X64, salts-native-ci]
+            runner: ubuntu-24.04
             profile: llvm-native-release-user
             triplet: x64-linux
             test: true
           - id: linux-gcc-x64
-            runner: [self-hosted, Linux, X64, salts-native-ci]
+            runner: ubuntu-24.04
             profile: gcc-release-user
             triplet: x64-linux
             test: true
           - id: macos-clang-arm64
-            runner: [self-hosted, macOS, ARM64, salts-native-ci]
+            runner: macos-15
             profile: llvm-native-release-user
             triplet: arm64-osx
             test: true
           - id: android-arm64
-            runner: [self-hosted, Linux, X64, salts-android-ci]
+            runner: ubuntu-24.04
             profile: android-arm64-release-user
             triplet: arm64-android
             test: false
           - id: android-x64
-            runner: [self-hosted, Linux, X64, salts-android-ci]
+            runner: ubuntu-24.04
             profile: android-x64-release-user
             triplet: x64-android
             test: false
@@ -64,41 +144,21 @@ jobs:
       run:
         shell: pwsh
     env:
-      CI_BASE_PROFILE: ${{ matrix.profile }}
       CI_PRESET: ci-${{ matrix.profile }}
       VCPKG_TARGET_TRIPLET: ${{ matrix.triplet }}
-      GITHUB_TOKEN: ${{ secrets.VCPKG_CACHE_READ_TOKEN || github.token }}
-      GH_TOKEN: ${{ secrets.VCPKG_CACHE_READ_TOKEN || github.token }}
+      QIGAO_PREPARED_INPUTS: ${{ github.workspace }}/build/ci-inputs
 
     steps:
-      - name: Select the preinstalled binary prefix
-        run: |
-          $ErrorActionPreference = 'Stop'
-          if (-not $env:SALTS_CI_PREINSTALLED_ROOT) {
-            throw 'Provision SALTS_CI_PREINSTALLED_ROOT on the runner from qualified released binary packages; CI does not install dependencies.'
-          }
-          $root = [IO.Path]::GetFullPath($env:SALTS_CI_PREINSTALLED_ROOT).Replace('\', '/').TrimEnd('/')
-          $workspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).Replace('\', '/').TrimEnd('/')
-          if ($root -eq $workspace -or $root.StartsWith("$workspace/", [StringComparison]::OrdinalIgnoreCase)) {
-            throw 'The preinstalled root must be outside GITHUB_WORKSPACE; checkout cleanup must not remove dependency installations.'
-          }
-          $installation = Join-Path $root "$env:CI_BASE_PROFILE/vcpkg_installed"
-          "SALTS_CI_VCPKG_INSTALLED_DIR=$($installation.Replace('\', '/'))" >> $env:GITHUB_ENV
-
       - name: Check out product
         uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
 
-      # Source-only checkout for the existing locked Lemon/re2c restore helpers.
-      # Do not invoke setup-vcpkg-curl-cache, vcpkg, ABI resolution or toolchains.
-      - name: Check out released cache infrastructure
-        uses: actions/checkout@v7.0.1
+      - name: Receive prepared shared inputs
+        uses: actions/download-artifact@v8.0.1
         with:
-          repository: qigao/vcpkg-cache
-          ref: v0.1.1
-          path: build/ci-infrastructure/vcpkg-cache
-          persist-credentials: false
+          name: shared-inputs-${{ github.run_id }}
+          path: build/ci-inputs
 
       - name: Select Python
         id: python
@@ -109,18 +169,75 @@ jobs:
       - name: Select the released infrastructure helpers
         run: |
           $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path build/ci-infrastructure/vcpkg-cache -Force | Out-Null
+          $archive = [IO.Path]::GetFullPath('build/ci-inputs/infrastructure.tar')
+          Push-Location build/ci-infrastructure/vcpkg-cache
+          try {
+            & cmake -E tar xf $archive
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally { Pop-Location }
+          Copy-Item -LiteralPath build/ci-inputs/unicode-data -Destination build/unicode-data -Recurse
           $cacheSource = (Resolve-Path 'build/ci-infrastructure/vcpkg-cache').Path.Replace('\', '/')
           "VCPKG_CACHE_REPOSITORY_ROOT=$cacheSource" >> $env:GITHUB_ENV
 
-      - name: Reuse locked host-tool payloads and verified Unicode data
-        uses: actions/cache@v6.1.0
-        with:
-          path: |
-            build/${{ env.CI_PRESET }}/_deps/qigao-native
-            build/unicode-data/17.0.0
-          key: native-inputs-v1-vcpkg-cache-v0.1.1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.profile }}-${{ hashFiles('cmake/*.lock.json', 'cmake/FindTools.cmake', 'unicode/CMakeLists.txt', 'unicode/data/*.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            native-inputs-v1-vcpkg-cache-v0.1.1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.profile }}-${{ hashFiles('cmake/*.lock.json', 'cmake/FindTools.cmake', 'unicode/CMakeLists.txt', 'unicode/data/*.json') }}-
+      - name: Restore the preinstalled dependency SDK
+        id: dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & python "$env:VCPKG_CACHE_REPOSITORY_ROOT/scripts/restore-native-dependency.py" `
+            locked "cmake/dependencies/$env:VCPKG_TARGET_TRIPLET.lock.json" `
+            --destination "build/$env:CI_PRESET-dependencies" `
+            --payload vcpkg_installed --github-output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Select the restored installation
+        env:
+          SDK_ROOT: ${{ steps.dependencies.outputs.root }}
+        run: |
+          "SALTS_CI_VCPKG_INSTALLED_DIR=$env:SDK_ROOT" >> $env:GITHUB_ENV
+
+      - name: Locate Visual Studio
+        if: runner.os == 'Windows'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $installation = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -ne 0 -or -not $installation) { throw 'Visual Studio C++ tools were not found.' }
+          $devcmd = Join-Path $installation 'Common7/Tools/VsDevCmd.bat'
+          "VSDEVCMD_BAT=$($devcmd.Replace('\', '/'))" >> $env:GITHUB_ENV
+
+      # Use the release's compiler archive lock and safe extractor directly.
+      # The compiler-setup action also generates toolchain files, which are unused here.
+      - name: Restore the locked LLVM-MinGW compiler
+        id: mingw
+        if: matrix.id == 'windows-llvm-mingw-x64'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $contract = Get-Content "$env:VCPKG_CACHE_REPOSITORY_ROOT/compiler-contracts/release-obfuscation.json" -Raw | ConvertFrom-Json
+          $compiler = $contract.sources.'llvm-mingw'
+          $asset = $compiler.assets | Where-Object host -EQ windows-x64
+          $url = "https://github.com/$($compiler.repository)/releases/download/$($compiler.release_tag)/$($asset.name)"
+          $payload = [IO.Path]::GetFileNameWithoutExtension($asset.name)
+          & python "$env:VCPKG_CACHE_REPOSITORY_ROOT/scripts/restore-native-dependency.py" `
+            url $url --sha256 $asset.sha256 `
+            --destination build/ci-llvm-mingw --payload $payload `
+            --executable bin/x86_64-w64-mingw32-clang.exe `
+            --executable bin/x86_64-w64-mingw32-clang++.exe --github-output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Select LLVM-MinGW SDK
+        if: matrix.id == 'windows-llvm-mingw-x64'
+        env:
+          COMPILER_ROOT: ${{ steps.mingw.outputs.root }}
+        run: |
+          "LLVM_MINGW_ROOT=$env:COMPILER_ROOT" >> $env:GITHUB_ENV
+
+      - name: Install Linux system development packages
+        if: startsWith(matrix.id, 'linux-')
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends pkg-config libpipewire-0.3-dev libx11-dev libxext-dev
 
       - name: Configure complete build graph
         env:

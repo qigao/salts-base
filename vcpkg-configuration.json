@@ -3,8 +3,8 @@
     {
       "kind": "git",
       "repository": "https://github.com/qigao/vcpkg-cache",
-      "reference": "v0.1.1",
-      "baseline": "4ac631f89e07cebfd347848af642f31fe8c4edec",
+      "reference": "v0.1.2",
+      "baseline": "540f476e9ac7a2418092323bb890370c0b1381fe",
       "packages": [
         "zstd",
         "miniaudio"
