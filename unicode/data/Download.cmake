@@ -21,6 +21,9 @@ function(download_unicode_file name)
     endif()
     return()
   endif()
+  if(DEFINED ENV{QIGAO_PREPARED_INPUTS} AND NOT "$ENV{QIGAO_PREPARED_INPUTS}" STREQUAL "")
+    message(FATAL_ERROR "Unicode input was not supplied by the CI preparation job: ${name}")
+  endif()
   message(STATUS "Downloading Unicode 17.0.0 ${name}")
   file(DOWNLOAD "${url}" "${destination}.download"
     TLS_VERIFY ON

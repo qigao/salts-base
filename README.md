@@ -159,9 +159,10 @@ These private structures avoid introducing a public container API or dependency.
 GitHub Actions uses the [native and Android CI workflow](.github/workflows/native-ci.yml).
 Versioned user presets drive native Windows/Linux/macOS builds and CTest, plus
 Android arm64-v8a/x86_64 cross-builds on Linux (build and install only).
-It consumes preinstalled released binaries on self-hosted runners and never
+It restores locked preinstalled release archives on GitHub-hosted runners and never
 invokes vcpkg, ABI resolution, dependency builds or toolchain files. See
-[runner provisioning and cache requirements](.github/README.md).
+[hosted runners and shared input preparation](.github/README.md). A preparation
+job downloads and verifies common inputs once before the platform matrix starts.
 
 Targets collect module sources through `cmake_add_source()` from
 `cmake/CmakeUtils.cmake`, using module directories and glob patterns tracked by
@@ -193,10 +194,10 @@ Each preset has its own dependency installation, SDK prefix and runtime search
 paths under `build/<preset>`. Installation defaults to `build/<preset>/stage`;
 override it with `-DCMAKE_INSTALL_PREFIX=<absolute-path>`.
 
-Use [vcpkg-cache v0.1.1](https://github.com/qigao/vcpkg-cache/releases/tag/v0.1.1)
+Use [vcpkg-cache v0.1.2](https://github.com/qigao/vcpkg-cache/releases/tag/v0.1.2)
 for shared dependency packages and host-tool restoration. `vcpkg.json` owns the
 product dependency set; `vcpkg-configuration.json` selects the shared registry
-at `v0.1.1`, baseline `4ac631f89e07cebfd347848af642f31fe8c4edec`.
+at `v0.1.2`, baseline `540f476e9ac7a2418092323bb890370c0b1381fe`.
 The manifests keep dependency selection with this product; they do not copy
 ports, patches or build recipes from the cache repository. The unused
 aklomp-base64 dependency is omitted because Core owns its Base64 implementation.
@@ -229,7 +230,7 @@ remain in their own installation. SDK consumers must supply the matching vcpkg
 prefix for package discovery and its runtime library path. Build/test presets
 already add the selected package runtime paths.
 
-Set `VCPKG_CACHE_REPOSITORY_ROOT` to the v0.1.1 checkout and provide
+Set `VCPKG_CACHE_REPOSITORY_ROOT` to the v0.1.2 checkout and provide
 `GITHUB_TOKEN` where the shared package feed needs authentication. When
 migrating an existing build tree, configure with `--fresh` to discard obsolete
 package locations. If a previous installation bundled dependencies, select a
