@@ -109,6 +109,51 @@
         "macos-gcc",
         "full-native"
       ]
+    },
+    {
+      "name": "ci-preinstalled",
+      "hidden": true,
+      "description": "CI consumes an externally provisioned vcpkg-cache binary installation; no resolver or dependency build runs",
+      "environment": {
+        "VCPKG_INSTALLED_DIR": "$penv{SALTS_CI_VCPKG_INSTALLED_DIR}"
+      },
+      "cacheVariables": {
+        "BUILD_TESTS": "ON",
+        "BUILD_BENCHMARKS": "OFF",
+        "BUILD_EXAMPLES": "OFF"
+      }
+    },
+    {
+      "name": "ci-msvc-release-user",
+      "displayName": "CI preinstalled dependencies: msvc-release-user",
+      "inherits": [
+        "ci-preinstalled",
+        "msvc-release-user"
+      ]
+    },
+    {
+      "name": "ci-llvm-mingw-x64-release-user",
+      "displayName": "CI preinstalled dependencies: llvm-mingw-x64-release-user",
+      "inherits": [
+        "ci-preinstalled",
+        "llvm-mingw-x64-release-user"
+      ]
+    },
+    {
+      "name": "ci-llvm-native-release-user",
+      "displayName": "CI preinstalled dependencies: llvm-native-release-user",
+      "inherits": [
+        "ci-preinstalled",
+        "llvm-native-release-user"
+      ]
+    },
+    {
+      "name": "ci-gcc-release-user",
+      "displayName": "CI preinstalled dependencies: gcc-release-user",
+      "inherits": [
+        "ci-preinstalled",
+        "gcc-release-user"
+      ]
     }
   ],
   "buildPresets": [
@@ -285,6 +330,62 @@
         "build-macos"
       ],
       "configurePreset": "macos-gcc-release-user"
+    },
+    {
+      "name": "ci-msvc-release-user",
+      "inherits": [
+        "msvc-release-user"
+      ],
+      "configurePreset": "ci-msvc-release-user"
+    },
+    {
+      "name": "install-ci-msvc-release-user",
+      "inherits": [
+        "install-msvc-release-user"
+      ],
+      "configurePreset": "ci-msvc-release-user"
+    },
+    {
+      "name": "ci-llvm-mingw-x64-release-user",
+      "inherits": [
+        "llvm-mingw-x64-release-user"
+      ],
+      "configurePreset": "ci-llvm-mingw-x64-release-user"
+    },
+    {
+      "name": "install-ci-llvm-mingw-x64-release-user",
+      "inherits": [
+        "install-llvm-mingw-x64-release-user"
+      ],
+      "configurePreset": "ci-llvm-mingw-x64-release-user"
+    },
+    {
+      "name": "ci-llvm-native-release-user",
+      "inherits": [
+        "llvm-native-release-user"
+      ],
+      "configurePreset": "ci-llvm-native-release-user"
+    },
+    {
+      "name": "install-ci-llvm-native-release-user",
+      "inherits": [
+        "install-llvm-native-release-user"
+      ],
+      "configurePreset": "ci-llvm-native-release-user"
+    },
+    {
+      "name": "ci-gcc-release-user",
+      "inherits": [
+        "gcc-release-user"
+      ],
+      "configurePreset": "ci-gcc-release-user"
+    },
+    {
+      "name": "install-ci-gcc-release-user",
+      "inherits": [
+        "install-gcc-release-user"
+      ],
+      "configurePreset": "ci-gcc-release-user"
     }
   ],
   "testPresets": [
@@ -351,6 +452,34 @@
         "test-windows"
       ],
       "configurePreset": "llvm-mingw-x64-release-user"
+    },
+    {
+      "name": "ci-msvc-release-user",
+      "inherits": [
+        "msvc-release-user"
+      ],
+      "configurePreset": "ci-msvc-release-user"
+    },
+    {
+      "name": "ci-llvm-mingw-x64-release-user",
+      "inherits": [
+        "llvm-mingw-x64-release-user"
+      ],
+      "configurePreset": "ci-llvm-mingw-x64-release-user"
+    },
+    {
+      "name": "ci-llvm-native-release-user",
+      "inherits": [
+        "llvm-native-release-user"
+      ],
+      "configurePreset": "ci-llvm-native-release-user"
+    },
+    {
+      "name": "ci-gcc-release-user",
+      "inherits": [
+        "gcc-release-user"
+      ],
+      "configurePreset": "ci-gcc-release-user"
     }
   ]
 }

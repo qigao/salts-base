@@ -156,6 +156,11 @@ These private structures avoid introducing a public container API or dependency.
 
 ## Build
 
+GitHub Actions uses the [native CI workflow](.github/workflows/native-ci.yml).
+It consumes preinstalled released binaries on self-hosted runners and never
+invokes vcpkg, ABI resolution, dependency builds or toolchain files. See
+[runner provisioning and cache requirements](.github/README.md).
+
 Targets collect module sources through `cmake_add_source()` from
 `cmake/CmakeUtils.cmake`, using module directories and glob patterns tracked by
 `CONFIGURE_DEPENDS`. Exclusion globs keep platform backends and adapter owners
@@ -186,10 +191,10 @@ Each preset has its own dependency installation, SDK prefix and runtime search
 paths under `build/<preset>`. Installation defaults to `build/<preset>/stage`;
 override it with `-DCMAKE_INSTALL_PREFIX=<absolute-path>`.
 
-Use [vcpkg-cache v0.1.6](https://github.com/qigao/vcpkg-cache/releases/tag/v0.1.6)
+Use [vcpkg-cache v0.1.1](https://github.com/qigao/vcpkg-cache/releases/tag/v0.1.1)
 for shared dependency packages and host-tool restoration. `vcpkg.json` owns the
 product dependency set; `vcpkg-configuration.json` selects the shared registry
-at `v0.1.6`, baseline `e5ce681a8d95f5330999dad66f4ea33214d7faff`.
+at `v0.1.1`, baseline `4ac631f89e07cebfd347848af642f31fe8c4edec`.
 The manifests keep dependency selection with this product; they do not copy
 ports, patches or build recipes from the cache repository. The unused
 aklomp-base64 dependency is omitted because Core owns its Base64 implementation.
@@ -222,7 +227,7 @@ remain in their own installation. SDK consumers must supply the matching vcpkg
 prefix for package discovery and its runtime library path. Build/test presets
 already add the selected package runtime paths.
 
-Set `VCPKG_CACHE_REPOSITORY_ROOT` to the v0.1.6 checkout and provide
+Set `VCPKG_CACHE_REPOSITORY_ROOT` to the v0.1.1 checkout and provide
 `GITHUB_TOKEN` where the shared package feed needs authentication. When
 migrating an existing build tree, configure with `--fresh` to discard obsolete
 package locations. If a previous installation bundled dependencies, select a

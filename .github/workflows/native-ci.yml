@@ -1,0 +1,179 @@
+name: Native CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: native-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    # Public fork code must not run automatically on provisioned self-hosted hosts.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    name: ${{ matrix.id }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: windows-msvc-x64
+            runner: [self-hosted, Windows, X64, salts-native-ci]
+            profile: msvc-release-user
+            triplet: x64-windows
+          - id: windows-llvm-mingw-x64
+            runner: [self-hosted, Windows, X64, salts-native-ci]
+            profile: llvm-mingw-x64-release-user
+            triplet: qigao-x64-windows-llvm-mingw
+          - id: linux-clang-x64
+            runner: [self-hosted, Linux, X64, salts-native-ci]
+            profile: llvm-native-release-user
+            triplet: x64-linux
+          - id: linux-gcc-x64
+            runner: [self-hosted, Linux, X64, salts-native-ci]
+            profile: gcc-release-user
+            triplet: x64-linux
+          - id: macos-clang-arm64
+            runner: [self-hosted, macOS, ARM64, salts-native-ci]
+            profile: llvm-native-release-user
+            triplet: arm64-osx
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CI_BASE_PROFILE: ${{ matrix.profile }}
+      CI_PRESET: ci-${{ matrix.profile }}
+      VCPKG_TARGET_TRIPLET: ${{ matrix.triplet }}
+      GITHUB_TOKEN: ${{ secrets.VCPKG_CACHE_READ_TOKEN || github.token }}
+      GH_TOKEN: ${{ secrets.VCPKG_CACHE_READ_TOKEN || github.token }}
+
+    steps:
+      - name: Select the preinstalled binary prefix
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:SALTS_CI_PREINSTALLED_ROOT) {
+            throw 'Provision SALTS_CI_PREINSTALLED_ROOT on the runner from qualified released binary packages; CI does not install dependencies.'
+          }
+          $root = [IO.Path]::GetFullPath($env:SALTS_CI_PREINSTALLED_ROOT).Replace('\', '/').TrimEnd('/')
+          $workspace = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).Replace('\', '/').TrimEnd('/')
+          if ($root -eq $workspace -or $root.StartsWith("$workspace/", [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'The preinstalled root must be outside GITHUB_WORKSPACE; checkout cleanup must not remove dependency installations.'
+          }
+          $installation = Join-Path $root "$env:CI_BASE_PROFILE/vcpkg_installed"
+          "SALTS_CI_VCPKG_INSTALLED_DIR=$($installation.Replace('\', '/'))" >> $env:GITHUB_ENV
+
+      - name: Check out product
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # Source-only checkout for the existing locked Lemon/re2c restore helpers.
+      # Do not invoke setup-vcpkg-curl-cache, vcpkg, ABI resolution or toolchains.
+      - name: Check out released cache infrastructure
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: qigao/vcpkg-cache
+          ref: v0.1.1
+          path: build/ci-infrastructure/vcpkg-cache
+          persist-credentials: false
+
+      - name: Select Python
+        id: python
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Select the released infrastructure helpers
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cacheSource = (Resolve-Path 'build/ci-infrastructure/vcpkg-cache').Path.Replace('\', '/')
+          "VCPKG_CACHE_REPOSITORY_ROOT=$cacheSource" >> $env:GITHUB_ENV
+
+      - name: Reuse locked host-tool payloads and verified Unicode data
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            build/${{ env.CI_PRESET }}/_deps/qigao-native
+            build/unicode-data/17.0.0
+          key: native-inputs-v1-vcpkg-cache-v0.1.1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.profile }}-${{ hashFiles('cmake/*.lock.json', 'cmake/FindTools.cmake', 'unicode/CMakeLists.txt', 'unicode/data/*.json') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            native-inputs-v1-vcpkg-cache-v0.1.1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.profile }}-${{ hashFiles('cmake/*.lock.json', 'cmake/FindTools.cmake', 'unicode/CMakeLists.txt', 'unicode/data/*.json') }}-
+
+      - name: Configure complete test graph
+        env:
+          CI_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          $arguments = @('--preset', $env:CI_PRESET, "-DPython3_EXECUTABLE=$env:CI_PYTHON")
+          if ($IsWindows) {
+            & cmake/WithVs.cmd cmake @arguments
+          } else {
+            & cmake @arguments
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build complete graph
+        run: |
+          if ($IsWindows) {
+            & cmake/WithVs.cmd cmake --build --preset $env:CI_PRESET
+          } else {
+            & cmake --build --preset $env:CI_PRESET
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run CTest
+        run: |
+          $report = [IO.Path]::GetFullPath("build/$env:CI_PRESET/ctest.xml")
+          if ($IsWindows) {
+            & cmake/WithVs.cmd ctest --preset $env:CI_PRESET --output-junit $report
+          } else {
+            & ctest --preset $env:CI_PRESET --output-junit $report
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install SDK
+        run: |
+          if ($IsWindows) {
+            & cmake/WithVs.cmd cmake --build --preset "install-$env:CI_PRESET"
+          } else {
+            & cmake --build --preset "install-$env:CI_PRESET"
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Archive SDK with file modes and symlinks
+        run: |
+          $archive = [IO.Path]::GetFullPath("build/$env:CI_PRESET/salts-base-sdk.tar")
+          Push-Location "build/$env:CI_PRESET/stage"
+          try {
+            & cmake -E tar cf $archive --format=gnutar .
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Upload SDK
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: salts-base-${{ matrix.id }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: build/${{ env.CI_PRESET }}/salts-base-sdk.tar
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload test and configure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: native-diagnostics-${{ matrix.id }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/${{ env.CI_PRESET }}/ctest.xml
+            build/${{ env.CI_PRESET }}/Testing/Temporary/
+            build/${{ env.CI_PRESET }}/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore
+          retention-days: 14
