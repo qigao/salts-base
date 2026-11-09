@@ -166,6 +166,14 @@
       ]
     },
     {
+      "name": "ci-llvm-native-tsan-user",
+      "displayName": "CI preinstalled dependencies: Linux LLVM TSan",
+      "inherits": [
+        "ci-native-tests",
+        "llvm-native-tsan-user"
+      ]
+    },
+    {
       "name": "ci-gcc-release-user",
       "displayName": "CI preinstalled dependencies: gcc-release-user",
       "inherits": [
@@ -425,6 +433,20 @@
       "configurePreset": "ci-llvm-native-release-user"
     },
     {
+      "name": "ci-llvm-native-tsan-user",
+      "inherits": [
+        "llvm-native-tsan-user"
+      ],
+      "configurePreset": "ci-llvm-native-tsan-user"
+    },
+    {
+      "name": "install-ci-llvm-native-tsan-user",
+      "inherits": [
+        "install-llvm-native-tsan-user"
+      ],
+      "configurePreset": "ci-llvm-native-tsan-user"
+    },
+    {
       "name": "install-ci-llvm-native-release-user",
       "inherits": [
         "install-llvm-native-release-user"
@@ -573,6 +595,13 @@
         "llvm-native-release-user"
       ],
       "configurePreset": "ci-llvm-native-release-user"
+    },
+    {
+      "name": "ci-llvm-native-tsan-user",
+      "inherits": [
+        "llvm-native-tsan-user"
+      ],
+      "configurePreset": "ci-llvm-native-tsan-user"
     },
     {
       "name": "ci-gcc-release-user",

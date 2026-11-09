@@ -125,6 +125,7 @@ Apply the same Python test-oracle setup described above.
 | Windows x64 / MSVC | `ci-msvc-release-user` | Build, CTest, install |
 | Windows x64 / LLVM-MinGW | `ci-llvm-mingw-x64-release-user` | Build, CTest, install |
 | Linux x64 / Clang | `ci-llvm-native-release-user` | Build, CTest, install |
+| Linux x64 / Clang TSan | `ci-llvm-native-tsan-user` | Instrumented build, CTest, install |
 | Linux x64 / GCC | `ci-gcc-release-user` | Build, CTest, install |
 | Linux ARM64 / Clang | `ci-llvm-native-release-user` | Native ARM64 build, CTest, install |
 | Linux ARM64 / GCC | `ci-gcc-arm64-release-user` | Native ARM64 build, CTest, install |
@@ -137,6 +138,14 @@ Windows and named Android profiles select their triplets automatically.
 Each preset installs to `build/<preset>/stage` by default; override it with
 `-DCMAKE_INSTALL_PREFIX=<absolute-path>`. [`.env.example`](.env.example)
 documents the parent environment; CMake does not load `.env` automatically.
+
+The `linux-clang-x64-tsan` CI artifact uses the existing Debug/ThreadSanitizer
+profile for the complete SaltsBase graph, including Core's buffer recycling
+atomics. Consume it only from a matching TSan application; the ordinary Release
+SDK does not expose those atomic synchronization events to the detector.
+Preinstalled third-party dependencies retain their original instrumentation
+status. CI uploads this SDK only after its formal tests and installation pass;
+adding the artifact does not publish a release or change existing release assets.
 
 ## Usage
 
