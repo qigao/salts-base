@@ -3,7 +3,27 @@ name: Native and Android CI
 on:
   push:
     branches: [master, main]
+    paths-ignore:
+      - '.github/**'
+      - '**/*.md'
+      - '**/README*'
+      - '**/LICENSE*'
+      - '**/NOTICE*'
+      - 'docs/**'
+      - '.gitignore'
+      - '.gitattributes'
+      - '.editorconfig'
   pull_request:
+    paths-ignore:
+      - '.github/**'
+      - '**/*.md'
+      - '**/README*'
+      - '**/LICENSE*'
+      - '**/NOTICE*'
+      - 'docs/**'
+      - '.gitignore'
+      - '.gitattributes'
+      - '.editorconfig'
   workflow_dispatch:
 
 permissions:
@@ -12,13 +32,60 @@ permissions:
 env:
   VCPKG_CACHE_RELEASE: v0.1.2
 
-concurrency:
-  group: native-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
+  changes:
+    name: Check build inputs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.paths.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select build-relevant changes
+        id: paths
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $runBuild = $true
+          if ($env:GITHUB_EVENT_NAME -ne 'workflow_dispatch') {
+            $event = Get-Content -LiteralPath $env:GITHUB_EVENT_PATH -Raw | ConvertFrom-Json
+            $isPullRequest = $env:GITHUB_EVENT_NAME -eq 'pull_request'
+            $isUpdate = $isPullRequest -and $event.action -eq 'synchronize'
+            $baseSha = if ($isUpdate) { $event.before } elseif ($isPullRequest) { $event.pull_request.base.sha } else { $event.before }
+            $headSha = if ($isPullRequest) { $event.pull_request.head.sha } else { $event.after }
+            if ($baseSha -notmatch '^[0-9a-f]{40}$' -or $headSha -notmatch '^[0-9a-f]{40}$') {
+              throw 'The event did not provide valid comparison commits.'
+            }
+            if ($baseSha -ne ('0' * 40)) {
+              foreach ($revision in @($baseSha, $headSha)) {
+                & git cat-file -e "$revision^{commit}" 2>$null
+                if ($LASTEXITCODE -ne 0) {
+                  & git fetch --no-tags --depth=1 origin $revision
+                  if ($LASTEXITCODE -ne 0) { throw "Cannot fetch comparison commit $revision" }
+                }
+              }
+              # Synchronize events compare this push, not the entire PR diff.
+              $comparison = if ($isPullRequest -and -not $isUpdate) { "$baseSha...$headSha" } else { "$baseSha..$headSha" }
+              $changedFiles = @(& git -c core.quotepath=false diff --name-only --no-renames $comparison --)
+              if ($LASTEXITCODE -ne 0) { throw 'Cannot determine changed files.' }
+              # Keep this policy aligned with the event-level paths-ignore lists.
+              $ignored = '^(?:\.github/|docs/)|(?:^|/)(?:README|LICENSE|NOTICE)[^/]*$|\.md$|^\.(?:gitignore|gitattributes|editorconfig)$'
+              $runBuild = @($changedFiles | Where-Object { $_ -cnotmatch $ignored }).Count -gt 0
+            }
+          }
+          "build=$($runBuild.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Host "Build-relevant changes: $runBuild"
+
   prepare:
     name: Download shared inputs once
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    concurrency:
+      group: native-ci-inputs-${{ github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
@@ -109,7 +176,11 @@ jobs:
 
   native:
     name: ${{ matrix.id }}
-    needs: prepare
+    needs: [changes, prepare]
+    if: needs.changes.outputs.build == 'true'
+    concurrency:
+      group: native-ci-build-${{ github.ref }}-${{ matrix.id }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:

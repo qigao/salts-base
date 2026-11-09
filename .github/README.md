@@ -7,6 +7,25 @@ Android jobs cross-build on Linux; device tests require a separate device
 runner. Benchmarks and examples are disabled. This workflow does not publish
 product SDKs or third-party packages.
 
+## When CI runs
+
+Pushes to `master`/`main` and pull requests ignore changes limited to `.github/`,
+Markdown, README/license/notice files, root `docs/`, `.gitignore`, `.gitattributes`
+and `.editorconfig`. Source, test code, CMake/presets, dependency locks and
+non-document test data still select the complete build graph. Manual dispatch
+always builds.
+
+GitHub's native pull-request path filter compares the entire PR with its merge
+base. For a PR that already contains code, a lightweight `Check build inputs`
+job therefore compares the `before` and head commits on each synchronize event.
+A CI/documentation-only update skips shared-input preparation and all seven
+platform jobs. New or reopened PRs use the full PR comparison. See GitHub's
+[path-filter semantics](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#git-diff-comparisons).
+
+Cancellation belongs to the preparation and platform jobs, so a documentation
+update does not cancel an already running code build. Changes that include
+build inputs still replace older work for the same branch/platform.
+
 ## Hosted runners and presets
 
 | Jobs | GitHub image | CI configure/build preset | Installed triplet |
