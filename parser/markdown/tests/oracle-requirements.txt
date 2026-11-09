@@ -1,0 +1,4 @@
+# The original Stun CommonMark/GFM reference versions (test-only).
+# Never add as a runtime dependency or a parser fallback.
+cmarkgfm==2025.10.22
+mistune==3.1.4

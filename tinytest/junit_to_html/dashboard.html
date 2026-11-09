@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{test_suite_name}} - Test Results Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header .timestamp {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card.total {
+            border-left: 4px solid #4299e1;
+        }
+
+        .stat-card.passed {
+            border-left: 4px solid #48bb78;
+        }
+
+        .stat-card.failed {
+            border-left: 4px solid #f56565;
+        }
+
+        .stat-card.skipped {
+            border-left: 4px solid #ed8936;
+        }
+
+        .stat-value {
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-card.total .stat-value { color: #4299e1; }
+        .stat-card.passed .stat-value { color: #48bb78; }
+        .stat-card.failed .stat-value { color: #f56565; }
+        .stat-card.skipped .stat-value { color: #ed8936; }
+
+        .stat-label {
+            color: #718096;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .tests-container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .tests-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .tests-header h2 {
+            color: #2d3748;
+            font-size: 24px;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #e2e8f0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            background: #f7fafc;
+        }
+
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .test-item {
+            padding: 20px;
+            border-left: 4px solid #e2e8f0;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            background: #f7fafc;
+            transition: all 0.2s;
+        }
+
+        .test-item:hover {
+            background: #edf2f7;
+        }
+
+        .test-item.passed {
+            border-left-color: #48bb78;
+        }
+
+        .test-item.failed {
+            border-left-color: #f56565;
+            background: #fff5f5;
+        }
+
+        .test-item.failed:hover {
+            background: #fed7d7;
+        }
+
+        .test-item.skipped {
+            border-left-color: #ed8936;
+            background: #fffaf0;
+        }
+
+        .test-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .test-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .test-status {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .test-status.passed {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .test-status.failed {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .test-status.skipped {
+            background: #feebc8;
+            color: #7c2d12;
+        }
+
+        .test-meta {
+            display: flex;
+            gap: 20px;
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .test-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .failure-details {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #fc8181;
+        }
+
+        .failure-message {
+            color: #c53030;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .failure-stack {
+            color: #4a5568;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            background: #f7fafc;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #48bb78, #38a169);
+            transition: width 0.3s ease;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{name}}</h1>
+            <div class="timestamp">Generated: {{timestamp}}</div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{pass_percentage}}%"></div>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card total">
+                <div class="stat-value">{{total_tests}}</div>
+                <div class="stat-label">Total Tests</div>
+            </div>
+            <div class="stat-card passed">
+                <div class="stat-value">{{passed_tests}}</div>
+                <div class="stat-label">Passed</div>
+            </div>
+            <div class="stat-card failed">
+                <div class="stat-value">{{failed_tests}}</div>
+                <div class="stat-label">Failed</div>
+            </div>
+            <div class="stat-card skipped">
+                <div class="stat-value">{{skipped_tests}}</div>
+                <div class="stat-label">Skipped</div>
+            </div>
+        </div>
+
+        <div class="tests-container">
+            <div class="tests-header">
+                <h2>Test Cases</h2>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="passed">Passed</button>
+                    <button class="filter-btn" data-filter="failed">Failed</button>
+                    <button class="filter-btn" data-filter="skipped">Skipped</button>
+                </div>
+            </div>
+
+            <div class="tests-list">
+                {{#testcase}}
+                <div class="test-item {{status}}" data-status="{{status}}">
+                    <div class="test-header">
+                        <div class="test-name">{{name}}</div>
+                        <div class="test-status {{status}}">{{status}}</div>
+                    </div>
+                    <div class="test-meta">
+                        <span>📦 {{classname}}</span>
+                        <span>⏱️ {{time}}s</span>
+                    </div>
+                    {{#failure}}
+                    <div class="failure-details">
+                        <div class="failure-message">{{message}}</div>
+                        {{#.}}
+                        <div class="failure-stack">{{.}}</div>
+                        {{/.}}
+                    </div>
+                    {{/failure}}
+                </div>
+                {{/testcase}}
+                {{^testcase}}
+                <div class="empty-state">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <h3>No test results found</h3>
+                    <p>Run your tests with --junit flag to generate results</p>
+                </div>
+                {{/testcase}}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Filter functionality
+        const filterButtons = document.querySelectorAll('.filter-btn');
+        const testItems = document.querySelectorAll('.test-item');
+
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const filter = btn.dataset.filter;
+
+                // Update active button
+                filterButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // Filter tests
+                testItems.forEach(item => {
+                    if (filter === 'all' || item.dataset.status === filter) {
+                        item.style.display = 'block';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

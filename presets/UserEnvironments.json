@@ -1,0 +1,32 @@
+{
+  "version": 6,
+  "include": [
+    "../CMakePresets.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "vcpkg-cache",
+      "hidden": true,
+      "environment": {
+        "VCPKG_CACHE_REPOSITORY_ROOT": "$penv{VCPKG_CACHE_REPOSITORY_ROOT}",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/build/${presetName}/vcpkg_installed",
+        "VCPKG_TARGET_TRIPLET": "$penv{VCPKG_TARGET_TRIPLET}"
+      },
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/${presetName}/stage",
+        "VCPKG_INSTALLED_DIR": "$env{VCPKG_INSTALLED_DIR}",
+        "VCPKG_TARGET_TRIPLET": "$env{VCPKG_TARGET_TRIPLET}"
+      },
+      "description": "Consume preinstalled vcpkg-cache packages; no resolver, port build or toolchain file runs during configuration"
+    },
+    {
+      "name": "native-environment",
+      "hidden": true,
+      "description": "Preinstalled vcpkg packages and runtime paths shared by native compilers",
+      "inherits": [
+        "vcpkg-cache",
+        "native-runtime"
+      ]
+    }
+  ]
+}

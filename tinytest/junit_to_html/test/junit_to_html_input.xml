@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="Suite &amp; One" tests="2" failures="1" skipped="0" timestamp="2026-08-30T12:00:00Z">
+    <testcase classname="parser.core" name="parses input" time="0.01"/>
+    <testcase classname="parser.xml" name="reports &lt;failure&gt;" time="0.02">
+      <failure message="expected &lt;actual&gt;">stack &amp; detail</failure>
+    </testcase>
+  </testsuite>
+</testsuites>
