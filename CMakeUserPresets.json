@@ -118,16 +118,25 @@
         "VCPKG_INSTALLED_DIR": "$penv{SALTS_CI_VCPKG_INSTALLED_DIR}"
       },
       "cacheVariables": {
-        "BUILD_TESTS": "ON",
+        "BUILD_TESTS": "OFF",
         "BUILD_BENCHMARKS": "OFF",
         "BUILD_EXAMPLES": "OFF"
+      }
+    },
+    {
+      "name": "ci-native-tests",
+      "hidden": true,
+      "inherits": "ci-preinstalled",
+      "description": "Native CI builds and executes the complete formal test graph",
+      "cacheVariables": {
+        "BUILD_TESTS": "ON"
       }
     },
     {
       "name": "ci-msvc-release-user",
       "displayName": "CI preinstalled dependencies: msvc-release-user",
       "inherits": [
-        "ci-preinstalled",
+        "ci-native-tests",
         "msvc-release-user"
       ]
     },
@@ -135,7 +144,7 @@
       "name": "ci-llvm-mingw-x64-release-user",
       "displayName": "CI preinstalled dependencies: llvm-mingw-x64-release-user",
       "inherits": [
-        "ci-preinstalled",
+        "ci-native-tests",
         "llvm-mingw-x64-release-user"
       ]
     },
@@ -143,7 +152,7 @@
       "name": "ci-llvm-native-release-user",
       "displayName": "CI preinstalled dependencies: llvm-native-release-user",
       "inherits": [
-        "ci-preinstalled",
+        "ci-native-tests",
         "llvm-native-release-user"
       ]
     },
@@ -151,8 +160,24 @@
       "name": "ci-gcc-release-user",
       "displayName": "CI preinstalled dependencies: gcc-release-user",
       "inherits": [
-        "ci-preinstalled",
+        "ci-native-tests",
         "gcc-release-user"
+      ]
+    },
+    {
+      "name": "ci-android-arm64-release-user",
+      "displayName": "CI Android arm64-v8a Release (build and install)",
+      "inherits": [
+        "ci-preinstalled",
+        "android-arm64-release-user"
+      ]
+    },
+    {
+      "name": "ci-android-x64-release-user",
+      "displayName": "CI Android x86_64 Release (build and install)",
+      "inherits": [
+        "ci-preinstalled",
+        "android-x64-release-user"
       ]
     }
   ],
@@ -386,6 +411,26 @@
         "install-gcc-release-user"
       ],
       "configurePreset": "ci-gcc-release-user"
+    },
+    {
+      "name": "ci-android-arm64-release-user",
+      "inherits": "android-arm64-release-user",
+      "configurePreset": "ci-android-arm64-release-user"
+    },
+    {
+      "name": "install-ci-android-arm64-release-user",
+      "inherits": "install-android-arm64-release-user",
+      "configurePreset": "ci-android-arm64-release-user"
+    },
+    {
+      "name": "ci-android-x64-release-user",
+      "inherits": "android-x64-release-user",
+      "configurePreset": "ci-android-x64-release-user"
+    },
+    {
+      "name": "install-ci-android-x64-release-user",
+      "inherits": "install-android-x64-release-user",
+      "configurePreset": "ci-android-x64-release-user"
     }
   ],
   "testPresets": [

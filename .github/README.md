@@ -1,28 +1,51 @@
-# Native CI
+# Native and Android CI
 
-`workflows/native-ci.yml` configures, builds, tests, installs and archives the
-complete native graph through the versioned `ci-*-user` presets. It does not
-publish SDKs or binary packages. Builds never select individual targets; tests
-run through CTest. Benchmarks and examples are disabled in this graph.
+`workflows/native-ci.yml` configures, builds, installs and archives the complete
+SDK through the versioned `ci-*-user` presets. Native Windows, Linux and macOS
+jobs also build and run the formal tests through CTest. Android jobs cross-build
+on Linux for arm64-v8a and x86_64; they do not build or run device tests.
+Benchmarks and examples are disabled. Builds never select individual targets,
+and this workflow does not publish SDKs or binary packages.
+
+Configure, build, test and install settings belong to presets. The matrix selects
+the runner, base profile, installed triplet and whether target tests can execute
+on that host. The workflow invokes `cmake --preset`, `cmake --build --preset`,
+`ctest --preset` (native only), and `cmake --build --preset install-...`.
 
 ## Runner provisioning
 
 The repository prohibits toolchain-file execution, including vcpkg's internal
 ABI calculation. GitHub-hosted runners cannot reconstruct the dependency tree
-under that policy. Use self-hosted runners with the `salts-native-ci` label and
-the OS/architecture labels selected by the matrix:
+under that policy. Use self-hosted runners with `salts-native-ci` for native
+jobs or `salts-android-ci` for Android cross-builds, plus the OS/architecture
+labels selected by the matrix:
 
 | Platform | Compilers on PATH / in the runner environment | Dependency profiles |
 | --- | --- | --- |
 | Windows x64 | MSVC via `VSDEVCMD_BAT`; LLVM-MinGW via `LLVM_MINGW_ROOT` | `msvc-release-user`, `llvm-mingw-x64-release-user` |
 | Linux x64 | `clang`/`clang++` and `gcc`/`g++` | `llvm-native-release-user`, `gcc-release-user` |
 | macOS ARM64 | `clang`/`clang++` | `llvm-native-release-user` |
+| Android arm64-v8a / x86_64 on Linux x64 | NDK via `ANDROID_NDK_HOME` | `android-arm64-release-user`, `android-x64-release-user` |
 
 All runners need CMake 3.27+, Ninja, PowerShell 7, Git and curl on PATH and a
 current Actions runner supporting the pinned Actions versions. Python 3.12 is
 selected by `actions/setup-python`. No compiler or SDK is installed by this
 workflow. Keep the runner's compiler/runtime compatible with its preinstalled
-libraries. Native tool selection remains in `presets/toolkits/*.json`.
+libraries. Compiler selection remains in `presets/toolkits/*.json`.
+
+Linux native runners also need `pkg-config`, PipeWire (`libpipewire-0.3`), X11
+and Xext development headers and libraries, as required by Media. These are
+runner prerequisites; the workflow does not install system dependencies.
+
+Android runners need an absolute `ANDROID_NDK_HOME` pointing to an installed
+Linux NDK compatible with the preinstalled Android libraries. The existing
+Android presets own API level 26, the ABI, triplet and `c++_shared` runtime.
+The selected dependency prefix is an Android find root alongside the NDK
+sysroot, so target package discovery cannot fall through to Linux host libraries.
+They use [CMake's native NDK support](https://cmake.org/cmake/help/latest/manual/cmake-toolchains.7.html#cross-compiling-for-android-with-the-ndk),
+without `CMAKE_TOOLCHAIN_FILE` or NDK/vcpkg toolchain scripts. No device or
+emulator is assumed; Android runtime qualification needs a separate device
+runner and is not claimed by these build jobs.
 
 Set an absolute `SALTS_CI_PREINSTALLED_ROOT` in the runner service's parent
 environment, outside `GITHUB_WORKSPACE` so checkout cleanup cannot remove it.
@@ -37,11 +60,15 @@ using this directory layout:
   llvm-native-release-user/vcpkg_installed/x64-linux/...  # Linux
   gcc-release-user/vcpkg_installed/x64-linux/...
   llvm-native-release-user/vcpkg_installed/arm64-osx/...  # macOS
+  android-arm64-release-user/vcpkg_installed/arm64-android/...  # Linux host
+  android-x64-release-user/vcpkg_installed/x64-android/...      # Linux host
 ```
 
 Only the profiles belonging to a runner's OS are required. CI maps the selected
 profile into `SALTS_CI_VCPKG_INSTALLED_DIR`; the hidden `ci-preinstalled` user
-preset owns the dependency-root override. Local development presets retain
+preset owns the dependency-root override and disables tests for cross-builds;
+`ci-native-tests` enables the native test graph. The two Android ABI presets
+retain separate dependency and output trees. Local development presets retain
 their existing per-build dependency paths. SDK output goes to
 `build/<ci-preset>/stage`, separate from the preinstalled directory.
 
@@ -79,4 +106,23 @@ third-party dependencies remain external, as required by the package contract.
 For a local reproduction with an already provisioned prefix, export
 `SALTS_CI_VCPKG_INSTALLED_DIR` and `VCPKG_CACHE_REPOSITORY_ROOT`, then run the
 matching user configure/build/test/install presets. On Windows, run them through
-`cmake/WithVs.cmd`.
+`cmake/WithVs.cmd`. For example, on a provisioned Linux runner:
+
+```sh
+export VCPKG_TARGET_TRIPLET=x64-linux
+export SALTS_CI_VCPKG_INSTALLED_DIR="$SALTS_CI_PREINSTALLED_ROOT/gcc-release-user/vcpkg_installed"
+cmake --preset ci-gcc-release-user
+cmake --build --preset ci-gcc-release-user
+ctest --preset ci-gcc-release-user
+cmake --build --preset install-ci-gcc-release-user
+
+# ANDROID_NDK_HOME must already identify the provisioned NDK.
+export SALTS_CI_VCPKG_INSTALLED_DIR="$SALTS_CI_PREINSTALLED_ROOT/android-arm64-release-user/vcpkg_installed"
+cmake --preset ci-android-arm64-release-user
+cmake --build --preset ci-android-arm64-release-user
+cmake --build --preset install-ci-android-arm64-release-user
+```
+
+Use `ci-android-x64-release-user` and its matching installed prefix for x86_64.
+Android triplets override the native parent environment in the existing ABI
+presets. There is deliberately no host CTest preset for Android executables.

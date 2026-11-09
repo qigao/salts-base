@@ -1,4 +1,4 @@
-name: Native CI
+name: Native and Android CI
 
 on:
   push:
@@ -27,22 +27,37 @@ jobs:
             runner: [self-hosted, Windows, X64, salts-native-ci]
             profile: msvc-release-user
             triplet: x64-windows
+            test: true
           - id: windows-llvm-mingw-x64
             runner: [self-hosted, Windows, X64, salts-native-ci]
             profile: llvm-mingw-x64-release-user
             triplet: qigao-x64-windows-llvm-mingw
+            test: true
           - id: linux-clang-x64
             runner: [self-hosted, Linux, X64, salts-native-ci]
             profile: llvm-native-release-user
             triplet: x64-linux
+            test: true
           - id: linux-gcc-x64
             runner: [self-hosted, Linux, X64, salts-native-ci]
             profile: gcc-release-user
             triplet: x64-linux
+            test: true
           - id: macos-clang-arm64
             runner: [self-hosted, macOS, ARM64, salts-native-ci]
             profile: llvm-native-release-user
             triplet: arm64-osx
+            test: true
+          - id: android-arm64
+            runner: [self-hosted, Linux, X64, salts-android-ci]
+            profile: android-arm64-release-user
+            triplet: arm64-android
+            test: false
+          - id: android-x64
+            runner: [self-hosted, Linux, X64, salts-android-ci]
+            profile: android-x64-release-user
+            triplet: x64-android
+            test: false
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     defaults:
@@ -107,7 +122,7 @@ jobs:
           restore-keys: |
             native-inputs-v1-vcpkg-cache-v0.1.1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.profile }}-${{ hashFiles('cmake/*.lock.json', 'cmake/FindTools.cmake', 'unicode/CMakeLists.txt', 'unicode/data/*.json') }}-
 
-      - name: Configure complete test graph
+      - name: Configure complete build graph
         env:
           CI_PYTHON: ${{ steps.python.outputs.python-path }}
         run: |
@@ -129,6 +144,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run CTest
+        if: matrix.test
         run: |
           $report = [IO.Path]::GetFullPath("build/$env:CI_PRESET/ctest.xml")
           if ($IsWindows) {

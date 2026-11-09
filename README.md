@@ -156,7 +156,9 @@ These private structures avoid introducing a public container API or dependency.
 
 ## Build
 
-GitHub Actions uses the [native CI workflow](.github/workflows/native-ci.yml).
+GitHub Actions uses the [native and Android CI workflow](.github/workflows/native-ci.yml).
+Versioned user presets drive native Windows/Linux/macOS builds and CTest, plus
+Android arm64-v8a/x86_64 cross-builds on Linux (build and install only).
 It consumes preinstalled released binaries on self-hosted runners and never
 invokes vcpkg, ABI resolution, dependency builds or toolchain files. See
 [runner provisioning and cache requirements](.github/README.md).
