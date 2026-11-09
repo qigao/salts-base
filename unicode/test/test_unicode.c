@@ -208,19 +208,20 @@ suite("unicode") {
   }
 
   it("rejects malformed UTF-8 and preserves cursor and output") {
-    static const unsigned char isolated_continuation[] = {0x80};
-    static const unsigned char overlong[] = {0xc0, 0xaf};
-    static const unsigned char surrogate[] = {0xed, 0xa0, 0x80};
-    static const unsigned char above_max[] = {0xf4, 0x90, 0x80, 0x80};
-    static const unsigned char truncated[] = {0xe2, 0x82};
-    const struct {
-      const unsigned char *bytes;
+    static const struct {
+      unsigned char bytes[4];
       size_t length;
-    } cases[] = {{isolated_continuation, sizeof(isolated_continuation)},
-                 {overlong, sizeof(overlong)},
-                 {surrogate, sizeof(surrogate)},
-                 {above_max, sizeof(above_max)},
-                 {truncated, sizeof(truncated)}};
+    } cases[] = {
+        {{0x80}, 1u},                         /* isolated continuation */
+        {{0xc0, 0x80}, 2u}, {{0xc0, 0xaf}, 2u}, {{0xc1, 0xbf}, 2u},
+        {{0xe0, 0x9f, 0xbf}, 3u},             /* overlong three-byte */
+        {{0xed, 0xa0, 0x80}, 3u}, {{0xed, 0xbf, 0xbf}, 3u}, /* surrogates */
+        {{0xf0, 0x8f, 0xbf, 0xbf}, 4u},       /* overlong four-byte */
+        {{0xf4, 0x90, 0x80, 0x80}, 4u},       /* above U+10FFFF */
+        {{0xf5, 0x80, 0x80, 0x80}, 4u}, {{0xff}, 1u},
+        {{0xc2, 0x41}, 2u}, {{0xe2, 0x82, 0x41}, 3u},
+        {{0xf0, 0x9f, 0x90, 0x41}, 4u},       /* wrong continuation */
+        {{0xe2, 0x82}, 2u}};                  /* truncated scalar */
     size_t index;
 
     for (index = 0u; index < sizeof(cases) / sizeof(cases[0]); ++index) {
@@ -233,6 +234,48 @@ suite("unicode") {
                   SALTS_UNICODE_ERR_INVALID_UTF8);
       check_equal(cursor, 0u);
       check_equal(memcmp(&scalar, &before, sizeof(scalar)), 0);
+    }
+  }
+
+  it("accepts scalar boundaries and rejects every truncated multibyte prefix") {
+    static const struct {
+      unsigned char bytes[4];
+      size_t length;
+      uint32_t value;
+    } cases[] = {
+        {{0xc2, 0xa2}, 2u, 0xa2u},
+        {{0xe0, 0xa0, 0x80}, 3u, 0x800u},
+        {{0xe6, 0x97, 0xa5}, 3u, 0x65e5u},
+        {{0xf0, 0x90, 0x80, 0x80}, 4u, 0x10000u},
+        {{0xf0, 0x9f, 0x8e, 0x89}, 4u, 0x1f389u},
+        {{0xf4, 0x8f, 0xbf, 0xbf}, 4u, 0x10ffffu}};
+    for (size_t i = 0u; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+      size_t cursor = 0u;
+      unicode_scalar scalar = {0};
+      const vstr input = vstr_from_buf((const char *)cases[i].bytes, cases[i].length);
+      check_equal(unicode_utf8_next(input, &cursor, &scalar), SALTS_UNICODE_OK);
+      check_equal(scalar.value, cases[i].value);
+      check_equal(cursor, input.len);
+      for (size_t length = 1u; length < input.len; ++length) {
+        cursor = 0u;
+        const unicode_scalar before = scalar;
+        check_equal(unicode_utf8_next(vstr_from_buf(input.data, length), &cursor, &scalar),
+                    SALTS_UNICODE_ERR_INVALID_UTF8);
+        check_equal(cursor, 0u);
+        check_equal(memcmp(&scalar, &before, sizeof(scalar)), 0);
+      }
+    }
+  }
+
+  it("classifies the entire one-byte alphabet including NUL") {
+    for (unsigned byte = 0u; byte < 256u; ++byte) {
+      const unsigned char input = (unsigned char)byte;
+      size_t cursor = 0u;
+      unicode_scalar scalar = {0};
+      check_equal(unicode_utf8_next(vstr_from_buf((const char *)&input, 1u), &cursor, &scalar),
+                  byte < 0x80u ? SALTS_UNICODE_OK : SALTS_UNICODE_ERR_INVALID_UTF8);
+      check_equal(cursor, byte < 0x80u ? 1u : 0u);
+      if (byte < 0x80u) check_equal(scalar.value, byte);
     }
   }
 

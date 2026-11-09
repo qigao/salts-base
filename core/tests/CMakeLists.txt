@@ -1,13 +1,3 @@
-
-
-cmake_add_executable(saltscore_utf8_test SOURCES test_utf8.c
-  FOLDER "core/tests")
-target_link_libraries(saltscore_utf8_test PRIVATE Salts::Core Salts::TinyTest)
-target_compile_features(saltscore_utf8_test PRIVATE c_std_11)
-set_target_properties(saltscore_utf8_test PROPERTIES
-  C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
-add_test(NAME saltscore.utf8_strict COMMAND saltscore_utf8_test)
-
 cmake_add_executable(saltscore_runtime_abi_test SOURCES test_runtime_abi.c
   FOLDER "core/tests")
 target_compile_features(saltscore_runtime_abi_test PRIVATE c_std_11)

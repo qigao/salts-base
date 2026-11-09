@@ -37,7 +37,6 @@
 #include <core/tlog.h>
 #include <core/tlog_helper.h>
 #include <core/tstr.h>
-#include <core/utf8.h>
 #include <core/uuid.h>
 #include <core/vstr.h>
 #include <core/zstd.h>
