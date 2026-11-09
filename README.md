@@ -79,7 +79,7 @@ cd salts-base
 
 export VCPKG_CACHE_REPOSITORY_ROOT=/absolute/path/to/vcpkg-cache-v0.1.2
 export SALTS_CI_VCPKG_INSTALLED_DIR=/absolute/path/to/vcpkg_installed
-export VCPKG_TARGET_TRIPLET=x64-linux  # arm64-osx for the macOS ARM64 profile
+export VCPKG_TARGET_TRIPLET=x64-linux  # arm64-linux on Linux ARM64; arm64-osx on macOS ARM64
 
 cmake --preset ci-llvm-native-release-user
 cmake --build --preset ci-llvm-native-release-user
@@ -126,6 +126,8 @@ Apply the same Python test-oracle setup described above.
 | Windows x64 / LLVM-MinGW | `ci-llvm-mingw-x64-release-user` | Build, CTest, install |
 | Linux x64 / Clang | `ci-llvm-native-release-user` | Build, CTest, install |
 | Linux x64 / GCC | `ci-gcc-release-user` | Build, CTest, install |
+| Linux ARM64 / Clang | `ci-llvm-native-release-user` | Native ARM64 build, CTest, install |
+| Linux ARM64 / GCC | `ci-gcc-arm64-release-user` | Native ARM64 build, CTest, install |
 | macOS ARM64 / Clang | `ci-llvm-native-release-user` | Build, CTest, install |
 | Android arm64-v8a | `ci-android-arm64-release-user` | Cross-build, install |
 | Android x86_64 | `ci-android-x64-release-user` | Cross-build, install |

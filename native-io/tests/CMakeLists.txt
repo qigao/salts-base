@@ -77,5 +77,13 @@ target_compile_features(saltscore_readiness_cpp_test PRIVATE cxx_std_17)
 set_target_properties(saltscore_readiness_cpp_test PROPERTIES
   CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
 
+cmake_add_test(saltsbase_native_io_socket_test SOURCES test_native_io_socket.c
+  LIBS Salts::NativeIO Salts::TinyTest FOLDER "native-io/tests")
+cmake_add_test(saltsbase_native_io_socket_cpp_test SOURCES test_native_io_socket_cpp.cpp
+  LIBS Salts::NativeIO Salts::TinyTest FOLDER "native-io/tests")
+target_compile_features(saltsbase_native_io_socket_cpp_test PRIVATE cxx_std_17)
+set_tests_properties(saltsbase_native_io_socket_test saltsbase_native_io_socket_cpp_test
+  PROPERTIES TIMEOUT 45)
+
 get_property(_native_io_tests DIRECTORY PROPERTY TESTS)
 set_tests_properties(${_native_io_tests} PROPERTIES LABELS native_io)

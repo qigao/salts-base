@@ -149,7 +149,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Download native test oracle wheels once
         run: |
-          foreach ($platform in @('manylinux2014_x86_64', 'win_amd64', 'macosx_11_0_arm64')) {
+          foreach ($platform in @('manylinux2014_x86_64', 'manylinux2014_aarch64', 'win_amd64', 'macosx_11_0_arm64')) {
             & python -m pip download --only-binary=:all: --python-version 3.12 `
               --platform $platform --dest build/ci-inputs/python-wheels `
               --requirement parser/markdown/tests/oracle-requirements.txt
@@ -204,6 +204,16 @@ jobs:
             runner: ubuntu-24.04
             profile: gcc-release-user
             triplet: x64-linux
+            test: true
+          - id: linux-clang-arm64
+            runner: ubuntu-24.04-arm
+            profile: llvm-native-release-user
+            triplet: arm64-linux
+            test: true
+          - id: linux-gcc-arm64
+            runner: ubuntu-24.04-arm
+            profile: gcc-arm64-release-user
+            triplet: arm64-linux
             test: true
           - id: macos-clang-arm64
             runner: macos-15

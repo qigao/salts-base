@@ -60,6 +60,15 @@
       ]
     },
     {
+      "name": "gcc-arm64-release-user",
+      "displayName": "Linux ARM64 GCC Release",
+      "inherits": [
+        "native-environment",
+        "linux-gcc-arm64",
+        "full-native"
+      ]
+    },
+    {
       "name": "android-release-user",
       "displayName": "Android NDK Clang Release",
       "inherits": [
@@ -162,6 +171,14 @@
       "inherits": [
         "ci-native-tests",
         "gcc-release-user"
+      ]
+    },
+    {
+      "name": "ci-gcc-arm64-release-user",
+      "displayName": "CI preinstalled dependencies: gcc-arm64-release-user",
+      "inherits": [
+        "ci-native-tests",
+        "gcc-arm64-release-user"
       ]
     },
     {
@@ -271,12 +288,28 @@
       "configurePreset": "gcc-release-user"
     },
     {
+      "name": "gcc-arm64-release-user",
+      "inherits": [
+        "base-build",
+        "build-linux"
+      ],
+      "configurePreset": "gcc-arm64-release-user"
+    },
+    {
       "name": "install-gcc-release-user",
       "inherits": [
         "base-install",
         "build-linux"
       ],
       "configurePreset": "gcc-release-user"
+    },
+    {
+      "name": "install-gcc-arm64-release-user",
+      "inherits": [
+        "base-install",
+        "build-linux"
+      ],
+      "configurePreset": "gcc-arm64-release-user"
     },
     {
       "name": "android-release-user",
@@ -406,11 +439,25 @@
       "configurePreset": "ci-gcc-release-user"
     },
     {
+      "name": "ci-gcc-arm64-release-user",
+      "inherits": [
+        "gcc-arm64-release-user"
+      ],
+      "configurePreset": "ci-gcc-arm64-release-user"
+    },
+    {
       "name": "install-ci-gcc-release-user",
       "inherits": [
         "install-gcc-release-user"
       ],
       "configurePreset": "ci-gcc-release-user"
+    },
+    {
+      "name": "install-ci-gcc-arm64-release-user",
+      "inherits": [
+        "install-gcc-arm64-release-user"
+      ],
+      "configurePreset": "ci-gcc-arm64-release-user"
     },
     {
       "name": "ci-android-arm64-release-user",
@@ -483,6 +530,14 @@
       "configurePreset": "gcc-release-user"
     },
     {
+      "name": "gcc-arm64-release-user",
+      "inherits": [
+        "base-test",
+        "test-linux"
+      ],
+      "configurePreset": "gcc-arm64-release-user"
+    },
+    {
       "name": "macos-gcc-release-user",
       "inherits": [
         "base-test",
@@ -525,6 +580,13 @@
         "gcc-release-user"
       ],
       "configurePreset": "ci-gcc-release-user"
+    },
+    {
+      "name": "ci-gcc-arm64-release-user",
+      "inherits": [
+        "gcc-arm64-release-user"
+      ],
+      "configurePreset": "ci-gcc-arm64-release-user"
     }
   ]
 }
