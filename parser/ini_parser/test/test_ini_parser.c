@@ -282,10 +282,14 @@ spec("ini_parser") {
       key[length] = '\0';
       for (size_t j = 0u; j < sizeof(suffixes) / sizeof(suffixes[0]); ++j) {
         const size_t suffix_length = strlen(suffixes[j]);
+        const size_t input_length = sizeof(prefix) - 1u + length + suffix_length;
+        memset(content, '!', sizeof(content));
         memcpy(content, prefix, sizeof(prefix) - 1u);
         memcpy(content + sizeof(prefix) - 1u, key, length);
         memcpy(content + sizeof(prefix) - 1u + length, suffixes[j], suffix_length);
-        ini_t *ini = ini_parse(content, sizeof(prefix) - 1u + length + suffix_length);
+        /* The counted input has no sentinel: this byte must not start a key. */
+        content[input_length] = 'k';
+        ini_t *ini = ini_parse(content, input_length);
         check_not_null(ini);
         check_equal(ini_key_count(ini, "scan"), 1);
         check_equal(ini_key_name(ini, "scan", 0), key);

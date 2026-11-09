@@ -44,6 +44,16 @@ lex_start:
     }
 
     /*!re2c
+        // ini_parse borrows exactly [input, input + length), with no padding.
+        // Supply a virtual EOF sentinel instead of reading beyond that range.
+        re2c:api = custom;
+        re2c:api:style = free-form;
+        re2c:define:YYPEEK = "(YYCURSOR < YYLIMIT ? *YYCURSOR : 0)";
+        re2c:define:YYSKIP = "++YYCURSOR;";
+        re2c:define:YYBACKUP = "YYMARKER = YYCURSOR;";
+        re2c:define:YYRESTORE = "YYCURSOR = YYMARKER;";
+        re2c:define:YYLESSTHAN = "YYCURSOR >= YYLIMIT";
+        re2c:define:YYEND = "YYCURSOR >= YYLIMIT";
         re2c:define:YYCTYPE = "char";
         re2c:yyfill:enable = 0;
         re2c:eof = 0;
@@ -187,6 +197,13 @@ int ini_lex_value(ini_lexer_t *lexer, ini_token_t *token) {
             lexer->cursor = YYCURSOR;
             lexer->state = INI_LEX_STATE_NORMAL;
             return 1;
+        }
+
+        // An in-range NUL is invalid input, distinct from virtual EOF.
+        * {
+            token->type = 0;
+            lexer->cursor = YYCURSOR;
+            return -1;
         }
     */
 }

@@ -11,6 +11,9 @@ extern "C" {
 
 typedef struct ini_t ini_t;
 
+/* Parse exactly len borrowed bytes; no NUL terminator or padding is required.
+ * Returned strings are owned by the result. NULL input or a parse/allocation
+ * failure returns NULL; release a successful result with ini_free(). */
 ini_t*      ini_parse(const char* content, size_t len);
 ini_t*      ini_parse_file(const char* filename);
 void        ini_free(ini_t* ini);
