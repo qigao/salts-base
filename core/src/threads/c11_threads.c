@@ -156,8 +156,14 @@ static int deadline_slice(int64_t seconds, uint32_t nanos, uint64_t *wait_ns) {
     struct timespec now;
     int64_t now_seconds;
     uint64_t delta, fraction;
-    if (nanos >= 1000000000u || timespec_get(&now, TIME_UTC) != TIME_UTC)
-        return thrd_error;
+    if (nanos >= 1000000000u) return thrd_error;
+#if defined(__ANDROID__) && __ANDROID_API__ < 29
+    /* Bionic exposes timespec_get only from API 29. CLOCK_REALTIME has the
+     * same UTC timebase and preserves the original deadline/recheck rules. */
+    if (clock_gettime(CLOCK_REALTIME, &now) != 0) return thrd_error;
+#else
+    if (timespec_get(&now, TIME_UTC) != TIME_UTC) return thrd_error;
+#endif
     now_seconds = (int64_t)now.tv_sec;
     if (seconds < now_seconds ||
         (seconds == now_seconds && nanos <= (uint32_t)now.tv_nsec)) {
