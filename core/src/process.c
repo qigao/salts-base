@@ -3,6 +3,10 @@
  * @brief Native Windows/POSIX child process management backend.
  */
 
+#if defined(__linux__) && !defined(_GNU_SOURCE)
+  #define _GNU_SOURCE
+#endif
+
 #include <salts/process.h>
 
 #include <salts/error_codes.h>

@@ -38,7 +38,7 @@ static void destroy_race_timer_cb(native_timer_t *timer) {
 }
 
 static int test_original_time_and_system_surface(void) {
-  time_value_t tv = {0};
+  wall_time_t tv = {0};
   timezone_info_t tz = {0};
   struct tm utc = {0};
   struct tm local = {0};

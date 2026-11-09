@@ -64,6 +64,10 @@ hashes and likewise refuses missing inputs. Preparation failure prevents all
 matrix builds from starting. Artifact distribution happens once per runner;
 only external dependency acquisition is centralized. Compiler installations,
 CMake build trees and restored SDK prefixes remain separate for each profile.
+The same preparation job downloads binary wheels for Markdown's existing
+`oracle-requirements.txt` on the three native host platforms. Native test jobs
+install them with `--no-index --only-binary=:all:` from the shared artifact;
+Android jobs do not install or execute host test oracles.
 
 ## Compilers and system packages
 
