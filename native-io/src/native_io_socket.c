@@ -233,7 +233,7 @@ native_io_socket_result native_io_socket_reuse(uintptr_t handle, bool port, bool
   return socket_status(SALTS_OK);
 }
 native_io_socket_result native_io_socket_bind(uintptr_t handle, const void *address, size_t length) {
-  if (!address || length < sizeof(struct sockaddr) || length > INT_MAX)
+  if (length > INT_MAX || native_io_socket_address_family(address, length) < 0)
     return socket_status(SALTS_EINVAL);
   if (bind((socket_handle)handle, address, (int)length) != 0) return socket_error();
   return socket_status(SALTS_OK);

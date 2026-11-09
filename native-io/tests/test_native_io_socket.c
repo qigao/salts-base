@@ -9,6 +9,11 @@
 #include <windows.h>
 #else
 #include <fcntl.h>
+#if defined(__linux__)
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+#endif
 #endif
 
 static native_io_backend_kind socket_backend(void) {
@@ -231,6 +236,23 @@ suite("NativeIO socket and transport ownership") {
     check_equal(native_io_transport_close(&fixture.streams[0], &fixture.backend), SALTS_OK);
     check_false(native_io_transport_active(&fixture.streams[0]));
   }
+
+#if defined(__linux__)
+  it("binds a local address shorter than an Internet sockaddr") {
+    struct sockaddr_un address = {0};
+    const uint32_t process = (uint32_t)getpid();
+    const uint32_t stamp = (uint32_t)monotonic_ms();
+    address.sun_family = AF_UNIX;
+    memcpy(address.sun_path + 1, &process, sizeof(process));
+    memcpy(address.sun_path + 1 + sizeof(process), &stamp, sizeof(stamp));
+    const size_t length = offsetof(struct sockaddr_un, sun_path) + 1 + sizeof(process) + sizeof(stamp);
+    check(length < sizeof(struct sockaddr));
+    check_equal(native_io_socket_create_unattached(native_io_socket_domain(NATIVE_IO_SOCKET_LOCAL),
+      false, &fixture.sockets[0]).status, SALTS_OK);
+    check_equal(native_io_socket_bind(fixture.sockets[0], &address, length).status, SALTS_OK);
+    check_equal(native_io_socket_listen(fixture.sockets[0], 1).status, SALTS_OK);
+  }
+#endif
 
   it("preserves a UDP explicit bind when removing an association") {
     for (size_t i = 0; i < 2; ++i) {
