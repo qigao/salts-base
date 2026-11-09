@@ -13,3 +13,13 @@ spec("Native asynchronous Process C++ API") {
     check_null(process.impl);
   }
 }
+
+#include <native_io_accept.h>
+
+suite("NativeIO accept C++ linkage") {
+  it("links the installed C accept contract without mangling") {
+    uintptr_t transport = 0u;
+    check_equal(native_io_internal_take_stream_accept(nullptr, native_io_request{}, &transport), SALTS_EINVAL);
+    check_equal(transport, UINTPTR_MAX);
+  }
+}

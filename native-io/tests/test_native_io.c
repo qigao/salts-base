@@ -1,4 +1,5 @@
 #include <native_io.h>
+#include <native_io_accept.h>
 #include <native_io_sharded.h>
 #include <salts/error_codes.h>
 #include <tinytest.h>
@@ -45,5 +46,25 @@ spec("NativeIO backend lifecycle") {
     status = native_io_backend_destroy(&backend);
     check(status == SALTS_OK, "native_io_backend_destroy status=%d", status);
     check(backend.impl == NULL);
+  }
+}
+
+
+spec("NativeIO public accept admission") {
+  it("clears invalid admission outputs and never transfers invalid ownership") {
+    native_io_backend backend = {0};
+    native_io_request request = {1u, 2u};
+    uintptr_t transport = 123u;
+    check_equal(native_io_internal_submit_stream_accept(NULL,
+        (native_io_endpoint){0}, &request), SALTS_EINVAL);
+    check_equal(request.slot, 0u);
+    check_equal(request.generation, 0u);
+    check_equal(native_io_internal_submit_stream_accept(&backend,
+        (native_io_endpoint){0}, NULL), SALTS_EINVAL);
+    check_equal(native_io_internal_take_stream_accept(&backend,
+        (native_io_request){1u, 2u}, &transport), SALTS_EINVAL);
+    check_equal(transport, UINTPTR_MAX);
+    check_equal(native_io_internal_take_stream_accept(NULL,
+        (native_io_request){0}, NULL), SALTS_EINVAL);
   }
 }

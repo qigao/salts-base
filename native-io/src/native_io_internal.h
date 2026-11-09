@@ -2,7 +2,7 @@
 #define SALTS_NATIVE_IO_INTERNAL_H
 
 #include <native_io.h>
-#include "native_io_internal_accept.h"
+#include <native_io_accept.h>
 #include <salts/clock.h>
 
 static inline uint32_t native_io_remaining_timeout(uint64_t started_ms, uint32_t timeout_ms) {
