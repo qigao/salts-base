@@ -1,4 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
+/* test_c11_threads.c owns the runner for this shared test executable. */
+#define TINYTEST_NO_MAIN 1
 #include <tinytest.h>
 #include <threads/threads.h>
 #include <signal.h>
