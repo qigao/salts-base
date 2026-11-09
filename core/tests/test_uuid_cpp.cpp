@@ -1,5 +1,8 @@
 #include "tinytest.hpp"
 #include <salts/error_codes.h>
+#if defined(__APPLE__)
+#include <uuid/uuid.h>
+#endif
 #include <salts/uuid.h>
 
 static_assert(sizeof(Salts::UUID) == SALTS_UUID_SIZE,
@@ -10,8 +13,8 @@ suite("Salts UUID C++") {
     Salts::UUID uuid{};
     char text[SALTS_UUID_STRING_SIZE]{};
 
-    check_equal(uuid_v7_generate(&uuid), SALTS_OK);
-    check_equal(uuid_format(&uuid, text, sizeof(text)), SALTS_OK);
+    check_equal(uuid128_v7_generate(&uuid), SALTS_OK);
+    check_equal(uuid128_format(&uuid, text, sizeof(text)), SALTS_OK);
     check_equal(uuid.bytes[6] & 0xf0U, 0x70U);
   }
 }

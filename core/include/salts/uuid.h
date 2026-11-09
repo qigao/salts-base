@@ -6,10 +6,10 @@
  * @brief Installed UUID value type and generation/conversion API.
  *
  * @code
- * uuid_t id;
+ * uuid128_t id;
  * char text[SALTS_UUID_STRING_SIZE];
- * if (uuid_v7_generate(&id) == SALTS_OK &&
- *     uuid_format(&id, text, sizeof(text)) == SALTS_OK) {
+ * if (uuid128_v7_generate(&id) == SALTS_OK &&
+ *     uuid128_format(&id, text, sizeof(text)) == SALTS_OK) {
  *   use_uuid(text);
  * }
  * @endcode
@@ -31,9 +31,9 @@ extern "C" {
 #define SALTS_UUID_STRING_SIZE (SALTS_UUID_STRING_LENGTH + 1U)
 
 /** Fixed-size UUID value with no heap ownership. */
-typedef struct uuid_s {
+typedef struct uuid128_s {
   uint8_t bytes[SALTS_UUID_SIZE];
-} uuid_t;
+} uuid128_t;
 
 /**
  * Generate an RFC 4122/RFC 9562 UUID version 4 using the system CSPRNG.
@@ -42,7 +42,7 @@ typedef struct uuid_s {
  * @param out Destination UUID
  * @return 0 on success, negative error code on failure
  */
-SALTS_C_API int uuid_v4_generate(uuid_t *out);
+SALTS_C_API int uuid128_v4_generate(uuid128_t *out);
 
 /**
  * Generate an RFC 9562 UUID version 7 using the current Unix millisecond
@@ -53,7 +53,7 @@ SALTS_C_API int uuid_v4_generate(uuid_t *out);
  * @param out Destination UUID
  * @return 0 on success, negative error code on failure
  */
-SALTS_C_API int uuid_v7_generate(uuid_t *out);
+SALTS_C_API int uuid128_v7_generate(uuid128_t *out);
 
 /**
  * Parse a canonical lowercase or uppercase 8-4-4-4-12 UUID string.
@@ -63,7 +63,7 @@ SALTS_C_API int uuid_v7_generate(uuid_t *out);
  * @param out Destination UUID
  * @return 0 on success, SALTS_EINVAL on invalid input
  */
-SALTS_C_API int uuid_parse(const char *text, uuid_t *out);
+SALTS_C_API int uuid128_parse(const char *text, uuid128_t *out);
 
 /**
  * Format a UUID as a lowercase canonical 8-4-4-4-12 string.
@@ -73,16 +73,16 @@ SALTS_C_API int uuid_parse(const char *text, uuid_t *out);
  * @param out_size Destination capacity, at least SALTS_UUID_STRING_SIZE
  * @return 0 on success, SALTS_EINVAL or SALTS_ENOSPC on failure
  */
-SALTS_C_API int uuid_format(const uuid_t *uuid, char *out, size_t out_size);
+SALTS_C_API int uuid128_format(const uuid128_t *uuid, char *out, size_t out_size);
 
 /** Return true when both UUID values contain the same 16 bytes. */
-SALTS_C_API bool uuid_equal(const uuid_t *left, const uuid_t *right);
+SALTS_C_API bool uuid128_equal(const uuid128_t *left, const uuid128_t *right);
 
 #ifdef __cplusplus
 }
 
 namespace Salts {
-  using UUID = ::uuid_t;
+  using UUID = ::uuid128_t;
 }
 #endif
 

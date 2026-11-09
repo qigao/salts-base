@@ -1117,8 +1117,9 @@ static void close_pipe(int fds[2]) {
   close_fd(&fds[1]);
 }
 
-/* Same creation/fork boundary for asynchronous stdio pairs in this module. */
-__attribute__((visibility("hidden"))) int process_create_pipe(int fds[2]) {
+/* NativeIO's static async-process owner uses this exported module bridge.
+ * Core retains the same pipe creation/fork serialization boundary. */
+SALTS_API int process_create_pipe(int fds[2]) {
 #if !defined(__linux__)
   int locked = pthread_mutex_lock(&process_spawn_mutex);
   if (locked != 0) return -locked;

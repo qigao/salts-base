@@ -54,9 +54,12 @@ uppercase `SALTS_*` configuration, status and export macros remain unchanged.
 The header namespace prevents collisions with system headers while functional
 prefixes disambiguate symbols where needed: `sync_*` for synchronization
 extensions, `time_*` for calendar conversion/formatting, `os_*` for OS identity,
-`native_timer_*`, `uuid_*`, and `atomic_order`. UUID values use `uuid_t` from
+`native_timer_*`, `uuid128_*`, and `atomic_order`. UUID values use `uuid128_t` from
 `<salts/uuid.h>`. Borrowed byte views and bounded byte buffers use `<salts/bytes.h>`;
 the owning byte accumulator uses `bytes.h`.
+The UUID type and entry points use the `uuid128` namespace to coexist with
+system `uuid_t` and libuuid functions. Update the former `uuid_*` calls and
+rebuild consumers; the value remains a 16-byte record.
 
 This migration changes source includes and exported C symbol names. Rebuild
 all consumers together with their dependencies; old binaries are not ABI
