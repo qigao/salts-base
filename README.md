@@ -144,7 +144,9 @@ profile for the complete SaltsBase graph, including Core's buffer recycling
 atomics. Consume it only from a matching TSan application; the ordinary Release
 SDK does not expose those atomic synchronization events to the detector.
 Preinstalled third-party dependencies retain their original instrumentation
-status. CI uploads this SDK only after its formal tests and installation pass;
+status. Its existing software audio-monitor CTest requires PulseAudio and its
+utilities; CI installs them before configuring. No physical device is required.
+CI uploads this SDK only after its formal tests and installation pass;
 adding the artifact does not publish a release or change existing release assets.
 
 ## Usage
