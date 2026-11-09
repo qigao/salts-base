@@ -256,7 +256,7 @@ suite("NativeIO socket and transport ownership") {
   }
 #endif
 
-  it("preserves a UDP explicit bind when removing an association") {
+  it("preserves the UDP bound port across disconnect and reassociation") {
     for (size_t i = 0; i < 2; ++i) {
       check_equal(native_io_socket_create(socket_backend(), native_io_socket_domain(NATIVE_IO_SOCKET_IPV4),
         true, &fixture.sockets[i]).status, SALTS_OK);
@@ -273,6 +273,14 @@ suite("NativeIO socket and transport ownership") {
       sizeof(fixture.address), &fixture.address_size).status, SALTS_OK);
     check_equal(native_io_socket_associate(fixture.sockets[0], &fixture.address, fixture.address_size).status, SALTS_OK);
     check_equal(native_io_socket_associate(fixture.sockets[0], NULL, 0).status, SALTS_OK);
+    check_equal(native_io_socket_query(fixture.sockets[0], false, &after, sizeof(after), &after_size).status, SALTS_OK);
+    check_equal(native_io_socket_decode_endpoint(&after, after_size, &after_endpoint, true), SALTS_OK);
+    check_equal(after_endpoint.port, before_endpoint.port);
+    check_equal(after_endpoint.family, before_endpoint.family);
+    check_equal(native_io_socket_query(fixture.sockets[0], true, &after,
+      sizeof(after), &after_size).status, SALTS_ENOTCONN);
+    check_equal(after_size, (size_t)0);
+    check_equal(native_io_socket_associate(fixture.sockets[0], &fixture.address, fixture.address_size).status, SALTS_OK);
     check_equal(native_io_socket_query(fixture.sockets[0], false, &after, sizeof(after), &after_size).status, SALTS_OK);
     check_equal(native_io_socket_decode_endpoint(&after, after_size, &after_endpoint, true), SALTS_OK);
     check_equal(after_endpoint.port, before_endpoint.port);

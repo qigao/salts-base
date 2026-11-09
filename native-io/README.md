@@ -67,7 +67,9 @@ All address and operation buffers remain caller-owned and bounded. NativeIO
 copies address metadata only where the API promises a copy; operation storage
 remains borrowed until the matching terminal is observed. Socket management
 calls run on the existing owner and propagate the original Salts status codes.
-Unsupported options and platforms fail explicitly. Socket shutdown direction,
+Unsupported options and platforms fail explicitly. UDP disconnect preserves the bound local port; local IP selection follows the
+native platform and must be queried again, as in CNet's existing contract.
+Socket shutdown direction,
 IPv6 scope/flow information, option units and rounding, listener reuse policy,
 and detached-accept ownership preserve the existing CNet behavior.
 

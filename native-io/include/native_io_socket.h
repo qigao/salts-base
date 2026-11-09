@@ -82,7 +82,8 @@ int native_io_socket_address_port(void *address, size_t length, int family, uint
 int native_io_socket_decode_vsock(const void *address, size_t length,
     uint32_t *out_cid, uint32_t *out_port);
 
-/** NULL disconnects UDP while preserving the existing explicit local bind. */
+/** NULL disconnects UDP while preserving its bound local port. Local IP
+ * selection follows native connect/disconnect semantics; query it again. */
 native_io_socket_result native_io_socket_associate(uintptr_t socket,
     const void *address, size_t length);
 
