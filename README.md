@@ -127,7 +127,7 @@ Apply the same Python test-oracle setup described above.
 | Linux x64 / Clang | `ci-llvm-native-release-user` | Build, CTest, install |
 | Linux x64 / GCC | `ci-gcc-release-user` | Build, CTest, install |
 | Linux ARM64 / Clang | `ci-llvm-native-release-user` | Native ARM64 build, CTest, install |
-| Linux ARM64 / GCC | `ci-gcc-release-user` | Native ARM64 build, CTest, install |
+| Linux ARM64 / GCC | `ci-gcc-arm64-release-user` | Native ARM64 build, CTest, install |
 | macOS ARM64 / Clang | `ci-llvm-native-release-user` | Build, CTest, install |
 | Android arm64-v8a | `ci-android-arm64-release-user` | Cross-build, install |
 | Android x86_64 | `ci-android-x64-release-user` | Cross-build, install |
