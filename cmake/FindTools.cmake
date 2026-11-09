@@ -1,23 +1,30 @@
-# Code generators are host executables, including when the libraries are cross-compiled.
-if(NOT IS_DIRECTORY "${RE2C_ROOT}")
-  message(FATAL_ERROR "RE2C_ROOT must name the installed host re2c package")
+include("$ENV{VCPKG_CACHE_REPOSITORY_ROOT}/cmake/QigaoLemon.cmake")
+# Host generators must match the machine running CMake, including cross builds.
+string(TOLOWER "${CMAKE_HOST_SYSTEM_PROCESSOR}" _host_arch)
+if(_host_arch MATCHES "^(amd64|x86_64|x64)$")
+  set(_host_arch x64)
+elseif(_host_arch MATCHES "^(aarch64|arm64)$")
+  set(_host_arch arm64)
+else()
+  message(FATAL_ERROR "Unsupported generator host architecture: ${_host_arch}")
 endif()
-unset(RE2C_EXECUTABLE CACHE)
-find_program(RE2C_EXECUTABLE NAMES re2c
-  PATHS "${RE2C_ROOT}/bin" NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH REQUIRED)
-file(REAL_PATH "${RE2C_ROOT}" _re2c_root)
-file(REAL_PATH "${RE2C_EXECUTABLE}" _re2c_executable)
-cmake_path(IS_PREFIX _re2c_root "${_re2c_executable}" NORMALIZE _re2c_in_root)
-if(NOT _re2c_in_root)
-  message(FATAL_ERROR "re2c executable is outside RE2C_ROOT: ${RE2C_EXECUTABLE}")
+if(CMAKE_HOST_WIN32)
+  set(_host_os windows)
+  set(_tool_suffix .exe)
+elseif(CMAKE_HOST_APPLE)
+  set(_host_os macos)
+  set(_tool_suffix "")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+  set(_host_os linux)
+  set(_tool_suffix "")
+else()
+  message(FATAL_ERROR "Unsupported generator host: ${CMAKE_HOST_SYSTEM_NAME}")
 endif()
-
-foreach(_host_tool IN ITEMS LEMON_EXECUTABLE LEMON_TEMPLATE)
-  if(NOT IS_ABSOLUTE "${${_host_tool}}" OR NOT EXISTS "${${_host_tool}}"
-     OR IS_DIRECTORY "${${_host_tool}}")
-    message(FATAL_ERROR "${_host_tool} must name an existing absolute host tool file")
-  endif()
-endforeach()
-add_executable(lemon IMPORTED GLOBAL)
-set_target_properties(lemon PROPERTIES IMPORTED_LOCATION "${LEMON_EXECUTABLE}")
-set(LEMPAR "${LEMON_TEMPLATE}")
+set(_host_rid "${_host_os}-${_host_arch}")
+qigao_restore_native_dependency(
+  LOCK_FILE "${PROJECT_SOURCE_DIR}/cmake/re2c.lock.json"
+  PAYLOAD "tools/${_host_rid}"
+  REQUIRED_FILES share/re2c/stdlib/unicode_properties.re share/re2c/stdlib/unicode_categories.re
+  EXECUTABLES "bin/re2c${_tool_suffix}" OUT_ROOT RE2C_ROOT)
+set(RE2C_EXECUTABLE "${RE2C_ROOT}/bin/re2c${_tool_suffix}")
+qigao_setup_lemon(LOCK_FILE "${PROJECT_SOURCE_DIR}/cmake/lemon.lock.json" HOST_RID "${_host_rid}")

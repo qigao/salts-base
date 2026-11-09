@@ -4,7 +4,9 @@ cmake_add_grammar(saltscore_uri
   LEXER_DEPENDS parser/uri_parser_internal.h
   RE2C_EXECUTABLE "${RE2C_EXECUTABLE}"
   FOLDER "cnet/uri")
-cmake_add_source(uri_sources DIRS src include parser PATTERNS "*.c" "*.h" "*.re")
+cmake_add_source(uri_sources DIRS src  parser PATTERNS "*.c" "*.h" "*.re")
+cmake_add_source(uri_sources_headers RECURSE DIRS include PATTERNS "*.h" "*.hpp")
+list(APPEND uri_sources ${uri_sources_headers})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${uri_sources})
 source_group("Generated" FILES ${saltscore_uri_LEXER_GEN})
 add_library(saltscore_uri STATIC ${uri_sources} ${saltscore_uri_LEXER_GEN})
@@ -18,9 +20,9 @@ target_include_directories(saltscore_uri
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/parser")
-install(TARGETS saltscore_uri EXPORT SaltsCoreTargets
+install(TARGETS saltscore_uri EXPORT SaltsBaseTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(FILES include/uri_parser.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 if(BUILD_TESTS)
   add_subdirectory(tests)

@@ -5,7 +5,7 @@
 并返回固定 Unicode 17.0.0 版本的 `XID_Start`、`XID_Continue` 与 `White_Space` 属性。
 它不包含 Jinja 或 Mustache 语义，也不替代 Salts 的 `tstr` / `vstr` 字符串能力。
 
-`salts_unicode_decimal_value(uint32_t scalar, uint32_t *out_value)` 查询Unicode 17的
+`unicode_decimal_value(uint32_t scalar, uint32_t *out_value)` 查询Unicode 17的
 十进制数字（Nd），成功返回`SALTS_UNICODE_OK`并写入0–9；非Nd返回`SALTS_UNICODE_NO_MATCH`。
 NULL输出、surrogate或超出U+10FFFF返回`SALTS_UNICODE_ERR_INVALID_ARGUMENT`，所有非成功路径
 均保持输出不变。接口不分配内存、不访问共享可变状态，可并发调用；不改变已有scalar布局。
@@ -18,7 +18,7 @@ NULL输出、surrogate或超出U+10FFFF返回`SALTS_UNICODE_ERR_INVALID_ARGUMENT
 
 ## General_Category P*/S*（Salts #1164）
 
-`salts_unicode_is_punctuation_or_symbol(uint32_t scalar, int *out_result)`
+`unicode_is_punctuation_or_symbol(uint32_t scalar, int *out_result)`
 提供 Unicode 17.0.0 的标点与符号分类，覆盖 P*、S*，例如 `<!-- Migrated from qigao/salts-utils @ c259f4c6fabc8c5d4c9663c44c5cb738519f5c30 (Unicode 17.0.0). -->
 # Salts Unicode
 
@@ -26,7 +26,7 @@ NULL输出、surrogate或超出U+10FFFF返回`SALTS_UNICODE_ERR_INVALID_ARGUMENT
 并返回固定 Unicode 17.0.0 版本的 `XID_Start`、`XID_Continue` 与 `White_Space` 属性。
 它不包含 Jinja 或 Mustache 语义，也不替代 Salts 的 `tstr` / `vstr` 字符串能力。
 
-`salts_unicode_decimal_value(uint32_t scalar, uint32_t *out_value)` 查询Unicode 17的
+`unicode_decimal_value(uint32_t scalar, uint32_t *out_value)` 查询Unicode 17的
 十进制数字（Nd），成功返回`SALTS_UNICODE_OK`并写入0–9；非Nd返回`SALTS_UNICODE_NO_MATCH`。
 NULL输出、surrogate或超出U+10FFFF返回`SALTS_UNICODE_ERR_INVALID_ARGUMENT`，所有非成功路径
 均保持输出不变。接口不分配内存、不访问共享可变状态，可并发调用；不改变已有scalar布局。
@@ -50,20 +50,21 @@ C11/C++17 消费测试。**这是新增公开 API 的开发候选**：发布前�
 
 ## Unicode 17 Default Full Case Folding（Salts #1192）
 
-`salts_unicode_case_fold(input, output, capacity, &bytes)` exposes Unicode 17
+`unicode_case_fold(input, output, capacity, &bytes)` exposes Unicode 17
 Default Full C/F Case Folding distinct from LOWER, UPPER, TITLE, NFC and
 Turkic T rules (ẞ → ss, ς → σ, İ → i + combining dot).
 
-The build now fails fast if either checked-in `CaseFolding.txt` or its
-generated `unicode_casefold_data.h` differ from the qualified SHA-256 pins
-(`ff8d8fef...c4183` and `9a262099...b8a14b`, respectively), matching
+The build fails fast if the committed `unicode_casefold_data.h` differs from
+its qualified SHA-256 pin. Downloaded `CaseFolding.txt` is separately verified
+against the locked source digest (`ff8d8fef...c4183` for the source and
+`9a262099...b8a14b` for the generated table), matching
 the existing canonical Unicode 17 re2c property/category pin policy.
 The generator enforces the source digest as well; `--check` compares its
 recomputed output against the committed table without rewriting it.
 A Unicode data upgrade requires separate qualification and new provenance.
 
-The checked-in UnicodeData source is CaseFolding.txt from
-`unicode-org/unicodetools/final-17.0-20250910`; generated tables are
+The source is the official Unicode 17.0.0 CaseFolding.txt download listed in
+[data/sources.lock.json](data/sources.lock.json); generated tables are
 immutable and have no runtime fallback. Measure/write uses caller-owned
 counted UTF-8, validates first and preserves output on failure.
 
@@ -80,10 +81,10 @@ upstream Draft is merged, and Stun must not consume unshipped API exports.
 int main(void) {
   const char text[] = "用户";
   vstr input = vstr_from_buf(text, sizeof(text) - 1u);
-  salts_unicode_scalar scalar;
+  unicode_scalar scalar;
   size_t cursor = 0u;
 
-  while (salts_unicode_utf8_next(input, &cursor, &scalar) == SALTS_UNICODE_OK) {
+  while (unicode_utf8_next(input, &cursor, &scalar) == SALTS_UNICODE_OK) {
     printf("U+%04X at byte %zu, XID_Start=%u\n", (unsigned)scalar.value,
            scalar.byte_offset,
            (scalar.properties & SALTS_UNICODE_PROPERTY_XID_START) != 0u);
@@ -99,14 +100,14 @@ vstr trimmed;
 size_t identifier_end;
 int is_identifier;
 
-salts_unicode_trim_whitespace(input, &trimmed);
-salts_unicode_xid_span(trimmed, 0u, &identifier_end);
-salts_unicode_is_xid(trimmed, &is_identifier);
+unicode_trim_whitespace(input, &trimmed);
+unicode_xid_span(trimmed, 0u, &identifier_end);
+unicode_is_xid(trimmed, &is_identifier);
 ```
 
-`salts_unicode_trim_whitespace` 返回借用的子 view，并验证完整输入；
-`salts_unicode_xid_span` 只实现 Unicode XID 规则，不把 `_` 等语言扩展算作起始字符；
-`salts_unicode_is_xid` 即使已经发现非 XID 字符，也会继续验证余下 UTF-8。空串不是 XID。
+`unicode_trim_whitespace` 返回借用的子 view，并验证完整输入；
+`unicode_xid_span` 只实现 Unicode XID 规则，不把 `_` 等语言扩展算作起始字符；
+`unicode_is_xid` 即使已经发现非 XID 字符，也会继续验证余下 UTF-8。空串不是 XID。
 `SALTS_UNICODE_NO_MATCH`、`SALTS_UNICODE_END` 与负错误码可明确区分。
 
 ```cmake
@@ -193,9 +194,9 @@ Unicode header/library 残留。不得覆写不可变包、添加 EXACT pin、�
 
 ### 安装消费测试
 
-原有 `test_salts_unicode_installed_sdk` 保留独立 C11/C++17 编译和运行用例。父构建
+原有 `test_unicode_installed_sdk` 保留独立 C11/C++17 编译和运行用例。父构建
 生成只用于本 build tree 的配置输入，传递实际编译器、配置、运行库、平台参数和已解析
-的编译/链接选项；vcpkg 继续使用父工程的 manifest 与工具链。消费工程使用版本化的
+的编译/链接选项；第三方依赖直接使用父工程选定的 vcpkg-cache 安装结果，不加载 toolchain file。消费工程使用版本化的
 `installed-sdk` configure/build/test preset，只从测试指定的 `SALTS_ROOT` 查找 SDK。
 它不重新选择 Release、不把第一方包放入 `CMAKE_PREFIX_PATH`，也不通过读取导出文本
 证明链接正确。
@@ -207,7 +208,7 @@ Android/iOS 仅在构建阶段验证，不将宿主执行结果当作移动端�
 
 ## Unicode 17 NFC 与 IDNA（#1091）
 
-`<unicode_normalize.h>` 提供显式 `salts_unicode_nfc`，版本参数必须为
+`<unicode_normalize.h>` 提供显式 `unicode_nfc`，版本参数必须为
 `SALTS_UNICODE_NFC_17_0_0`。调用者提供 uint32_t workspace 和 UTF-8 output，
 无隐藏堆分配；所有区域互不重叠，任意失败保持 output 和成功长度不变。
 NFC 支持合法 NUL scalar，实施规范分解、CCC 稳定重排、受阻组合、composition
@@ -218,7 +219,7 @@ exclusions 和 Hangul；不会隐式改变现有 scanner/case/property API 行�
 uint32_t work[32];
 char output[32];
 size_t size = 0;
-salts_unicode_nfc_status rc = salts_unicode_nfc(
+unicode_nfc_status rc = unicode_nfc(
     vstr_from_cstr("e\xcc\x81"), SALTS_UNICODE_NFC_17_0_0,
     work, 32, output, sizeof output, &size);
 /* rc == SALTS_UNICODE_NFC_OK: output contains UTF-8 U+00E9, size == 2. */
@@ -228,7 +229,7 @@ workspace_capacity 按 uint32_t 元素计，output_capacity 按字节计且需�
 每个输入字节预留四个 workspace 元素是充分上界；分配前由调用方检查乘法和预算，
 较小 workspace 在实际分解可容纳时同样可用。错误区分参数、版本、UTF-8、workspace、
 output capacity、overflow。重排最坏复杂度为最长组合序列长度的平方；应用需限定输入预算。
-`salts_unicode_normalization_properties_of` 返回 Unicode 17 CCC 与 General_Category=Mark
+`unicode_normalization_properties_of` 返回 Unicode 17 CCC 与 General_Category=Mark
 判定，包含 CCC=0 的 Mark，不执行规范化。
 
 独立的 [`Salts::IDNA`](../idna/README.md) 复用 NFC、scanner 和 Bidi_Class，提供
@@ -236,7 +237,7 @@ output capacity、overflow。重排最坏复杂度为最长组合序列长度的
 容量、错误和连接身份约束。它只依赖 Unicode/Core，不向基础 Unicode 引入 DNS、CNet、
 TLS、ICU 或 SaltsBase。公开头文件只包含已实现的接口，不包含占位 API。
 
-正式 `test_salts_unicode_normalize` 运行 Unicode 17 `NormalizationTest.txt` 全部
+正式 `test_unicode_normalize` 运行 Unicode 17 `NormalizationTest.txt` 全部
 20,034 条五列 NFC 不变量及 Part 1 未列出合法 scalar 的恒等性；现有安装测试同时
 覆盖 C11/C++17 的 NFC/IDNA 导出。数据和生成方法见 [data/README.md](data/README.md)。
 平台与 sanitizer 验证以实际运行记录为准，不能将交叉编译当作设备运行结果。

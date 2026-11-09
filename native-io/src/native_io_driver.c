@@ -1,6 +1,6 @@
 #include <native_io_driver.h>
 #include "native_io_internal.h"
-#include <thread.h>
+#include <threads/threads.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,7 +19,7 @@ typedef struct {
 typedef struct {
   native_io_backend backend;
   native_io_backend_config config;
-  cmeta_mutex_t gate;
+  sync_mutex_t gate;
   driver_slot *slots;
   native_io_completion *events;
   size_t event_count, event_index, pending;
@@ -38,7 +38,7 @@ int native_io_driver_init(native_io_driver *driver, const native_io_backend_conf
   if (!impl) return SALTS_ENOMEM;
   impl->slots = calloc(config->request_capacity, sizeof(*impl->slots));
   impl->events = calloc(config->completion_batch_capacity, sizeof(*impl->events));
-  cmeta_mutex_init(&impl->gate);
+  sync_mutex_init(&impl->gate);
   int status = SALTS_ENOMEM;
   if (!impl->slots || !impl->events || !impl->gate) goto error;
   status = native_io_backend_init(&impl->backend, config);
@@ -47,7 +47,7 @@ int native_io_driver_init(native_io_driver *driver, const native_io_backend_conf
   driver->impl = impl;
   return SALTS_OK;
 error:
-  cmeta_mutex_destroy(&impl->gate);
+  sync_mutex_destroy(&impl->gate);
   free(impl->events); free(impl->slots); free(impl);
   return status;
 }
@@ -62,7 +62,7 @@ int native_io_driver_submit(native_io_driver *driver, const native_io_operation 
   driver_impl *impl = driver ? driver->impl : NULL;
   if (id) *id = 0u;
   if (!impl || !completion || !id || !native_io_operation_valid(operation)) return SALTS_EINVAL;
-  cmeta_mutex_lock(&impl->gate);
+  sync_mutex_lock(&impl->gate);
   int status = impl->closing ? SALTS_ESHUTDOWN :
                impl->next_id == UINT64_MAX ? SALTS_ERANGE : SALTS_ENOBUFS;
   if (!impl->closing && impl->next_id != UINT64_MAX) {
@@ -77,14 +77,14 @@ int native_io_driver_submit(native_io_driver *driver, const native_io_operation 
       break;
     }
   }
-  cmeta_mutex_unlock(&impl->gate);
+  sync_mutex_unlock(&impl->gate);
   return status;
 }
 
 int native_io_driver_cancel_endpoint(native_io_driver *driver, native_io_endpoint endpoint, uint64_t id) {
   driver_impl *impl = driver ? driver->impl : NULL;
   if (!impl || (!id && !native_io_endpoint_valid(endpoint))) return SALTS_EINVAL;
-  cmeta_mutex_lock(&impl->gate);
+  sync_mutex_lock(&impl->gate);
   int status = SALTS_ENOENT;
   for (size_t i = 0u; i < impl->config.request_capacity; ++i) {
     driver_slot *slot = &impl->slots[i];
@@ -96,7 +96,7 @@ int native_io_driver_cancel_endpoint(native_io_driver *driver, native_io_endpoin
     status = SALTS_OK;
     if (id) break;
   }
-  cmeta_mutex_unlock(&impl->gate);
+  sync_mutex_unlock(&impl->gate);
   return status;
 }
 
@@ -106,25 +106,25 @@ int native_io_driver_cancel(native_io_driver *driver, uint64_t id) {
 }
 
 static void driver_deliver(driver_impl *impl, driver_slot *slot, native_io_completion event) {
-  cmeta_mutex_lock(&impl->gate);
+  sync_mutex_lock(&impl->gate);
   slot->phase = DRIVER_DELIVERING;
   event.user_data = slot->operation.user_data;
-  cmeta_mutex_unlock(&impl->gate);
+  sync_mutex_unlock(&impl->gate);
   slot->completion(slot->user, slot->id, &slot->operation, &event);
-  cmeta_mutex_lock(&impl->gate);
+  sync_mutex_lock(&impl->gate);
   memset(slot, 0, sizeof(*slot));
   --impl->pending;
-  cmeta_mutex_unlock(&impl->gate);
+  sync_mutex_unlock(&impl->gate);
 }
 
 int native_io_driver_run_ready(native_io_driver *driver, size_t max_steps, size_t *progressed) {
   driver_impl *impl = driver ? driver->impl : NULL;
   if (progressed) *progressed = 0u;
   if (!impl || !max_steps || !progressed) return SALTS_EINVAL;
-  cmeta_mutex_lock(&impl->gate);
-  if (impl->driving) { cmeta_mutex_unlock(&impl->gate); return SALTS_EBUSY; }
+  sync_mutex_lock(&impl->gate);
+  if (impl->driving) { sync_mutex_unlock(&impl->gate); return SALTS_EBUSY; }
   impl->driving = true;
-  cmeta_mutex_unlock(&impl->gate);
+  sync_mutex_unlock(&impl->gate);
   int status = SALTS_OK;
   size_t steps = 0u;
   while (steps < max_steps) {
@@ -141,7 +141,7 @@ int native_io_driver_run_ready(native_io_driver *driver, size_t max_steps, size_
     driver_slot *selected = NULL;
     bool queued = false, cancelled = false;
     size_t index = 0u;
-    cmeta_mutex_lock(&impl->gate);
+    sync_mutex_lock(&impl->gate);
     for (size_t i = 0u; i < impl->config.request_capacity; ++i) {
       driver_slot *slot = &impl->slots[i];
       if ((slot->phase == DRIVER_QUEUED ||
@@ -154,7 +154,7 @@ int native_io_driver_run_ready(native_io_driver *driver, size_t max_steps, size_
       if (queued) selected->phase = DRIVER_SUBMITTING;
       else selected->cancel_sent = true;
     }
-    cmeta_mutex_unlock(&impl->gate);
+    sync_mutex_unlock(&impl->gate);
     if (selected) {
       if (queued && cancelled) {
         native_io_completion event = {.endpoint = selected->operation.endpoint,
@@ -165,9 +165,9 @@ int native_io_driver_run_ready(native_io_driver *driver, size_t max_steps, size_
         operation.user_data = index;
         int admitted = native_io_backend_submit(&impl->backend, &operation, &selected->request);
         if (admitted == SALTS_OK) {
-          cmeta_mutex_lock(&impl->gate);
+          sync_mutex_lock(&impl->gate);
           selected->phase = DRIVER_PENDING;
-          cmeta_mutex_unlock(&impl->gate);
+          sync_mutex_unlock(&impl->gate);
         } else {
           native_io_completion event = {.endpoint = operation.endpoint,
               .kind = NATIVE_IO_COMPLETION_FAILED, .status = admitted};
@@ -177,9 +177,9 @@ int native_io_driver_run_ready(native_io_driver *driver, size_t max_steps, size_
         int cancelled_status = native_io_backend_cancel(&impl->backend, selected->request);
         if (cancelled_status != SALTS_OK && cancelled_status != SALTS_ENOENT &&
             cancelled_status != SALTS_EALREADY) {
-          cmeta_mutex_lock(&impl->gate);
+          sync_mutex_lock(&impl->gate);
           selected->cancel_sent = false;
-          cmeta_mutex_unlock(&impl->gate);
+          sync_mutex_unlock(&impl->gate);
           status = cancelled_status;
           break;
         }
@@ -193,9 +193,9 @@ int native_io_driver_run_ready(native_io_driver *driver, size_t max_steps, size_
     if (status == SALTS_ETIMEDOUT) status = SALTS_OK;
     if (status != SALTS_OK || impl->event_count == 0u) break;
   }
-  cmeta_mutex_lock(&impl->gate);
+  sync_mutex_lock(&impl->gate);
   impl->driving = false;
-  cmeta_mutex_unlock(&impl->gate);
+  sync_mutex_unlock(&impl->gate);
   *progressed = steps;
   return status;
 }
@@ -203,20 +203,20 @@ int native_io_driver_run_ready(native_io_driver *driver, size_t max_steps, size_
 int native_io_driver_close(native_io_driver *driver) {
   driver_impl *impl = driver ? driver->impl : NULL;
   if (!impl) return SALTS_EINVAL;
-  cmeta_mutex_lock(&impl->gate);
+  sync_mutex_lock(&impl->gate);
   impl->closing = true;
   for (size_t i = 0u; i < impl->config.request_capacity; ++i)
     if (impl->slots[i].phase != DRIVER_FREE) impl->slots[i].cancel = true;
-  cmeta_mutex_unlock(&impl->gate);
+  sync_mutex_unlock(&impl->gate);
   return SALTS_OK;
 }
 
 bool native_io_driver_is_quiescent(const native_io_driver *driver) {
   driver_impl *impl = driver ? driver->impl : NULL;
   if (!impl) return false;
-  cmeta_mutex_lock(&impl->gate);
+  sync_mutex_lock(&impl->gate);
   bool ready = impl->closing && !impl->pending && !impl->driving;
-  cmeta_mutex_unlock(&impl->gate);
+  sync_mutex_unlock(&impl->gate);
   return ready;
 }
 
@@ -230,7 +230,7 @@ int native_io_driver_destroy(native_io_driver *driver) {
   if (status != SALTS_OK) return status;
   status = native_io_backend_destroy(&impl->backend);
   if (status != SALTS_OK) return status;
-  cmeta_mutex_destroy(&impl->gate);
+  sync_mutex_destroy(&impl->gate);
   free(impl->events); free(impl->slots); free(impl);
   driver->impl = NULL;
   return SALTS_OK;

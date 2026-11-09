@@ -8,37 +8,37 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-bool cmeta_ipc_platform_capability_supported(cmeta_ipc_pipe_capability capability) {
+bool ipc_platform_capability_supported(ipc_pipe_capability capability) {
   return capability == SALTS_IPC_POSIX_FIFO_OPEN;
 }
 
-int cmeta_ipc_platform_endpoint_close(uintptr_t handle) {
+int ipc_platform_endpoint_close(uintptr_t handle) {
   if (handle > (uintptr_t)INT_MAX) return SALTS_EINVAL;
   return close((int)handle) == 0 ? SALTS_OK : -errno;
 }
 
-int cmeta_ipc_platform_server_init(cmeta_ipc_pipe_server *server,
-                                   const cmeta_ipc_pipe_server_config *config) {
+int ipc_platform_server_init(ipc_pipe_server *server,
+                                   const ipc_pipe_server_config *config) {
   (void)server;
   (void)config;
   return SALTS_ENOTSUP;
 }
 
-int cmeta_ipc_platform_server_try_accept(cmeta_ipc_pipe_server *server,
-                                         cmeta_ipc_request_id *out_request_id) {
+int ipc_platform_server_try_accept(ipc_pipe_server *server,
+                                         ipc_request_id *out_request_id) {
   (void)server;
   (void)out_request_id;
   return SALTS_ENOTSUP;
 }
 
-int cmeta_ipc_platform_server_cancel(cmeta_ipc_pipe_server *server,
-                                     cmeta_ipc_request_id request_id) {
+int ipc_platform_server_cancel(ipc_pipe_server *server,
+                                     ipc_request_id request_id) {
   (void)server;
   (void)request_id;
   return SALTS_ENOTSUP;
 }
 
-int cmeta_ipc_platform_server_observe(cmeta_ipc_pipe_server *server, size_t max_events,
+int ipc_platform_server_observe(ipc_pipe_server *server, size_t max_events,
                                       size_t *out_count) {
   (void)server;
   (void)max_events;
@@ -46,12 +46,12 @@ int cmeta_ipc_platform_server_observe(cmeta_ipc_pipe_server *server, size_t max_
   return SALTS_ENOTSUP;
 }
 
-int cmeta_ipc_platform_server_close(cmeta_ipc_pipe_server *server) {
+int ipc_platform_server_close(ipc_pipe_server *server) {
   (void)server;
   return SALTS_ENOTSUP;
 }
 
-int cmeta_ipc_platform_server_wait_sources(const cmeta_ipc_pipe_server *server,
+int ipc_platform_server_wait_sources(const ipc_pipe_server *server,
                                            uintptr_t *out_handles, size_t capacity,
                                            size_t *out_count, bool *out_ready) {
   (void)server;
@@ -62,33 +62,33 @@ int cmeta_ipc_platform_server_wait_sources(const cmeta_ipc_pipe_server *server,
   return SALTS_ENOTSUP;
 }
 
-bool cmeta_ipc_platform_server_is_quiescent(const cmeta_ipc_pipe_server *server) {
+bool ipc_platform_server_is_quiescent(const ipc_pipe_server *server) {
   (void)server;
   return false;
 }
 
-bool cmeta_ipc_platform_server_get_stats(const cmeta_ipc_pipe_server *server,
-                                         cmeta_ipc_pipe_server_stats *out_stats) {
+bool ipc_platform_server_get_stats(const ipc_pipe_server *server,
+                                         ipc_pipe_server_stats *out_stats) {
   (void)server;
   (void)out_stats;
   return false;
 }
 
-int cmeta_ipc_platform_server_destroy(cmeta_ipc_pipe_server *server) {
+int ipc_platform_server_destroy(ipc_pipe_server *server) {
   (void)server;
   return SALTS_ENOTSUP;
 }
 
-int cmeta_ipc_platform_named_pipe_connect(const char *name, cmeta_ipc_pipe_direction direction,
-                                          cmeta_ipc_pipe_endpoint *out_endpoint) {
+int ipc_platform_named_pipe_connect(const char *name, ipc_pipe_direction direction,
+                                          ipc_pipe_endpoint *out_endpoint) {
   (void)name;
   (void)direction;
   (void)out_endpoint;
   return SALTS_ENOTSUP;
 }
 
-int cmeta_ipc_platform_fifo_open(const char *path, cmeta_ipc_pipe_direction direction,
-                                 cmeta_ipc_pipe_endpoint *out_endpoint) {
+int ipc_platform_fifo_open(const char *path, ipc_pipe_direction direction,
+                                 ipc_pipe_endpoint *out_endpoint) {
   struct stat info;
   int flags = direction == SALTS_IPC_PIPE_READ ? O_RDONLY : O_WRONLY;
   int descriptor;

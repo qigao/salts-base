@@ -6,35 +6,36 @@
 #define WIN32_LEAN_AND_MEAN 1
 #endif
 #include <windows.h>
-#include <platform_thread.h>
+#include <threads/threads.h>
+#include "thread_backend.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
 
-typedef int (SALTS_CORE_PLATFORM_CALL *check_fn)(uint32_t, uint32_t, uint32_t, uint32_t);
-typedef int (SALTS_CORE_PLATFORM_CALL *init32_fn)(salts_atomic32 *, uint32_t);
-typedef int (SALTS_CORE_PLATFORM_CALL *fetch32_fn)(salts_atomic32 *, uint32_t, salts_memory_order, uint32_t *);
-typedef int (SALTS_CORE_PLATFORM_CALL *load32_fn)(const salts_atomic32 *, salts_memory_order, uint32_t *);
-typedef int (SALTS_CORE_PLATFORM_CALL *once_fn)(salts_platform_once *, salts_platform_once_fn);
-typedef int (SALTS_CORE_PLATFORM_CALL *create_fn)(salts_platform_thread **, salts_platform_thread_fn, void *);
-typedef int (SALTS_CORE_PLATFORM_CALL *join_fn)(salts_platform_thread **, int *);
-typedef int (SALTS_CORE_PLATFORM_CALL *mutex_create_fn)(salts_platform_mutex **);
-typedef int (SALTS_CORE_PLATFORM_CALL *mutex_fn)(salts_platform_mutex *);
-typedef int (SALTS_CORE_PLATFORM_CALL *mutex_destroy_fn)(salts_platform_mutex **);
-typedef int (SALTS_CORE_PLATFORM_CALL *cond_create_fn)(salts_platform_condition **);
-typedef int (SALTS_CORE_PLATFORM_CALL *cond_wait_fn)(salts_platform_condition *, salts_platform_mutex *);
-typedef int (SALTS_CORE_PLATFORM_CALL *cond_signal_fn)(salts_platform_condition *);
-typedef int (SALTS_CORE_PLATFORM_CALL *cond_destroy_fn)(salts_platform_condition **);
+typedef int (*check_fn)(uint32_t, uint32_t, uint32_t, uint32_t);
+typedef int (*init32_fn)(atomic32 *, uint32_t);
+typedef int (*fetch32_fn)(atomic32 *, uint32_t, atomic_order, uint32_t *);
+typedef int (*load32_fn)(const atomic32 *, atomic_order, uint32_t *);
+typedef int (*once_fn)(platform_once *, platform_once_fn);
+typedef int (*create_fn)(platform_thread **, platform_thread_fn, void *);
+typedef int (*join_fn)(platform_thread **, int *);
+typedef int (*mutex_create_fn)(platform_mutex **);
+typedef int (*mutex_fn)(platform_mutex *);
+typedef int (*mutex_destroy_fn)(platform_mutex **);
+typedef int (*cond_create_fn)(platform_condition **);
+typedef int (*cond_wait_fn)(platform_condition *, platform_mutex *);
+typedef int (*cond_signal_fn)(platform_condition *);
+typedef int (*cond_destroy_fn)(platform_condition **);
 
 static fetch32_fn g_fetch32;
 static once_fn g_once;
 static mutex_fn g_lock, g_unlock;
 static cond_wait_fn g_wait;
-static salts_atomic32 counter = {0};
-static salts_platform_once once = SALTS_PLATFORM_ONCE_INIT;
+static atomic32 counter = {0};
+static platform_once once = SALTS_PLATFORM_ONCE_INIT;
 static int once_count;
-static salts_platform_mutex *gate_mutex;
-static salts_platform_condition *gate_cond;
+static platform_mutex *gate_mutex;
+static platform_condition *gate_cond;
 static int gate_ready, gate_payload;
 static void init_once(void) { ++once_count; }
 static int worker(void *arg) {
@@ -68,37 +69,37 @@ int main(int argc, char **argv) {
     cond_create_fn new_condition;
     cond_signal_fn broadcast;
     cond_destroy_fn destroy_condition;
-    salts_platform_thread *threads[4] = {0}, *waiter = NULL;
+    platform_thread *threads[4] = {0}, *waiter = NULL;
     uint32_t actual = 0;
     unsigned i;
     int result;
-    struct abi_slot { char pad; salts_atomic64 value; };
+    struct abi_slot { char pad; atomic64 value; };
     if (argc != 2 || !argv[1]) return 1;
     lib = LoadLibraryA(argv[1]);
     if (!lib) { printf("portable LoadLibrary failed %lu\n", GetLastError()); return 2; }
 #define GET(field, typ, name) do { field = (typ)GetProcAddress(lib, name); if (!(field)) { \
     printf("missing ABI symbol %s\n", name); FreeLibrary(lib); return 3; } } while (0)
-    GET(check, check_fn, "salts_platform_portable_abi_verify");
-    GET(init32, init32_fn, "salts_atomic32_init");
-    GET(g_fetch32, fetch32_fn, "salts_atomic32_fetch_add");
-    GET(load32, load32_fn, "salts_atomic32_load");
-    GET(g_once, once_fn, "salts_platform_call_once");
-    GET(create, create_fn, "salts_platform_thread_create");
-    GET(join, join_fn, "salts_platform_thread_join");
-    GET(new_mutex, mutex_create_fn, "salts_platform_mutex_create");
-    GET(g_lock, mutex_fn, "salts_platform_mutex_lock");
-    GET(g_unlock, mutex_fn, "salts_platform_mutex_unlock");
-    GET(destroy_mutex, mutex_destroy_fn, "salts_platform_mutex_destroy");
-    GET(new_condition, cond_create_fn, "salts_platform_condition_create");
-    GET(g_wait, cond_wait_fn, "salts_platform_condition_wait");
-    GET(broadcast, cond_signal_fn, "salts_platform_condition_broadcast");
-    GET(destroy_condition, cond_destroy_fn, "salts_platform_condition_destroy");
+    GET(check, check_fn, "platform_portable_abi_verify");
+    GET(init32, init32_fn, "atomic32_init");
+    GET(g_fetch32, fetch32_fn, "atomic32_fetch_add");
+    GET(load32, load32_fn, "atomic32_load");
+    GET(g_once, once_fn, "platform_call_once");
+    GET(create, create_fn, "platform_thread_create");
+    GET(join, join_fn, "platform_thread_join");
+    GET(new_mutex, mutex_create_fn, "platform_mutex_create");
+    GET(g_lock, mutex_fn, "platform_mutex_lock");
+    GET(g_unlock, mutex_fn, "platform_mutex_unlock");
+    GET(destroy_mutex, mutex_destroy_fn, "platform_mutex_destroy");
+    GET(new_condition, cond_create_fn, "platform_condition_create");
+    GET(g_wait, cond_wait_fn, "platform_condition_wait");
+    GET(broadcast, cond_signal_fn, "platform_condition_broadcast");
+    GET(destroy_condition, cond_destroy_fn, "platform_condition_destroy");
 #undef GET
     if (check(SALTS_PLATFORM_PORTABLE_ABI_VERSION,
-              (uint32_t)sizeof(salts_atomic64),
+              (uint32_t)sizeof(atomic64),
               (uint32_t)offsetof(struct abi_slot, value),
-              (uint32_t)sizeof(salts_atomic_ptr)) != SALTS_OK) return 4;
-    if (check(999u, 8u, 8u, (uint32_t)sizeof(salts_atomic_ptr)) != SALTS_EINVAL) return 5;
+              (uint32_t)sizeof(atomic_ptr)) != SALTS_OK) return 4;
+    if (check(999u, 8u, 8u, (uint32_t)sizeof(atomic_ptr)) != SALTS_EINVAL) return 5;
     if (init32(&counter, 0u)) return 6;
     for (i = 0; i < 4; ++i)
         if (create(&threads[i], worker, NULL)) return 7;
@@ -116,6 +117,6 @@ int main(int argc, char **argv) {
     if (destroy_condition(&gate_cond) || gate_cond ||
         destroy_mutex(&gate_mutex) || gate_mutex) return 15;
     if (!FreeLibrary(lib)) return 16;
-    puts("TinyCC -> llvm-mingw Salts::Platform Atomic+Thread C ABI PASS");
+    puts("TinyCC -> llvm-mingw Salts::Core Atomic+Thread C ABI PASS");
     return 0;
 }

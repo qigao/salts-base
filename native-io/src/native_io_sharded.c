@@ -1,7 +1,7 @@
 #include <native_io_sharded.h>
 
-#include <thread.h>
-#include <coro_executor.h>
+#include <threads/threads.h>
+#include <salts/coro_executor.h>
 
 #include <limits.h>
 #include <stdatomic.h>
@@ -87,8 +87,8 @@ struct native_io_sharded_shard {
   size_t *free_owned_routes;
   size_t owned_route_capacity;
   size_t free_owned_route_count;
-  cmeta_mutex_t slot_lock;
-  cmeta_cond_t slot_space;
+  sync_mutex_t slot_lock;
+  sync_cond_t slot_space;
 
   atomic_int bootstrap_done;
   atomic_int backend_initialized;
@@ -113,8 +113,8 @@ struct native_io_sharded {
   size_t command_slot_capacity_per_shard;
   uint64_t identity;
 
-  cmeta_mutex_t admission_lock;
-  cmeta_cond_t admission_idle;
+  sync_mutex_t admission_lock;
+  sync_cond_t admission_idle;
   size_t inflight_dispatches;
   atomic_int accepting;
   int shutdown_active;
@@ -178,10 +178,10 @@ static void native_io_sharded_restore_after_shutdown_attempt(native_io_sharded *
   if (runtime == NULL) return;
   for (size_t index = 0u; index < runtime->shard_count; ++index)
     atomic_store(&runtime->shards[index].draining, 0);
-  cmeta_mutex_lock(&runtime->admission_lock);
+  sync_mutex_lock(&runtime->admission_lock);
   if (!runtime->executor_shutdown) atomic_store(&runtime->accepting, 1);
   runtime->shutdown_active = 0;
-  cmeta_mutex_unlock(&runtime->admission_lock);
+  sync_mutex_unlock(&runtime->admission_lock);
 }
 
 static void native_io_sharded_finish_fatal_shutdown_attempt(native_io_sharded *runtime) {
@@ -193,10 +193,10 @@ static void native_io_sharded_finish_fatal_shutdown_attempt(native_io_sharded *r
    */
   for (size_t index = 0u; index < runtime->shard_count; ++index)
     atomic_store(&runtime->shards[index].draining, 1);
-  cmeta_mutex_lock(&runtime->admission_lock);
+  sync_mutex_lock(&runtime->admission_lock);
   atomic_store(&runtime->accepting, 0);
   runtime->shutdown_active = 0;
-  cmeta_mutex_unlock(&runtime->admission_lock);
+  sync_mutex_unlock(&runtime->admission_lock);
 }
 
 static int native_io_sharded_finish_shutdown_error(native_io_sharded *runtime, int status) {
@@ -259,21 +259,21 @@ static int native_io_sharded_request_access(native_io_sharded_context *context,
 }
 
 static int native_io_sharded_dispatch_begin(native_io_sharded *runtime) {
-  cmeta_mutex_lock(&runtime->admission_lock);
+  sync_mutex_lock(&runtime->admission_lock);
   if (!atomic_load(&runtime->accepting)) {
-    cmeta_mutex_unlock(&runtime->admission_lock);
+    sync_mutex_unlock(&runtime->admission_lock);
     return SALTS_ESHUTDOWN;
   }
   runtime->inflight_dispatches++;
-  cmeta_mutex_unlock(&runtime->admission_lock);
+  sync_mutex_unlock(&runtime->admission_lock);
   return SALTS_OK;
 }
 
 static void native_io_sharded_dispatch_end(native_io_sharded *runtime) {
-  cmeta_mutex_lock(&runtime->admission_lock);
+  sync_mutex_lock(&runtime->admission_lock);
   if (runtime->inflight_dispatches != 0u) runtime->inflight_dispatches--;
-  if (runtime->inflight_dispatches == 0u) cmeta_cond_broadcast(&runtime->admission_idle);
-  cmeta_mutex_unlock(&runtime->admission_lock);
+  if (runtime->inflight_dispatches == 0u) sync_cond_broadcast(&runtime->admission_idle);
+  sync_mutex_unlock(&runtime->admission_lock);
 }
 
 static void native_io_sharded_release_slot(native_io_sharded_slot *slot) {
@@ -284,15 +284,15 @@ static void native_io_sharded_release_slot(native_io_sharded_slot *slot) {
   shard = slot->shard;
   runtime = slot->runtime;
 
-  cmeta_mutex_lock(&shard->slot_lock);
+  sync_mutex_lock(&shard->slot_lock);
   if (slot->active) {
     slot->active = 0;
     slot->task = (native_io_sharded_task){0};
     shard->free_slots[shard->free_count++] = slot->index;
     atomic_fetch_sub(&runtime->active_command_slots, 1u);
-    cmeta_cond_signal(&shard->slot_space);
+    sync_cond_signal(&shard->slot_space);
   }
-  cmeta_mutex_unlock(&shard->slot_lock);
+  sync_mutex_unlock(&shard->slot_lock);
 }
 
 static int native_io_sharded_claim_slot(native_io_sharded *runtime,
@@ -306,22 +306,22 @@ static int native_io_sharded_claim_slot(native_io_sharded *runtime,
   if (out_slot != NULL) *out_slot = NULL;
   if (runtime == NULL || shard == NULL || task == NULL || out_slot == NULL) return SALTS_EINVAL;
 
-  cmeta_mutex_lock(&shard->slot_lock);
+  sync_mutex_lock(&shard->slot_lock);
   for (;;) {
     if (!atomic_load(&runtime->accepting)) {
-      cmeta_mutex_unlock(&shard->slot_lock);
+      sync_mutex_unlock(&shard->slot_lock);
       return SALTS_ESHUTDOWN;
     }
     if (shard->free_count != 0u) break;
     if (!blocking) {
-      cmeta_mutex_unlock(&shard->slot_lock);
+      sync_mutex_unlock(&shard->slot_lock);
       return SALTS_ENOBUFS;
     }
     if (native_io_sharded_in_callback(runtime)) {
-      cmeta_mutex_unlock(&shard->slot_lock);
+      sync_mutex_unlock(&shard->slot_lock);
       return SALTS_EBUSY;
     }
-    cmeta_cond_wait(&shard->slot_space, &shard->slot_lock);
+    sync_cond_wait(&shard->slot_space, &shard->slot_lock);
   }
 
   index = shard->free_slots[--shard->free_count];
@@ -330,7 +330,7 @@ static int native_io_sharded_claim_slot(native_io_sharded *runtime,
   slot->active = 1;
   active = atomic_fetch_add(&runtime->active_command_slots, 1u) + 1u;
   native_io_sharded_update_peak(&runtime->peak_command_slots, active);
-  cmeta_mutex_unlock(&shard->slot_lock);
+  sync_mutex_unlock(&shard->slot_lock);
 
   *out_slot = slot;
   return SALTS_OK;
@@ -340,7 +340,7 @@ static void native_io_sharded_release_owned_route(native_io_sharded_owned_route 
   native_io_sharded_shard *shard;
   if (route == NULL || !route->active) return;
   shard = route->shard;
-  cmeta_mutex_lock(&shard->slot_lock);
+  sync_mutex_lock(&shard->slot_lock);
   if (route->active) {
     const size_t index = route->index;
     native_io_sharded *runtime = route->runtime;
@@ -350,9 +350,9 @@ static void native_io_sharded_release_owned_route(native_io_sharded_owned_route 
     route->index = index;
     route->active = 0;
     shard->free_owned_routes[shard->free_owned_route_count++] = index;
-    cmeta_cond_signal(&shard->slot_space);
+    sync_cond_signal(&shard->slot_space);
   }
-  cmeta_mutex_unlock(&shard->slot_lock);
+  sync_mutex_unlock(&shard->slot_lock);
 }
 
 static int native_io_sharded_claim_owned_route(
@@ -369,22 +369,22 @@ static int native_io_sharded_claim_owned_route(
       ownership->finalize == NULL || out_route == NULL)
     return SALTS_EINVAL;
 
-  cmeta_mutex_lock(&shard->slot_lock);
+  sync_mutex_lock(&shard->slot_lock);
   for (;;) {
     if (!atomic_load(&runtime->accepting)) {
-      cmeta_mutex_unlock(&shard->slot_lock);
+      sync_mutex_unlock(&shard->slot_lock);
       return SALTS_ESHUTDOWN;
     }
     if (shard->free_owned_route_count != 0u) break;
     if (!blocking) {
-      cmeta_mutex_unlock(&shard->slot_lock);
+      sync_mutex_unlock(&shard->slot_lock);
       return SALTS_ENOBUFS;
     }
     if (native_io_sharded_in_callback(runtime)) {
-      cmeta_mutex_unlock(&shard->slot_lock);
+      sync_mutex_unlock(&shard->slot_lock);
       return SALTS_EBUSY;
     }
-    cmeta_cond_wait(&shard->slot_space, &shard->slot_lock);
+    sync_cond_wait(&shard->slot_space, &shard->slot_lock);
   }
 
   index = shard->free_owned_routes[--shard->free_owned_route_count];
@@ -397,7 +397,7 @@ static int native_io_sharded_claim_owned_route(
   route->admission_status = SALTS_EINVAL;
   route->raw_owned = 0;
   route->active = 1;
-  cmeta_mutex_unlock(&shard->slot_lock);
+  sync_mutex_unlock(&shard->slot_lock);
 
   *out_route = route;
   return SALTS_OK;
@@ -545,9 +545,9 @@ static void native_io_sharded_wake_slot_waiters(native_io_sharded *runtime) {
   if (runtime == NULL || runtime->shards == NULL) return;
   for (size_t index = 0u; index < runtime->shard_count; ++index) {
     native_io_sharded_shard *shard = &runtime->shards[index];
-    cmeta_mutex_lock(&shard->slot_lock);
-    cmeta_cond_broadcast(&shard->slot_space);
-    cmeta_mutex_unlock(&shard->slot_lock);
+    sync_mutex_lock(&shard->slot_lock);
+    sync_cond_broadcast(&shard->slot_space);
+    sync_mutex_unlock(&shard->slot_lock);
   }
 }
 
@@ -565,13 +565,13 @@ static void native_io_sharded_destroy_storage(native_io_sharded *runtime) {
       free(shard->owned_routes);
       free(shard->free_slots);
       free(shard->slots);
-      cmeta_mutex_destroy(&shard->slot_lock);
-      cmeta_cond_destroy(&shard->slot_space);
+      sync_mutex_destroy(&shard->slot_lock);
+      sync_cond_destroy(&shard->slot_space);
     }
   }
   free(runtime->shards);
-  cmeta_cond_destroy(&runtime->admission_idle);
-  cmeta_mutex_destroy(&runtime->admission_lock);
+  sync_cond_destroy(&runtime->admission_idle);
+  sync_mutex_destroy(&runtime->admission_lock);
   free(runtime);
 }
 
@@ -638,8 +638,8 @@ int native_io_sharded_create(const native_io_sharded_config *config,
   runtime->queue_capacity_per_shard = config->queue_capacity_per_shard;
   runtime->command_slot_capacity_per_shard = slot_capacity;
   runtime->identity = native_io_sharded_next_identity();
-  cmeta_mutex_init(&runtime->admission_lock);
-  cmeta_cond_init(&runtime->admission_idle);
+  sync_mutex_init(&runtime->admission_lock);
+  sync_cond_init(&runtime->admission_idle);
   if (runtime->admission_lock == NULL || runtime->admission_idle == NULL) {
     native_io_sharded_destroy_storage(runtime);
     return SALTS_ENOMEM;
@@ -665,8 +665,8 @@ int native_io_sharded_create(const native_io_sharded_config *config,
     shard->completion_capacity = runtime->backend_config.completion_batch_capacity;
     shard->request_ownership_capacity = runtime->backend_config.request_capacity;
     shard->endpoint_record_capacity = runtime->backend_config.endpoint_capacity;
-    cmeta_mutex_init(&shard->slot_lock);
-    cmeta_cond_init(&shard->slot_space);
+    sync_mutex_init(&shard->slot_lock);
+    sync_cond_init(&shard->slot_space);
     shard->slots = (native_io_sharded_slot *)calloc(slot_capacity, sizeof(*shard->slots));
     shard->free_slots = (size_t *)calloc(slot_capacity, sizeof(*shard->free_slots));
     shard->owned_routes =
@@ -898,21 +898,21 @@ int native_io_sharded_shutdown(native_io_sharded *runtime) {
   if (runtime == NULL) return SALTS_EINVAL;
   if (native_io_sharded_in_callback(runtime)) return SALTS_EBUSY;
 
-  cmeta_mutex_lock(&runtime->admission_lock);
+  sync_mutex_lock(&runtime->admission_lock);
   if (runtime->executor_shutdown) {
-    cmeta_mutex_unlock(&runtime->admission_lock);
+    sync_mutex_unlock(&runtime->admission_lock);
     return SALTS_OK;
   }
   if (runtime->shutdown_active) {
-    cmeta_mutex_unlock(&runtime->admission_lock);
+    sync_mutex_unlock(&runtime->admission_lock);
     return SALTS_EBUSY;
   }
   runtime->shutdown_active = 1;
   atomic_store(&runtime->accepting, 0);
   native_io_sharded_wake_slot_waiters(runtime);
   while (runtime->inflight_dispatches != 0u)
-    cmeta_cond_wait(&runtime->admission_idle, &runtime->admission_lock);
-  cmeta_mutex_unlock(&runtime->admission_lock);
+    sync_cond_wait(&runtime->admission_idle, &runtime->admission_lock);
+  sync_mutex_unlock(&runtime->admission_lock);
 
   /*
    * Probe behind all previously accepted owner commands. A raw request without
@@ -1034,9 +1034,9 @@ int native_io_sharded_shutdown(native_io_sharded *runtime) {
       first_status = status;
   }
 
-  cmeta_mutex_lock(&runtime->admission_lock);
+  sync_mutex_lock(&runtime->admission_lock);
   runtime->shutdown_active = 0;
-  cmeta_mutex_unlock(&runtime->admission_lock);
+  sync_mutex_unlock(&runtime->admission_lock);
   return first_status;
 }
 

@@ -5,8 +5,8 @@
 #include "native_io_readiness.h"
 #include "native_io_accept_escrow.h"
 
-#include <clock.h>
-#include <error_codes.h>
+#include <salts/clock.h>
+#include <salts/error_codes.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -23,33 +23,33 @@
 
 enum { SALTS_IO_INDEX_NONE = UINT32_MAX };
 
-typedef enum cmeta_io_readiness_phase {
+typedef enum io_readiness_phase {
   SALTS_IO_READINESS_FREE = 0,
   SALTS_IO_READINESS_PENDING,
   SALTS_IO_READINESS_TERMINAL
-} cmeta_io_readiness_phase;
+} io_readiness_phase;
 
-typedef struct cmeta_io_readiness_lane {
+typedef struct io_readiness_lane {
   uint32_t head;
   uint32_t tail;
-} cmeta_io_readiness_lane;
+} io_readiness_lane;
 
-typedef struct cmeta_io_readiness_endpoint {
+typedef struct io_readiness_endpoint {
   int fd;
   uint32_t generation;
   size_t active_requests;
   size_t retained_accepts;
   uint32_t interests;
-  cmeta_io_readiness_lane read_lane;
-  cmeta_io_readiness_lane write_lane;
-  cmeta_io_resource_kind resource_kind;
+  io_readiness_lane read_lane;
+  io_readiness_lane write_lane;
+  io_resource_kind resource_kind;
   bool connected;
   bool connect_active;
   bool active;
-} cmeta_io_readiness_endpoint;
+} io_readiness_endpoint;
 
-typedef struct cmeta_io_readiness_request {
-  cmeta_io_readiness_phase phase;
+typedef struct io_readiness_request {
+  io_readiness_phase phase;
   native_io_request request;
   native_io_endpoint endpoint;
   native_io_operation operation;
@@ -63,24 +63,24 @@ typedef struct cmeta_io_readiness_request {
   bool connect_started;
   bool stream_accept;
   int accepted_fd;
-} cmeta_io_readiness_request;
+} io_readiness_request;
 
-typedef struct cmeta_io_readiness_accept_result {
+typedef struct io_readiness_accept_result {
   native_io_request request;
   native_io_endpoint listener;
   int child_fd;
   bool live;
-} cmeta_io_readiness_accept_result;
+} io_readiness_accept_result;
 
-typedef struct cmeta_io_readiness_impl {
-  cmeta_io_impl base;
-  const cmeta_io_readiness_driver_ops *driver_ops;
+typedef struct io_readiness_impl {
+  io_impl base;
+  const io_readiness_driver_ops *driver_ops;
   void *driver_state;
-  cmeta_io_readiness_endpoint *endpoints;
-  cmeta_io_readiness_request *requests;
-  cmeta_io_readiness_accept_result *accept_results;
+  io_readiness_endpoint *endpoints;
+  io_readiness_request *requests;
+  io_readiness_accept_result *accept_results;
   native_io_accept_escrow accept_escrow;
-  cmeta_io_ready_event *ready_events;
+  io_ready_event *ready_events;
   uint32_t *free_endpoints;
   uint32_t *free_requests;
   uint32_t *terminal_requests;
@@ -102,14 +102,14 @@ typedef struct cmeta_io_readiness_impl {
   uint64_t native_cancel_errors;
   bool admission_open;
   atomic_bool wake_pending;
-} cmeta_io_readiness_impl;
+} io_readiness_impl;
 
-typedef struct cmeta_io_sigpipe_guard {
+typedef struct io_sigpipe_guard {
   sigset_t blocked;
   sigset_t previous;
   bool active;
   bool had_pending;
-} cmeta_io_sigpipe_guard;
+} io_sigpipe_guard;
 
 static void readiness_counter_increment(uint64_t *counter) {
   if (*counter != UINT64_MAX) ++*counter;
@@ -120,11 +120,11 @@ static uint32_t readiness_next_generation(uint32_t generation) {
   return generation == 0u ? 1u : generation;
 }
 
-static cmeta_io_readiness_endpoint *readiness_endpoint(
-    cmeta_io_readiness_impl *impl, native_io_endpoint endpoint);
+static io_readiness_endpoint *readiness_endpoint(
+    io_readiness_impl *impl, native_io_endpoint endpoint);
 
-static cmeta_io_readiness_accept_result *readiness_accept_result_from_token(
-    cmeta_io_readiness_impl *impl, uintptr_t token) {
+static io_readiness_accept_result *readiness_accept_result_from_token(
+    io_readiness_impl *impl, uintptr_t token) {
   const uintptr_t base = (uintptr_t)impl->accept_results;
   const uintptr_t value = token;
   const size_t bytes =
@@ -142,11 +142,11 @@ static cmeta_io_readiness_accept_result *readiness_accept_result_from_token(
 
 static int readiness_retire_accept_result(
     void *context, uintptr_t transport) {
-  cmeta_io_readiness_impl *impl =
-      (cmeta_io_readiness_impl *)context;
-  cmeta_io_readiness_accept_result *result =
+  io_readiness_impl *impl =
+      (io_readiness_impl *)context;
+  io_readiness_accept_result *result =
       readiness_accept_result_from_token(impl, transport);
-  cmeta_io_readiness_endpoint *listener;
+  io_readiness_endpoint *listener;
   int status = SALTS_OK;
 
   if (result == NULL || !result->live)
@@ -161,15 +161,15 @@ static int readiness_retire_accept_result(
   return status;
 }
 
-static cmeta_io_readiness_accept_result *
+static io_readiness_accept_result *
 readiness_accept_result_reserve(
-    cmeta_io_readiness_impl *impl,
+    io_readiness_impl *impl,
     native_io_request request,
     native_io_endpoint listener,
     int child_fd) {
   size_t index;
   for (index = 0u; index < impl->request_capacity; ++index) {
-    cmeta_io_readiness_accept_result *result =
+    io_readiness_accept_result *result =
         &impl->accept_results[index];
     if (result->live)
       continue;
@@ -183,10 +183,10 @@ readiness_accept_result_reserve(
 }
 
 static int readiness_publish_accept_result(
-    cmeta_io_readiness_impl *impl,
-    cmeta_io_readiness_request *request) {
-  cmeta_io_readiness_accept_result *result;
-  cmeta_io_readiness_endpoint *listener;
+    io_readiness_impl *impl,
+    io_readiness_request *request) {
+  io_readiness_accept_result *result;
+  io_readiness_endpoint *listener;
   int status;
 
   if (request->accepted_fd < 0)
@@ -218,12 +218,12 @@ static int readiness_publish_accept_result(
 }
 
 static int readiness_discard_listener_accepts(
-    cmeta_io_readiness_impl *impl,
+    io_readiness_impl *impl,
     native_io_endpoint listener_handle) {
   int first_status = SALTS_OK;
   size_t index;
   for (index = 0u; index < impl->request_capacity; ++index) {
-    cmeta_io_readiness_accept_result *result =
+    io_readiness_accept_result *result =
         &impl->accept_results[index];
     int status;
     if (!result->live ||
@@ -243,17 +243,17 @@ static uint64_t readiness_endpoint_token(uint32_t index, uint32_t generation) {
   return ((uint64_t)generation << 32u) | (uint64_t)(index + 1u);
 }
 
-static cmeta_io_readiness_endpoint *readiness_endpoint(cmeta_io_readiness_impl *impl,
+static io_readiness_endpoint *readiness_endpoint(io_readiness_impl *impl,
                                                        native_io_endpoint endpoint) {
-  cmeta_io_readiness_endpoint *record;
+  io_readiness_endpoint *record;
   if (!native_io_endpoint_valid(endpoint) || endpoint.slot > impl->endpoint_capacity) return NULL;
   record = &impl->endpoints[endpoint.slot - 1u];
   return record->active && record->generation == endpoint.generation ? record : NULL;
 }
 
-static cmeta_io_readiness_request *readiness_request(cmeta_io_readiness_impl *impl,
+static io_readiness_request *readiness_request(io_readiness_impl *impl,
                                                      native_io_request request) {
-  cmeta_io_readiness_request *record;
+  io_readiness_request *record;
   if (!native_io_request_valid(request) || request.slot > impl->request_capacity) return NULL;
   record = &impl->requests[request.slot - 1u];
   return record->phase != SALTS_IO_READINESS_FREE &&
@@ -262,7 +262,7 @@ static cmeta_io_readiness_request *readiness_request(cmeta_io_readiness_impl *im
              : NULL;
 }
 
-static int readiness_sigpipe_begin(cmeta_io_sigpipe_guard *guard) {
+static int readiness_sigpipe_begin(io_sigpipe_guard *guard) {
   sigset_t pending;
   int status;
   memset(guard, 0, sizeof(*guard));
@@ -275,7 +275,7 @@ static int readiness_sigpipe_begin(cmeta_io_sigpipe_guard *guard) {
   return SALTS_OK;
 }
 
-static void readiness_sigpipe_end(cmeta_io_sigpipe_guard *guard) {
+static void readiness_sigpipe_end(io_sigpipe_guard *guard) {
   sigset_t pending;
   if (guard == NULL || !guard->active) return;
   if (!guard->had_pending && sigpending(&pending) == 0 && sigismember(&pending, SIGPIPE) == 1) {
@@ -294,21 +294,21 @@ static bool readiness_is_write(native_io_operation_kind kind) {
          kind == NATIVE_IO_OPERATION_PIPE_WRITE || kind == NATIVE_IO_OPERATION_STREAM_CONNECT;
 }
 
-static cmeta_io_readiness_lane *readiness_lane(cmeta_io_readiness_endpoint *endpoint,
+static io_readiness_lane *readiness_lane(io_readiness_endpoint *endpoint,
                                                bool write_lane) {
   return write_lane ? &endpoint->write_lane : &endpoint->read_lane;
 }
 
-static uint32_t readiness_derived_interests(const cmeta_io_readiness_endpoint *endpoint) {
+static uint32_t readiness_derived_interests(const io_readiness_endpoint *endpoint) {
   uint32_t interests = 0u;
   if (endpoint->read_lane.head != SALTS_IO_INDEX_NONE) interests |= SALTS_IO_READY_READ;
   if (endpoint->write_lane.head != SALTS_IO_INDEX_NONE) interests |= SALTS_IO_READY_WRITE;
   return interests;
 }
 
-static int readiness_update_interests(cmeta_io_readiness_impl *impl,
+static int readiness_update_interests(io_readiness_impl *impl,
                                       native_io_endpoint endpoint_handle,
-                                      cmeta_io_readiness_endpoint *endpoint) {
+                                      io_readiness_endpoint *endpoint) {
   const uint32_t requested = readiness_derived_interests(endpoint);
   const uint32_t next = impl->driver_ops->persistent_interests
                             ? endpoint->interests | requested : requested;
@@ -322,10 +322,10 @@ static int readiness_update_interests(cmeta_io_readiness_impl *impl,
   return status;
 }
 
-static void readiness_lane_push(cmeta_io_readiness_impl *impl,
-                                cmeta_io_readiness_endpoint *endpoint, uint32_t index) {
-  cmeta_io_readiness_request *request = &impl->requests[index];
-  cmeta_io_readiness_lane *lane = readiness_lane(endpoint, request->write_lane);
+static void readiness_lane_push(io_readiness_impl *impl,
+                                io_readiness_endpoint *endpoint, uint32_t index) {
+  io_readiness_request *request = &impl->requests[index];
+  io_readiness_lane *lane = readiness_lane(endpoint, request->write_lane);
   request->previous = lane->tail;
   request->next = SALTS_IO_INDEX_NONE;
   if (lane->tail == SALTS_IO_INDEX_NONE) lane->head = index;
@@ -333,10 +333,10 @@ static void readiness_lane_push(cmeta_io_readiness_impl *impl,
   lane->tail = index;
 }
 
-static void readiness_lane_remove(cmeta_io_readiness_impl *impl,
-                                  cmeta_io_readiness_endpoint *endpoint, uint32_t index) {
-  cmeta_io_readiness_request *request = &impl->requests[index];
-  cmeta_io_readiness_lane *lane = readiness_lane(endpoint, request->write_lane);
+static void readiness_lane_remove(io_readiness_impl *impl,
+                                  io_readiness_endpoint *endpoint, uint32_t index) {
+  io_readiness_request *request = &impl->requests[index];
+  io_readiness_lane *lane = readiness_lane(endpoint, request->write_lane);
   if (request->previous == SALTS_IO_INDEX_NONE) lane->head = request->next;
   else impl->requests[request->previous].next = request->next;
   if (request->next == SALTS_IO_INDEX_NONE) lane->tail = request->previous;
@@ -345,9 +345,9 @@ static void readiness_lane_remove(cmeta_io_readiness_impl *impl,
   request->next = SALTS_IO_INDEX_NONE;
 }
 
-static void readiness_release_request(cmeta_io_readiness_impl *impl,
-                                      cmeta_io_readiness_request *request, uint32_t index) {
-  cmeta_io_readiness_endpoint *endpoint = readiness_endpoint(impl, request->endpoint);
+static void readiness_release_request(io_readiness_impl *impl,
+                                      io_readiness_request *request, uint32_t index) {
+  io_readiness_endpoint *endpoint = readiness_endpoint(impl, request->endpoint);
   if (endpoint != NULL && endpoint->active_requests != 0u) --endpoint->active_requests;
   if (request->accepted_fd >= 0) {
     (void)close(request->accepted_fd);
@@ -363,13 +363,13 @@ static void readiness_release_request(cmeta_io_readiness_impl *impl,
   --impl->active_requests;
 }
 
-static void readiness_publish_terminal(cmeta_io_readiness_impl *impl,
-                                       cmeta_io_readiness_request *request, uint32_t index,
+static void readiness_publish_terminal(io_readiness_impl *impl,
+                                       io_readiness_request *request, uint32_t index,
                                        native_io_completion_kind kind, size_t bytes, int status,
                                        uint32_t native_status, size_t address_length) {
   const size_t tail = (impl->terminal_head + impl->terminal_count) % impl->request_capacity;
   if (request->operation.kind == NATIVE_IO_OPERATION_STREAM_CONNECT) {
-    cmeta_io_readiness_endpoint *endpoint = readiness_endpoint(impl, request->endpoint);
+    io_readiness_endpoint *endpoint = readiness_endpoint(impl, request->endpoint);
     if (endpoint != NULL) {
       endpoint->connect_active = false;
       endpoint->connected = kind == NATIVE_IO_COMPLETION_OK;
@@ -391,10 +391,10 @@ static void readiness_publish_terminal(cmeta_io_readiness_impl *impl,
   if (kind == NATIVE_IO_COMPLETION_FAILED) readiness_counter_increment(&impl->failed);
 }
 
-static int readiness_try_socket(cmeta_io_readiness_endpoint *endpoint,
-                                cmeta_io_readiness_request *request, size_t *out_bytes,
+static int readiness_try_socket(io_readiness_endpoint *endpoint,
+                                io_readiness_request *request, size_t *out_bytes,
                                 size_t *out_address_length) {
-  cmeta_io_sigpipe_guard guard;
+  io_sigpipe_guard guard;
   ssize_t result;
   int saved_error = 0;
   int flags = MSG_DONTWAIT;
@@ -482,9 +482,9 @@ static int readiness_try_socket(cmeta_io_readiness_endpoint *endpoint,
   return SALTS_OK;
 }
 
-static int readiness_try_pipe(cmeta_io_readiness_endpoint *endpoint,
-                              cmeta_io_readiness_request *request, size_t *out_bytes) {
-  cmeta_io_sigpipe_guard guard;
+static int readiness_try_pipe(io_readiness_endpoint *endpoint,
+                              io_readiness_request *request, size_t *out_bytes) {
+  io_sigpipe_guard guard;
   ssize_t result;
   int saved_error = 0;
   int guard_status = SALTS_OK;
@@ -507,8 +507,8 @@ static int readiness_try_pipe(cmeta_io_readiness_endpoint *endpoint,
   return SALTS_OK;
 }
 
-static int readiness_try_operation(cmeta_io_readiness_endpoint *endpoint,
-                                   cmeta_io_readiness_request *request, size_t *out_bytes,
+static int readiness_try_operation(io_readiness_endpoint *endpoint,
+                                   io_readiness_request *request, size_t *out_bytes,
                                    size_t *out_address_length) {
   if (request->stream_accept) {
     int child_fd;
@@ -543,8 +543,8 @@ static bool readiness_would_block(int status) {
   return status == -EAGAIN || status == -EWOULDBLOCK;
 }
 
-static void readiness_finish_attempt(cmeta_io_readiness_impl *impl,
-                                     cmeta_io_readiness_request *request, uint32_t index,
+static void readiness_finish_attempt(io_readiness_impl *impl,
+                                     io_readiness_request *request, uint32_t index,
                                      int status, size_t bytes, size_t address_length) {
   if (status == SALTS_OK && request->stream_accept) {
     status = readiness_publish_accept_result(impl, request);
@@ -569,10 +569,10 @@ static void readiness_finish_attempt(cmeta_io_readiness_impl *impl,
   }
 }
 
-static int readiness_attach_endpoint(cmeta_io_readiness_impl *impl, int fd,
-                                     cmeta_io_resource_kind resource_kind,
+static int readiness_attach_endpoint(io_readiness_impl *impl, int fd,
+                                     io_resource_kind resource_kind,
                                      native_io_endpoint *out_endpoint) {
-  cmeta_io_readiness_endpoint *endpoint;
+  io_readiness_endpoint *endpoint;
   uint32_t index;
   size_t cursor;
   if (!impl->admission_open) return SALTS_ESHUTDOWN;
@@ -587,8 +587,8 @@ static int readiness_attach_endpoint(cmeta_io_readiness_impl *impl, int fd,
   endpoint->active_requests = 0u;
   endpoint->retained_accepts = 0u;
   endpoint->interests = 0u;
-  endpoint->read_lane = (cmeta_io_readiness_lane){SALTS_IO_INDEX_NONE, SALTS_IO_INDEX_NONE};
-  endpoint->write_lane = (cmeta_io_readiness_lane){SALTS_IO_INDEX_NONE, SALTS_IO_INDEX_NONE};
+  endpoint->read_lane = (io_readiness_lane){SALTS_IO_INDEX_NONE, SALTS_IO_INDEX_NONE};
+  endpoint->write_lane = (io_readiness_lane){SALTS_IO_INDEX_NONE, SALTS_IO_INDEX_NONE};
   endpoint->resource_kind = resource_kind;
   endpoint->connected = false;
   endpoint->connect_active = false;
@@ -598,10 +598,10 @@ static int readiness_attach_endpoint(cmeta_io_readiness_impl *impl, int fd,
   return SALTS_OK;
 }
 
-static int readiness_attach_socket(cmeta_io_impl *base, uintptr_t native_socket,
+static int readiness_attach_socket(io_impl *base, uintptr_t native_socket,
                                    native_io_endpoint *out_endpoint) {
-  cmeta_io_readiness_impl *impl = (cmeta_io_readiness_impl *)base;
-  cmeta_io_resource_kind resource_kind;
+  io_readiness_impl *impl = (io_readiness_impl *)base;
+  io_resource_kind resource_kind;
   int socket_type = 0;
   struct sockaddr_storage peer_address;
   socklen_t peer_address_length = (socklen_t)sizeof(peer_address);
@@ -630,7 +630,7 @@ static int readiness_attach_socket(cmeta_io_impl *base, uintptr_t native_socket,
   return status;
 }
 
-static int readiness_attach_pipe(cmeta_io_impl *base, uintptr_t native_handle, uint32_t flags,
+static int readiness_attach_pipe(io_impl *base, uintptr_t native_handle, uint32_t flags,
                                  native_io_endpoint *out_endpoint) {
   struct stat descriptor_stat;
   int descriptor_flags;
@@ -643,14 +643,14 @@ static int readiness_attach_pipe(cmeta_io_impl *base, uintptr_t native_handle, u
   if ((descriptor_flags & O_NONBLOCK) == 0) return SALTS_EINVAL;
   if (fstat(fd, &descriptor_stat) != 0) return -errno;
   if (!S_ISFIFO(descriptor_stat.st_mode)) return SALTS_EINVAL;
-  return readiness_attach_endpoint((cmeta_io_readiness_impl *)base, fd,
+  return readiness_attach_endpoint((io_readiness_impl *)base, fd,
                                    SALTS_IO_RESOURCE_BYTE_PIPE, out_endpoint);
 }
 
-static int readiness_release_endpoint(cmeta_io_readiness_impl *impl,
+static int readiness_release_endpoint(io_readiness_impl *impl,
                                       native_io_endpoint endpoint_handle,
                                       bool socket_endpoint) {
-  cmeta_io_readiness_endpoint *endpoint = readiness_endpoint(impl, endpoint_handle);
+  io_readiness_endpoint *endpoint = readiness_endpoint(impl, endpoint_handle);
   uint32_t index;
   if (endpoint == NULL) return SALTS_ENOENT;
   if (socket_endpoint ? !native_io_resource_kind_is_socket(endpoint->resource_kind)
@@ -686,7 +686,7 @@ static int readiness_release_endpoint(cmeta_io_readiness_impl *impl,
   index = endpoint_handle.slot - 1u;
   endpoint->active = false;
   endpoint->fd = -1;
-  endpoint->resource_kind = (cmeta_io_resource_kind)0;
+  endpoint->resource_kind = (io_resource_kind)0;
   endpoint->retained_accepts = 0u;
   endpoint->connected = false;
   endpoint->connect_active = false;
@@ -695,19 +695,19 @@ static int readiness_release_endpoint(cmeta_io_readiness_impl *impl,
   return SALTS_OK;
 }
 
-static int readiness_release_socket(cmeta_io_impl *base, native_io_endpoint endpoint_handle) {
-  return readiness_release_endpoint((cmeta_io_readiness_impl *)base, endpoint_handle, true);
+static int readiness_release_socket(io_impl *base, native_io_endpoint endpoint_handle) {
+  return readiness_release_endpoint((io_readiness_impl *)base, endpoint_handle, true);
 }
 
-static int readiness_release_pipe(cmeta_io_impl *base, native_io_endpoint endpoint_handle) {
-  return readiness_release_endpoint((cmeta_io_readiness_impl *)base, endpoint_handle, false);
+static int readiness_release_pipe(io_impl *base, native_io_endpoint endpoint_handle) {
+  return readiness_release_endpoint((io_readiness_impl *)base, endpoint_handle, false);
 }
 
-static int readiness_submit(cmeta_io_impl *base, const native_io_operation *operation,
+static int readiness_submit(io_impl *base, const native_io_operation *operation,
                             native_io_request *out_request) {
-  cmeta_io_readiness_impl *impl = (cmeta_io_readiness_impl *)base;
-  cmeta_io_readiness_endpoint *endpoint;
-  cmeta_io_readiness_request *request;
+  io_readiness_impl *impl = (io_readiness_impl *)base;
+  io_readiness_endpoint *endpoint;
+  io_readiness_request *request;
   uint32_t index;
   size_t bytes = 0u;
   size_t address_length = 0u;
@@ -780,12 +780,12 @@ static int readiness_submit(cmeta_io_impl *base, const native_io_operation *oper
   return SALTS_OK;
 }
 
-static int readiness_submit_vector(cmeta_io_impl *base,
+static int readiness_submit_vector(io_impl *base,
                                    const native_io_vector_operation *operation,
                                    native_io_request *out_request) {
-  cmeta_io_readiness_impl *impl = (cmeta_io_readiness_impl *)base;
-  cmeta_io_readiness_endpoint *endpoint;
-  cmeta_io_readiness_request *request;
+  io_readiness_impl *impl = (io_readiness_impl *)base;
+  io_readiness_endpoint *endpoint;
+  io_readiness_request *request;
   uint32_t index;
   size_t bytes = 0u;
   size_t address_length = 0u;
@@ -858,13 +858,13 @@ static int readiness_submit_vector(cmeta_io_impl *base,
 }
 
 static int readiness_submit_stream_accept(
-    cmeta_io_impl *base,
+    io_impl *base,
     native_io_endpoint listener_handle,
     native_io_request *out_request) {
-  cmeta_io_readiness_impl *impl =
-      (cmeta_io_readiness_impl *)base;
-  cmeta_io_readiness_endpoint *listener;
-  cmeta_io_readiness_request *request;
+  io_readiness_impl *impl =
+      (io_readiness_impl *)base;
+  io_readiness_endpoint *listener;
+  io_readiness_request *request;
   uint32_t index;
   size_t bytes = 0u;
   size_t address_length = 0u;
@@ -943,14 +943,14 @@ static int readiness_submit_stream_accept(
 }
 
 static int readiness_take_stream_accept(
-    cmeta_io_impl *base,
+    io_impl *base,
     native_io_request request,
     uintptr_t *out_transport) {
-  cmeta_io_readiness_impl *impl =
-      (cmeta_io_readiness_impl *)base;
+  io_readiness_impl *impl =
+      (io_readiness_impl *)base;
   uintptr_t token = UINTPTR_MAX;
-  cmeta_io_readiness_accept_result *result;
-  cmeta_io_readiness_endpoint *listener;
+  io_readiness_accept_result *result;
+  io_readiness_endpoint *listener;
   int child_fd;
   int status;
 
@@ -979,10 +979,10 @@ static int readiness_take_stream_accept(
   return SALTS_OK;
 }
 
-static bool readiness_supports_vector_write(const cmeta_io_impl *base,
+static bool readiness_supports_vector_write(const io_impl *base,
                                             native_io_endpoint endpoint_handle) {
-  const cmeta_io_readiness_impl *impl = (const cmeta_io_readiness_impl *)base;
-  const cmeta_io_readiness_endpoint *endpoint;
+  const io_readiness_impl *impl = (const io_readiness_impl *)base;
+  const io_readiness_endpoint *endpoint;
   if (!native_io_endpoint_valid(endpoint_handle) ||
       endpoint_handle.slot > impl->endpoint_capacity)
     return false;
@@ -992,10 +992,10 @@ static bool readiness_supports_vector_write(const cmeta_io_impl *base,
           endpoint->resource_kind == SALTS_IO_RESOURCE_BYTE_PIPE);
 }
 
-static int readiness_cancel(cmeta_io_impl *base, native_io_request request_handle) {
-  cmeta_io_readiness_impl *impl = (cmeta_io_readiness_impl *)base;
-  cmeta_io_readiness_request *request = readiness_request(impl, request_handle);
-  cmeta_io_readiness_endpoint *endpoint;
+static int readiness_cancel(io_impl *base, native_io_request request_handle) {
+  io_readiness_impl *impl = (io_readiness_impl *)base;
+  io_readiness_request *request = readiness_request(impl, request_handle);
+  io_readiness_endpoint *endpoint;
   uint32_t index;
   int status;
   if (request == NULL) return SALTS_ENOENT;
@@ -1015,12 +1015,12 @@ static int readiness_cancel(cmeta_io_impl *base, native_io_request request_handl
   return SALTS_OK;
 }
 
-static int readiness_drive_lane(cmeta_io_readiness_impl *impl, native_io_endpoint endpoint_handle,
-                                cmeta_io_readiness_endpoint *endpoint, bool write_lane) {
-  cmeta_io_readiness_lane *lane = readiness_lane(endpoint, write_lane);
+static int readiness_drive_lane(io_readiness_impl *impl, native_io_endpoint endpoint_handle,
+                                io_readiness_endpoint *endpoint, bool write_lane) {
+  io_readiness_lane *lane = readiness_lane(endpoint, write_lane);
   while (lane->head != SALTS_IO_INDEX_NONE) {
     const uint32_t index = lane->head;
-    cmeta_io_readiness_request *request = &impl->requests[index];
+    io_readiness_request *request = &impl->requests[index];
     size_t bytes = 0u;
     size_t address_length = 0u;
     const int status = readiness_try_operation(endpoint, request, &bytes, &address_length);
@@ -1031,11 +1031,11 @@ static int readiness_drive_lane(cmeta_io_readiness_impl *impl, native_io_endpoin
   return readiness_update_interests(impl, endpoint_handle, endpoint);
 }
 
-static void readiness_drain_terminals(cmeta_io_readiness_impl *impl, native_io_completion *events,
+static void readiness_drain_terminals(io_readiness_impl *impl, native_io_completion *events,
                                       size_t limit, size_t *out_count) {
   while (*out_count < limit && impl->terminal_count != 0u) {
     const uint32_t index = impl->terminal_requests[impl->terminal_head];
-    cmeta_io_readiness_request *request = &impl->requests[index];
+    io_readiness_request *request = &impl->requests[index];
     impl->terminal_head = (impl->terminal_head + 1u) % impl->request_capacity;
     --impl->terminal_count;
     events[(*out_count)++] = request->completion;
@@ -1043,13 +1043,13 @@ static void readiness_drain_terminals(cmeta_io_readiness_impl *impl, native_io_c
   }
 }
 
-static int readiness_observe(cmeta_io_impl *base, native_io_completion *events,
+static int readiness_observe(io_impl *base, native_io_completion *events,
                              size_t event_capacity, uint32_t timeout_ms, size_t *out_count) {
-  cmeta_io_readiness_impl *impl = (cmeta_io_readiness_impl *)base;
+  io_readiness_impl *impl = (io_readiness_impl *)base;
   const size_t limit = event_capacity < impl->completion_batch_capacity
                            ? event_capacity
                            : impl->completion_batch_capacity;
-  const uint64_t started_ms = cmeta_monotonic_ms();
+  const uint64_t started_ms = monotonic_ms();
   uint32_t wait_timeout = impl->terminal_count != 0u ? 0u : timeout_ms;
   /* An immediately completed producer can refill the terminal queue before
    * every observe. If other requests still await readiness, sample the OS
@@ -1071,7 +1071,7 @@ static int readiness_observe(cmeta_io_impl *base, native_io_completion *events,
     }
     if (status != SALTS_OK) return status;
     for (size_t cursor = 0u; cursor < ready_count; ++cursor) {
-      const cmeta_io_ready_event *ready = &impl->ready_events[cursor];
+      const io_ready_event *ready = &impl->ready_events[cursor];
       if ((ready->interests & SALTS_IO_READY_WAKE) != 0u) {
         atomic_store_explicit(&impl->wake_pending, false, memory_order_release);
         saw_wake = true;
@@ -1080,7 +1080,7 @@ static int readiness_observe(cmeta_io_impl *base, native_io_completion *events,
       const uint32_t slot = (uint32_t)ready->token;
       const uint32_t generation = (uint32_t)(ready->token >> 32u);
       native_io_endpoint handle = {slot, generation};
-      cmeta_io_readiness_endpoint *endpoint = readiness_endpoint(impl, handle);
+      io_readiness_endpoint *endpoint = readiness_endpoint(impl, handle);
       if (endpoint == NULL) continue;
       if ((ready->interests & (SALTS_IO_READY_READ | SALTS_IO_READY_ERROR)) != 0u) {
         status = readiness_drive_lane(impl, handle, endpoint, false);
@@ -1099,8 +1099,8 @@ static int readiness_observe(cmeta_io_impl *base, native_io_completion *events,
   }
 }
 
-static int readiness_wake(cmeta_io_impl *base) {
-  cmeta_io_readiness_impl *impl = (cmeta_io_readiness_impl *)base;
+static int readiness_wake(io_impl *base) {
+  io_readiness_impl *impl = (io_readiness_impl *)base;
   bool expected = false;
   int status;
   if (!impl->admission_open) return SALTS_ESHUTDOWN;
@@ -1113,15 +1113,15 @@ static int readiness_wake(cmeta_io_impl *base) {
   return status;
 }
 
-static int readiness_close(cmeta_io_impl *base) {
-  cmeta_io_readiness_impl *impl = (cmeta_io_readiness_impl *)base;
+static int readiness_io_close(io_impl *base) {
+  io_readiness_impl *impl = (io_readiness_impl *)base;
   if (!impl->admission_open) return SALTS_EALREADY;
   impl->admission_open = false;
   return SALTS_OK;
 }
 
-static int readiness_destroy(cmeta_io_impl *base) {
-  cmeta_io_readiness_impl *impl = (cmeta_io_readiness_impl *)base;
+static int readiness_destroy(io_impl *base) {
+  io_readiness_impl *impl = (io_readiness_impl *)base;
   int escrow_status;
   if (impl->admission_open || impl->active_requests != 0u || impl->endpoint_count != 0u)
     return SALTS_EBUSY;
@@ -1142,8 +1142,8 @@ static int readiness_destroy(cmeta_io_impl *base) {
   return SALTS_OK;
 }
 
-static bool readiness_get_stats(const cmeta_io_impl *base, native_io_backend_stats *out_stats) {
-  const cmeta_io_readiness_impl *impl = (const cmeta_io_readiness_impl *)base;
+static bool readiness_get_stats(const io_impl *base, native_io_backend_stats *out_stats) {
+  const io_readiness_impl *impl = (const io_readiness_impl *)base;
   *out_stats = (native_io_backend_stats){impl->endpoint_capacity,
                                         impl->endpoint_count,
                                         impl->request_capacity,
@@ -1159,14 +1159,14 @@ static bool readiness_get_stats(const cmeta_io_impl *base, native_io_backend_sta
   return true;
 }
 
-static const cmeta_io_impl_ops readiness_ops = {
+static const io_impl_ops readiness_ops = {
     .attach_socket = readiness_attach_socket,
     .release_socket = readiness_release_socket,
     .submit = readiness_submit,
     .cancel = readiness_cancel,
     .observe = readiness_observe,
     .wake = readiness_wake,
-    .close = readiness_close,
+    .close = readiness_io_close,
     .destroy = readiness_destroy,
     .get_stats = readiness_get_stats,
     .attach_pipe = readiness_attach_pipe,
@@ -1182,33 +1182,33 @@ static bool readiness_array_fits(size_t count, size_t element_size) {
   return element_size != 0u && count <= SIZE_MAX / element_size;
 }
 
-int cmeta_io_readiness_backend_init(native_io_backend *backend,
+int io_readiness_backend_init(native_io_backend *backend,
                                     const native_io_backend_config *config,
-                                    const cmeta_io_readiness_driver_ops *driver_ops,
+                                    const io_readiness_driver_ops *driver_ops,
                                     size_t driver_state_size) {
-  cmeta_io_readiness_impl *impl;
+  io_readiness_impl *impl;
   int status;
   if (driver_ops == NULL || driver_ops->init == NULL || driver_ops->update == NULL ||
       driver_ops->wait == NULL || driver_ops->wake == NULL || driver_ops->destroy == NULL ||
       driver_state_size == 0u ||
-      !readiness_array_fits(config->endpoint_capacity, sizeof(cmeta_io_readiness_endpoint)) ||
-      !readiness_array_fits(config->request_capacity, sizeof(cmeta_io_readiness_request)) ||
-      !readiness_array_fits(config->request_capacity, sizeof(cmeta_io_readiness_accept_result)) ||
-      !readiness_array_fits(config->completion_batch_capacity, sizeof(cmeta_io_ready_event)) ||
+      !readiness_array_fits(config->endpoint_capacity, sizeof(io_readiness_endpoint)) ||
+      !readiness_array_fits(config->request_capacity, sizeof(io_readiness_request)) ||
+      !readiness_array_fits(config->request_capacity, sizeof(io_readiness_accept_result)) ||
+      !readiness_array_fits(config->completion_batch_capacity, sizeof(io_ready_event)) ||
       !readiness_array_fits(config->endpoint_capacity, sizeof(uint32_t)) ||
       !readiness_array_fits(config->request_capacity, sizeof(uint32_t)))
     return SALTS_ERANGE;
-  impl = (cmeta_io_readiness_impl *)calloc(1u, sizeof(*impl));
+  impl = (io_readiness_impl *)calloc(1u, sizeof(*impl));
   if (impl == NULL) return SALTS_ENOMEM;
   impl->driver_state = calloc(1u, driver_state_size);
   impl->endpoints =
-      (cmeta_io_readiness_endpoint *)calloc(config->endpoint_capacity, sizeof(*impl->endpoints));
+      (io_readiness_endpoint *)calloc(config->endpoint_capacity, sizeof(*impl->endpoints));
   impl->requests =
-      (cmeta_io_readiness_request *)calloc(config->request_capacity, sizeof(*impl->requests));
+      (io_readiness_request *)calloc(config->request_capacity, sizeof(*impl->requests));
   impl->accept_results =
-      (cmeta_io_readiness_accept_result *)calloc(
+      (io_readiness_accept_result *)calloc(
           config->request_capacity, sizeof(*impl->accept_results));
-  impl->ready_events = (cmeta_io_ready_event *)calloc(config->completion_batch_capacity,
+  impl->ready_events = (io_ready_event *)calloc(config->completion_batch_capacity,
                                                       sizeof(*impl->ready_events));
   impl->free_endpoints = (uint32_t *)calloc(config->endpoint_capacity, sizeof(uint32_t));
   impl->free_requests = (uint32_t *)calloc(config->request_capacity, sizeof(uint32_t));

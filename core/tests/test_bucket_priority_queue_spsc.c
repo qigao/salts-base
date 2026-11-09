@@ -1,7 +1,7 @@
-#include "bucket_priority_queue_spsc.h"
+#include <queue/bucket_priority_queue_spsc.h>
 #include "tinytest.h"
-#include <thread.h>
-#include <stdatomic.h>
+#include <threads/threads.h>
+#include <atomic/atomic.h>
 
 #include <stdbool.h>
 
@@ -221,17 +221,17 @@ spec("Bucket Priority Queue SPSC") {
       .items_to_process = TEST_ITEMS
     };
 
-    cmeta_thread_t producer, consumer;
-    check(cmeta_thread_create(&producer, producer_thread, &producer_ctx) == 0);
-    check(cmeta_thread_create(&consumer, consumer_thread, &consumer_ctx) == 0);
+    sync_thread_t producer, consumer;
+    check(sync_thread_create(&producer, producer_thread, &producer_ctx) == 0);
+    check(sync_thread_create(&consumer, consumer_thread, &consumer_ctx) == 0);
 
     // Start both threads
     atomic_store(&producer_ctx.start, (true) ? 1 : 0);
     atomic_store(&consumer_ctx.start, (true) ? 1 : 0);
 
     // Wait for completion
-    cmeta_thread_join(&producer);
-    cmeta_thread_join(&consumer);
+    sync_thread_join(&producer);
+    sync_thread_join(&consumer);
 
     check((atomic_load(&producer_ctx.done) != 0));
     check((atomic_load(&consumer_ctx.done) != 0));

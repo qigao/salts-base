@@ -1,4 +1,4 @@
-set(TARGET_NAME salts_cron)
+set(TARGET_NAME cron)
 
 set(CRON_LEXER_RE ${CMAKE_CURRENT_SOURCE_DIR}/src/cron_lexer.re)
 set(CRON_LEXER_GEN ${CMAKE_CURRENT_BINARY_DIR}/cron_lexer_gen.c)
@@ -10,8 +10,9 @@ add_custom_command(
   COMMENT "Generating cron lexer with re2c"
   VERBATIM)
 
-set(CRON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/salts_cron.c ${CRON_LEXER_GEN})
-set(CRON_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/include/cron.h)
+cmake_add_source(CRON_SOURCES DIRS src PATTERNS "*.c" "*.h")
+cmake_add_source(CRON_HEADERS RECURSE DIRS include PATTERNS "*.h" "*.hpp")
+list(APPEND CRON_SOURCES ${CRON_LEXER_GEN})
 
 add_library(${TARGET_NAME} STATIC ${CRON_SOURCES} ${CRON_HEADERS})
 
@@ -35,7 +36,7 @@ install(
   EXPORT SaltsBaseTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-install(FILES ${CRON_HEADERS} DESTINATION include/cron)
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 if(BUILD_EXAMPLES)
   add_subdirectory(examples)

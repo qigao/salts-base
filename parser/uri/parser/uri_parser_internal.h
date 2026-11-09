@@ -1,7 +1,7 @@
 #ifndef SALTS_URI_PARSER_INTERNAL_H
 #define SALTS_URI_PARSER_INTERNAL_H
 
-#include "uri_parser.h"
+#include <uri_parser.h>
 
 #include <stddef.h>
 

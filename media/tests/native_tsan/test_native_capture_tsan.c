@@ -11,7 +11,7 @@
 
 /* Run ONLY under capture/tests/native_tsan/run_private_pulse.sh. The driver
  * refuses all but a single named software PulseAudio null-sink monitor.
- * Actual salts_* functions come from this repository's full original
+ * Actual * functions come from this repository's full original
  * Capture Linux/miniaudio source compiled with -fsanitize=thread.
  *
  * No physical devices, model weights, audio recording, alternate Capture
@@ -32,8 +32,8 @@ static void nap_ms(long ms) {
   struct timespec t = {.tv_sec = ms / 1000, .tv_nsec = (ms % 1000) * 1000000L};
   (void)nanosleep(&t, NULL);
 }
-static salts_audio_capture_config_t audio_format(void) {
-  salts_audio_capture_config_t fmt = {16000, 1, 16, 20};
+static audio_capture_config_t audio_format(void) {
+  audio_capture_config_t fmt = {16000, 1, 16, 20};
   return fmt;
 }
 
@@ -44,8 +44,8 @@ static int audited_monitor(char *id, size_t capacity) {
   const char *server = getenv("PULSE_SERVER");
   if (!flag || strcmp(flag, "1") != 0 || !server ||
       strncmp(server, "unix:", 5) != 0) return -1;
-  salts_capture_device_t items[SALTS_CAPTURE_MAX_DEVICES] = {{0}};
-  int n = salts_capture_list_audio_devices(items, SALTS_CAPTURE_MAX_DEVICES);
+  capture_device_t items[SALTS_CAPTURE_MAX_DEVICES] = {{0}};
+  int n = capture_list_audio_devices(items, SALTS_CAPTURE_MAX_DEVICES);
   if (n != 1 || items[0].type != SALTS_CAPTURE_TYPE_AUDIO ||
       !strstr(items[0].name, "CaptureTsanVirtual") ||
       !items[0].id[0] || strlen(items[0].id) >= capacity)
@@ -63,7 +63,7 @@ typedef struct callback_trace {
   atomic_uint_fast64_t first_ts;
 } callback_trace_t;
 
-static void regular_callback(salts_capture_t *cap, const uint8_t *borrowed,
+static void regular_callback(capture_t *cap, const uint8_t *borrowed,
                              size_t bytes, uint64_t timestamp_us, void *user) {
   (void)cap;
   callback_trace_t *t = user;
@@ -91,28 +91,28 @@ static int wait_for_calls(const callback_trace_t *t, unsigned minimum) {
 
 static int test_real_callback_start_stop(const char *exact_id) {
   for (unsigned cycle = 0u; cycle < 3u; ++cycle) {
-    salts_audio_capture_config_t format = audio_format();
-    salts_capture_t *cap = salts_audio_capture_create(exact_id, &format);
+    audio_capture_config_t format = audio_format();
+    capture_t *cap = audio_capture_create(exact_id, &format);
     CHECK(cap != NULL);
-    CHECK(salts_capture_get_state(cap) == SALTS_CAPTURE_STATE_STOPPED);
+    CHECK(capture_get_state(cap) == SALTS_CAPTURE_STATE_STOPPED);
     callback_trace_t t = {0};
     atomic_init(&t.calls, 0u);
     atomic_init(&t.invalid, 0u);
     atomic_init(&t.previous_ts, 0u);
     atomic_init(&t.first_ts, UINT64_MAX);
-    salts_audio_capture_set_callback(cap, regular_callback, &t);
-    CHECK(salts_capture_start(cap) == SALTS_CAPTURE_OK);
-    CHECK(salts_capture_get_state(cap) == SALTS_CAPTURE_STATE_RUNNING);
+    audio_capture_set_callback(cap, regular_callback, &t);
+    CHECK(capture_start(cap) == SALTS_CAPTURE_OK);
+    CHECK(capture_get_state(cap) == SALTS_CAPTURE_STATE_RUNNING);
     CHECK(wait_for_calls(&t, 3u) == 0);
     CHECK(atomic_load_explicit(&t.invalid, memory_order_relaxed) == 0u);
-    salts_capture_stop(cap); /* native ma_device_stop must quiesce callback */
-    CHECK(salts_capture_get_state(cap) == SALTS_CAPTURE_STATE_STOPPED);
+    capture_stop(cap); /* native ma_device_stop must quiesce callback */
+    CHECK(capture_get_state(cap) == SALTS_CAPTURE_STATE_STOPPED);
     const unsigned settled = atomic_load_explicit(&t.calls, memory_order_acquire);
     CHECK(settled >= 3u);
     nap_ms(35);
     CHECK(atomic_load_explicit(&t.calls, memory_order_acquire) == settled);
-    salts_capture_stop(cap); /* idempotent */
-    salts_capture_destroy(cap);
+    capture_stop(cap); /* idempotent */
+    capture_destroy(cap);
   }
   puts("PASS original source-Tsan Capture native callbacks start/stop/join, 3 cycles");
   return 0;
@@ -123,38 +123,38 @@ static int test_real_callback_start_stop(const char *exact_id) {
  * resetting the sample timestamp origin on a retained miniaudio context.
  * All trace resets happen only while the native callback is fully joined. */
 static int test_same_device_restart(const char *exact_id) {
-  salts_audio_capture_config_t fmt = audio_format();
-  salts_capture_t *cap = salts_audio_capture_create(exact_id, &fmt);
+  audio_capture_config_t fmt = audio_format();
+  capture_t *cap = audio_capture_create(exact_id, &fmt);
   CHECK(cap != NULL);
   callback_trace_t t = {0};
   atomic_init(&t.calls, 0u);
   atomic_init(&t.invalid, 0u);
   atomic_init(&t.previous_ts, 0u);
   atomic_init(&t.first_ts, UINT64_MAX);
-  salts_audio_capture_set_callback(cap, regular_callback, &t); /* once, before start */
+  audio_capture_set_callback(cap, regular_callback, &t); /* once, before start */
 
   for (unsigned cycle = 0u; cycle < 3u; ++cycle) {
-    CHECK(salts_capture_get_state(cap) == SALTS_CAPTURE_STATE_STOPPED);
+    CHECK(capture_get_state(cap) == SALTS_CAPTURE_STATE_STOPPED);
     /* The prior stop synchronously joined the native audio callback. */
     atomic_store_explicit(&t.calls, 0u, memory_order_relaxed);
     atomic_store_explicit(&t.invalid, 0u, memory_order_relaxed);
     atomic_store_explicit(&t.previous_ts, 0u, memory_order_relaxed);
     atomic_store_explicit(&t.first_ts, UINT64_MAX, memory_order_relaxed);
 
-    CHECK(salts_capture_start(cap) == SALTS_CAPTURE_OK);
-    CHECK(salts_capture_get_state(cap) == SALTS_CAPTURE_STATE_RUNNING);
+    CHECK(capture_start(cap) == SALTS_CAPTURE_OK);
+    CHECK(capture_get_state(cap) == SALTS_CAPTURE_STATE_RUNNING);
     CHECK(wait_for_calls(&t, 3u) == 0);
     CHECK(atomic_load_explicit(&t.invalid, memory_order_acquire) == 0u);
     CHECK(atomic_load_explicit(&t.first_ts, memory_order_acquire) == 0u);
 
-    salts_capture_stop(cap);
-    CHECK(salts_capture_get_state(cap) == SALTS_CAPTURE_STATE_STOPPED);
+    capture_stop(cap);
+    CHECK(capture_get_state(cap) == SALTS_CAPTURE_STATE_STOPPED);
     const unsigned settled = atomic_load_explicit(&t.calls, memory_order_acquire);
     CHECK(settled >= 3u);
     nap_ms(35);
     CHECK(atomic_load_explicit(&t.calls, memory_order_acquire) == settled);
   }
-  salts_capture_destroy(cap);
+  capture_destroy(cap);
   puts("PASS same-device Capture stop/restart admission, timestamp reset, no late callback");
   return 0;
 }
@@ -162,13 +162,13 @@ static int test_same_device_restart(const char *exact_id) {
 typedef struct held_callback {
   pthread_mutex_t lock;
   pthread_cond_t gate;
-  salts_capture_t *borrowed_device;
+  capture_t *borrowed_device;
   int entered, release;
   atomic_int callback_exited, stop_entered, stop_returned, timeout;
   atomic_uint callbacks;
 } held_callback_t;
 
-static void held_pcm(salts_capture_t *cap, const uint8_t *pcm,
+static void held_pcm(capture_t *cap, const uint8_t *pcm,
                      size_t n, uint64_t timestamp_us, void *user) {
   (void)cap;
   (void)timestamp_us;
@@ -202,14 +202,14 @@ static void held_pcm(salts_capture_t *cap, const uint8_t *pcm,
 static void *stop_owner(void *arg) {
   held_callback_t *h = arg;
   atomic_store_explicit(&h->stop_entered, 1, memory_order_release);
-  salts_capture_stop(h->borrowed_device);
+  capture_stop(h->borrowed_device);
   atomic_store_explicit(&h->stop_returned, 1, memory_order_release);
   return NULL;
 }
 
 static int test_held_native_callback_stop_barrier(const char *exact_id) {
-  salts_audio_capture_config_t fmt = audio_format();
-  salts_capture_t *cap = salts_audio_capture_create(exact_id, &fmt);
+  audio_capture_config_t fmt = audio_format();
+  capture_t *cap = audio_capture_create(exact_id, &fmt);
   CHECK(cap != NULL);
   held_callback_t h = {0};
   h.borrowed_device = cap;
@@ -220,8 +220,8 @@ static int test_held_native_callback_stop_barrier(const char *exact_id) {
   atomic_init(&h.stop_returned, 0);
   atomic_init(&h.timeout, 0);
   atomic_init(&h.callbacks, 0u);
-  salts_audio_capture_set_callback(cap, held_pcm, &h);
-  CHECK(salts_capture_start(cap) == SALTS_CAPTURE_OK);
+  audio_capture_set_callback(cap, held_pcm, &h);
+  CHECK(capture_start(cap) == SALTS_CAPTURE_OK);
   struct timespec deadline = {0};
   CHECK(clock_gettime(CLOCK_REALTIME, &deadline) == 0);
   deadline.tv_sec += 7;
@@ -253,13 +253,13 @@ static int test_held_native_callback_stop_barrier(const char *exact_id) {
   CHECK(atomic_load_explicit(&h.callback_exited, memory_order_acquire) == 1);
   CHECK(atomic_load_explicit(&h.stop_returned, memory_order_acquire) == 1);
   CHECK(atomic_load_explicit(&h.timeout, memory_order_acquire) == 0);
-  CHECK(salts_capture_get_state(cap) == SALTS_CAPTURE_STATE_STOPPED);
+  CHECK(capture_get_state(cap) == SALTS_CAPTURE_STATE_STOPPED);
   unsigned count = atomic_load_explicit(&h.callbacks, memory_order_acquire);
   nap_ms(40);
   CHECK(atomic_load_explicit(&h.callbacks, memory_order_acquire) == count);
   CHECK(pthread_cond_destroy(&h.gate) == 0);
   CHECK(pthread_mutex_destroy(&h.lock) == 0);
-  salts_capture_destroy(cap); /* must only occur after native join */
+  capture_destroy(cap); /* must only occur after native join */
   puts("PASS original source-Tsan Capture blocked callback forces concurrent stop/join");
   return 0;
 }
@@ -269,14 +269,14 @@ static int test_held_native_callback_stop_barrier(const char *exact_id) {
 static void *destroy_owner(void *arg) {
   held_callback_t *h = arg;
   atomic_store_explicit(&h->stop_entered, 1, memory_order_release);
-  salts_capture_destroy(h->borrowed_device);
+  capture_destroy(h->borrowed_device);
   atomic_store_explicit(&h->stop_returned, 1, memory_order_release);
   return NULL;
 }
 
 static int test_held_native_callback_destroy_barrier(const char *exact_id) {
-  salts_audio_capture_config_t fmt = audio_format();
-  salts_capture_t *cap = salts_audio_capture_create(exact_id, &fmt);
+  audio_capture_config_t fmt = audio_format();
+  capture_t *cap = audio_capture_create(exact_id, &fmt);
   CHECK(cap != NULL);
   held_callback_t h = {0};
   h.borrowed_device = cap;
@@ -287,8 +287,8 @@ static int test_held_native_callback_destroy_barrier(const char *exact_id) {
   atomic_init(&h.stop_returned, 0);
   atomic_init(&h.timeout, 0);
   atomic_init(&h.callbacks, 0u);
-  salts_audio_capture_set_callback(cap, held_pcm, &h);
-  CHECK(salts_capture_start(cap) == SALTS_CAPTURE_OK);
+  audio_capture_set_callback(cap, held_pcm, &h);
+  CHECK(capture_start(cap) == SALTS_CAPTURE_OK);
 
   struct timespec deadline = {0};
   CHECK(clock_gettime(CLOCK_REALTIME, &deadline) == 0);
@@ -336,10 +336,10 @@ static int test_held_native_callback_destroy_barrier(const char *exact_id) {
 }
 
 static int test_invalid_exact_device_rejects(void) {
-  salts_audio_capture_config_t bad = {12345, 1, 16, 20};
-  salts_audio_capture_config_t valid = audio_format();
-  CHECK(salts_audio_capture_create(NULL, &bad) == NULL);
-  CHECK(salts_audio_capture_create("not-an-enumerated-device", &valid) == NULL);
+  audio_capture_config_t bad = {12345, 1, 16, 20};
+  audio_capture_config_t valid = audio_format();
+  CHECK(audio_capture_create(NULL, &bad) == NULL);
+  CHECK(audio_capture_create("not-an-enumerated-device", &valid) == NULL);
   puts("PASS original source-Tsan Capture invalid format and exact device no fallback");
   return 0;
 }

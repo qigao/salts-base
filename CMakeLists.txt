@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.27)
+if(POLICY CMP0174)
+  cmake_policy(SET CMP0174 OLD)
+endif()
 
-project(SaltsBase VERSION 0.1.0 DESCRIPTION
+set(SALTSCORE_NATIVE_SOVERSION 0.1)
+include(CMakeOptions.cmake)
+project(SaltsBase VERSION ${SALTSCORE_NATIVE_SOVERSION}
+        DESCRIPTION
         "Higher-level utilities for cross-platform purpose and c11 developments"
         HOMEPAGE_URL "https://github.com/qigao/salts-base" LANGUAGES
         C CXX)
@@ -16,45 +22,50 @@ get_filename_component(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}" ABSOLUTE)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # Language standards - unified approach
 set(CMAKE_CXX_STANDARD 17) # C++17 for compatibility
-set(CMAKE_C_STANDARD 11) # C17 to ensure C11 atomic support
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(MSVC)
-  add_compile_options(-experimental:c11atomics)
-endif()
 # Enable folder organization in IDEs
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "cmake")
 
-include(CMakeOptions.cmake)
-
-if(BUILD_TESTS)
+if(BUILD_TESTS OR BUILD_BENCHMARKS)
   enable_testing()
 endif()
 include(Sanitizers)
 include(CmakeUtils)
 include(GNUInstallDirs)
 
+# Consume the selected vcpkg-cache installation without loading a toolchain or
+# running vcpkg's resolver/build machinery in this product configure.
+set(SALTS_DEPENDENCY_PREFIX "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
+list(PREPEND CMAKE_PREFIX_PATH
+  "${SALTS_DEPENDENCY_PREFIX}/$ENV{VCPKG_CONFIGURATION_SUBDIR}"
+  "${SALTS_DEPENDENCY_PREFIX}")
 find_package(Threads REQUIRED)
-
 include(FindTools)
 add_subdirectory(vendor)
 add_subdirectory(tinytest)
 add_subdirectory(asn1)
-add_subdirectory(coroutine) 
+add_subdirectory(native-io)
 add_subdirectory(core)
+add_subdirectory(simd)
+add_subdirectory(coroutine)
+add_subdirectory(cserde)
+add_subdirectory(unicode)
 add_subdirectory(cron)
 add_subdirectory(parser)
-add_subdirectory(cserde)
 add_subdirectory(media)
 add_subdirectory(serial)
-add_subdirectory(unicode)
-add_subdirectory(idna)
  
 #Package Configuration
 include(CMakePackageConfigHelpers)
+configure_package_config_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/SaltsBaseConfig.cmake.in"
+  "${CMAKE_BINARY_DIR}/SaltsBaseConfig.cmake"
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/SaltsBase")
 
 # Generate the version file
 write_basic_package_version_file(

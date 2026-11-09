@@ -1,7 +1,7 @@
-#include <fs_watch.h>
-#include <error_codes.h>
-#include <thread.h>
-#include <fs.h>
+#include <file/fs_watch.h>
+#include <salts/error_codes.h>
+#include <threads/threads.h>
+#include <file/fs.h>
 #include <tinytest.h>
 
 #include <stdlib.h>
@@ -13,18 +13,18 @@ enum {
 };
 
 typedef struct watch_probe {
-    salts_fs_watch_event_kind kinds[WATCH_TEST_EVENT_CAPACITY];
+    fs_watch_event_kind kinds[WATCH_TEST_EVENT_CAPACITY];
     char paths[WATCH_TEST_EVENT_CAPACITY][WATCH_TEST_PATH_CAPACITY];
     char old_paths[WATCH_TEST_EVENT_CAPACITY][WATCH_TEST_PATH_CAPACITY];
     size_t count;
 } watch_probe;
 
-static salts_fs_watch watch;
+static fs_watch watch;
 static watch_probe probe;
 static char *fixture_root;
 static bool fixture_root_removed;
 
-static void watch_event(void *user, const salts_fs_watch_event *event) {
+static void watch_event(void *user, const fs_watch_event *event) {
     watch_probe *probe = (watch_probe *)user;
     if (probe != NULL && event != NULL &&
         probe->count < WATCH_TEST_EVENT_CAPACITY) {
@@ -41,9 +41,9 @@ static void watch_event(void *user, const salts_fs_watch_event *event) {
     }
 }
 
-static salts_fs_watch_config watch_config(watch_probe *probe,
+static fs_watch_config watch_config(watch_probe *probe,
                                           size_t capacity) {
-    salts_fs_watch_config config = {
+    fs_watch_config config = {
         .recursive = false,
         .event_capacity = capacity,
         .watch_capacity = 1u,
@@ -55,22 +55,22 @@ static salts_fs_watch_config watch_config(watch_probe *probe,
     return config;
 }
 
-static int watch_drive_until(salts_fs_watch *watch, watch_probe *probe,
+static int watch_drive_until(fs_watch *watch, watch_probe *probe,
                              size_t minimum) {
     size_t attempts = 0u;
     while (probe->count < minimum && attempts++ < 5000u) {
         size_t delivered = 0u;
-        int status = salts_fs_watch_run_ready(watch, 8u, &delivered);
+        int status = fs_watch_run_ready(watch, 8u, &delivered);
         if (status != SALTS_OK)
             return status;
         if (delivered == 0u)
-            cmeta_sleep_ms(1u);
+            sleep_ms(1u);
     }
     return probe->count >= minimum ? SALTS_OK : SALTS_ETIMEDOUT;
 }
 
 static bool probe_saw(const watch_probe *probe,
-                      salts_fs_watch_event_kind kind,
+                      fs_watch_event_kind kind,
                       const char *path) {
     size_t index;
     for (index = 0u; index < probe->count; ++index) {
@@ -82,7 +82,7 @@ static bool probe_saw(const watch_probe *probe,
 }
 
 static size_t probe_count_kind(const watch_probe *probe,
-                               salts_fs_watch_event_kind kind) {
+                               fs_watch_event_kind kind) {
     size_t count = 0u;
     size_t index;
     for (index = 0u; index < probe->count; ++index) {
@@ -92,18 +92,18 @@ static size_t probe_count_kind(const watch_probe *probe,
     return count;
 }
 
-static void watch_close_destroy(salts_fs_watch *watch) {
+static void watch_close_destroy(fs_watch *watch) {
     size_t attempts = 0u;
-    int status = salts_fs_watch_close(watch);
+    int status = fs_watch_close(watch);
     check_true(status == SALTS_OK || status == SALTS_EALREADY);
-    while (!salts_fs_watch_is_quiescent(watch) && attempts++ < 5000u) {
+    while (!fs_watch_is_quiescent(watch) && attempts++ < 5000u) {
         size_t delivered = 0u;
-        check_equal(salts_fs_watch_run_ready(watch, 8u, &delivered), SALTS_OK);
+        check_equal(fs_watch_run_ready(watch, 8u, &delivered), SALTS_OK);
         if (delivered == 0u)
-            cmeta_sleep_ms(1u);
+            sleep_ms(1u);
     }
-    check_true(salts_fs_watch_is_quiescent(watch));
-    check_equal(salts_fs_watch_destroy(watch), SALTS_OK);
+    check_true(fs_watch_is_quiescent(watch));
+    check_equal(fs_watch_destroy(watch), SALTS_OK);
     check_null(watch->impl);
 }
 
@@ -125,21 +125,21 @@ spec("Native filesystem watch") {
         char *root = fixture_root = tt_make_temp_dir("cflow-watch-");
         char first[1024];
         char second[1024];
-        salts_fs_watch_config config = watch_config(&probe, 8u);
+        fs_watch_config config = watch_config(&probe, 8u);
 
         check_not_null(root);
-        check_equal(salts_fs_path_join(first, sizeof(first), root,
+        check_equal(fs_path_join(first, sizeof(first), root,
                                        "first.txt"), SALTS_OK);
-        check_equal(salts_fs_path_join(second, sizeof(second), root,
+        check_equal(fs_path_join(second, sizeof(second), root,
                                        "second.txt"), SALTS_OK);
-        check_equal(salts_fs_watch_open(NULL, root, &config), SALTS_EINVAL);
-        check_equal(salts_fs_watch_open(&watch, root, &config), SALTS_OK);
+        check_equal(fs_watch_open(NULL, root, &config), SALTS_EINVAL);
+        check_equal(fs_watch_open(&watch, root, &config), SALTS_OK);
         check_equal(tt_write_file(first, "value", 5u), SALTS_OK);
         check_equal(watch_drive_until(&watch, &probe, 1u), SALTS_OK);
         check_true(probe_saw(&probe, SALTS_FS_WATCH_CREATED, "first.txt") ||
                    probe_saw(&probe, SALTS_FS_WATCH_MODIFIED, "first.txt"));
 
-        check_equal(salts_fs_rename(first, second), SALTS_OK);
+        check_equal(fs_rename(first, second), SALTS_OK);
         check_equal(watch_drive_until(&watch, &probe, 2u), SALTS_OK);
 #if defined(_WIN32) || defined(__linux__)
         {
@@ -147,10 +147,10 @@ spec("Native filesystem watch") {
             while (!probe_saw(&probe, SALTS_FS_WATCH_RENAMED, "second.txt") &&
                    attempts++ < 5000u) {
                 size_t delivered = 0u;
-                check_equal(salts_fs_watch_run_ready(
+                check_equal(fs_watch_run_ready(
                                 &watch, 8u, &delivered), SALTS_OK);
                 if (delivered == 0u)
-                    cmeta_sleep_ms(1u);
+                    sleep_ms(1u);
             }
             check_true(probe_saw(&probe, SALTS_FS_WATCH_RENAMED, "second.txt"));
         }
@@ -161,14 +161,14 @@ spec("Native filesystem watch") {
                               SALTS_FS_WATCH_RESCAN_REQUIRED, NULL) &&
                    attempts++ < 5000u) {
                 size_t delivered = 0u;
-                check_equal(salts_fs_watch_run_ready(
+                check_equal(fs_watch_run_ready(
                                 &watch, 8u, &delivered), SALTS_OK);
                 if (delivered == 0u)
-                    cmeta_sleep_ms(1u);
+                    sleep_ms(1u);
             }
             check_true(probe_saw(&probe,
                                  SALTS_FS_WATCH_RESCAN_REQUIRED, NULL));
-            check_equal(salts_fs_watch_acknowledge_rescan(&watch), SALTS_OK);
+            check_equal(fs_watch_acknowledge_rescan(&watch), SALTS_OK);
         }
 #endif
         check_equal(tt_remove_file(second), SALTS_OK);
@@ -186,10 +186,10 @@ spec("Native filesystem watch") {
                    attempts++ < 5000u) {
 #endif
                 size_t delivered = 0u;
-                check_equal(salts_fs_watch_run_ready(
+                check_equal(fs_watch_run_ready(
                                 &watch, 8u, &delivered), SALTS_OK);
                 if (delivered == 0u)
-                    cmeta_sleep_ms(1u);
+                    sleep_ms(1u);
             }
 #if defined(__APPLE__)
             check_true(probe_saw(&probe, SALTS_FS_WATCH_REMOVED, "second.txt") ||
@@ -198,7 +198,7 @@ spec("Native filesystem watch") {
                            rescans_before_remove);
             if (probe_count_kind(&probe, SALTS_FS_WATCH_RESCAN_REQUIRED) >
                 rescans_before_remove) {
-                check_equal(salts_fs_watch_acknowledge_rescan(&watch), SALTS_OK);
+                check_equal(fs_watch_acknowledge_rescan(&watch), SALTS_OK);
             }
 #else
             check_true(probe_saw(&probe, SALTS_FS_WATCH_REMOVED, "second.txt"));
@@ -213,50 +213,50 @@ spec("Native filesystem watch") {
         char first[1024];
         char second[1024];
         char during_rescan[1024];
-        salts_fs_watch_config config = watch_config(&probe, 1u);
-        salts_fs_watch_stats stats = {0};
+        fs_watch_config config = watch_config(&probe, 1u);
+        fs_watch_stats stats = {0};
         size_t attempts = 0u;
 
         check_not_null(root);
-        check_equal(salts_fs_path_join(first, sizeof(first), root,
+        check_equal(fs_path_join(first, sizeof(first), root,
                                        "one.txt"), SALTS_OK);
-        check_equal(salts_fs_path_join(second, sizeof(second), root,
+        check_equal(fs_path_join(second, sizeof(second), root,
                                        "two.txt"), SALTS_OK);
-        check_equal(salts_fs_path_join(during_rescan, sizeof(during_rescan),
+        check_equal(fs_path_join(during_rescan, sizeof(during_rescan),
                                        root, "during-rescan.txt"), SALTS_OK);
-        check_equal(salts_fs_watch_open(&watch, root, &config), SALTS_OK);
+        check_equal(fs_watch_open(&watch, root, &config), SALTS_OK);
         check_equal(tt_write_file(first, "1", 1u), SALTS_OK);
         check_equal(tt_write_file(second, "2", 1u), SALTS_OK);
         while (attempts++ < 5000u) {
-            check_true(salts_fs_watch_get_stats(&watch, &stats));
+            check_true(fs_watch_get_stats(&watch, &stats));
             if (stats.awaiting_rescan)
                 break;
-            cmeta_sleep_ms(1u);
+            sleep_ms(1u);
         }
         check_true(stats.awaiting_rescan);
         check_equal(watch_drive_until(&watch, &probe, 2u), SALTS_OK);
         check_true(probe_saw(&probe, SALTS_FS_WATCH_RESCAN_REQUIRED, NULL));
-        check_true(salts_fs_watch_get_stats(&watch, &stats));
+        check_true(fs_watch_get_stats(&watch, &stats));
         {
             const size_t suppressed_at_delivery = stats.suppressed;
             attempts = 0u;
             check_equal(tt_write_file(during_rescan, "3", 1u), SALTS_OK);
             while (attempts++ < 5000u) {
-                check_true(salts_fs_watch_get_stats(&watch, &stats));
+                check_true(fs_watch_get_stats(&watch, &stats));
                 if (stats.suppressed > suppressed_at_delivery)
                     break;
-                cmeta_sleep_ms(1u);
+                sleep_ms(1u);
             }
             check_true(stats.suppressed > suppressed_at_delivery);
         }
-        check_equal(salts_fs_watch_acknowledge_rescan(&watch), SALTS_OK);
-        check_true(salts_fs_watch_get_stats(&watch, &stats));
+        check_equal(fs_watch_acknowledge_rescan(&watch), SALTS_OK);
+        check_true(fs_watch_get_stats(&watch, &stats));
         check_true(stats.awaiting_rescan);
         check_equal(watch_drive_until(&watch, &probe, 3u), SALTS_OK);
         check_equal(probe_count_kind(&probe,
                         SALTS_FS_WATCH_RESCAN_REQUIRED), (size_t)2u);
-        check_equal(salts_fs_watch_acknowledge_rescan(&watch), SALTS_OK);
-        check_true(salts_fs_watch_get_stats(&watch, &stats));
+        check_equal(fs_watch_acknowledge_rescan(&watch), SALTS_OK);
+        check_true(fs_watch_get_stats(&watch, &stats));
 
         /* Native inotify events already queued when the second marker was
          * delivered can still arrive before ACK. The contract must publish
@@ -276,8 +276,8 @@ spec("Native filesystem watch") {
                     watch_drive_until(&watch, &probe, before + 1u) != SALTS_OK ||
                     probe_count_kind(
                         &probe, SALTS_FS_WATCH_RESCAN_REQUIRED) != markers + 1u ||
-                    salts_fs_watch_acknowledge_rescan(&watch) != SALTS_OK ||
-                    !salts_fs_watch_get_stats(&watch, &stats) ||
+                    fs_watch_acknowledge_rescan(&watch) != SALTS_OK ||
+                    !fs_watch_get_stats(&watch, &stats) ||
                     stats.rescan_required < required) {
                     settled = false;
                     break;
@@ -291,10 +291,10 @@ spec("Native filesystem watch") {
 
     it("reports deletion of the watched root") {
         char *root = fixture_root = tt_make_temp_dir("cflow-watch-root-");
-        salts_fs_watch_config config = watch_config(&probe, 8u);
+        fs_watch_config config = watch_config(&probe, 8u);
 
         check_not_null(root);
-        check_equal(salts_fs_watch_open(&watch, root, &config), SALTS_OK);
+        check_equal(fs_watch_open(&watch, root, &config), SALTS_OK);
         check_equal(tt_remove_tree(root), SALTS_OK);
         fixture_root_removed = true;
         check_equal(watch_drive_until(&watch, &probe, 1u), SALTS_OK);
@@ -306,10 +306,10 @@ spec("Native filesystem watch") {
 #else
     it("fails fast when the native watch backend is unavailable") {
         char *root = fixture_root = tt_make_temp_dir("cflow-watch-unsupported-");
-        salts_fs_watch_config config = watch_config(&probe, 1u);
+        fs_watch_config config = watch_config(&probe, 1u);
 
         check_not_null(root);
-        check_equal(salts_fs_watch_open(&watch, root, &config), SALTS_ENOTSUP);
+        check_equal(fs_watch_open(&watch, root, &config), SALTS_ENOTSUP);
         check_null(watch.impl);
     }
 #endif
@@ -321,30 +321,30 @@ spec("Native filesystem watch") {
         char child[1024];
         char dynamic[1024];
         char dynamic_child[1024];
-        salts_fs_watch_config config = watch_config(&probe, 8u);
+        fs_watch_config config = watch_config(&probe, 8u);
         size_t attempts = 0u;
 
         config.recursive = true;
         config.watch_capacity = 8u;
         check_not_null(root);
-        check_equal(salts_fs_path_join(nested, sizeof(nested), root,
+        check_equal(fs_path_join(nested, sizeof(nested), root,
                                        "nested"), SALTS_OK);
-        check_equal(salts_fs_path_join(child, sizeof(child), nested,
+        check_equal(fs_path_join(child, sizeof(child), nested,
                                        "child.txt"), SALTS_OK);
-        check_equal(salts_fs_path_join(dynamic, sizeof(dynamic), root,
+        check_equal(fs_path_join(dynamic, sizeof(dynamic), root,
                                        "dynamic"), SALTS_OK);
-        check_equal(salts_fs_path_join(dynamic_child, sizeof(dynamic_child),
+        check_equal(fs_path_join(dynamic_child, sizeof(dynamic_child),
                                        dynamic, "later.txt"), SALTS_OK);
         check_equal(tt_make_dir(nested), SALTS_OK);
-        check_equal(salts_fs_watch_open(&watch, root, &config), SALTS_OK);
+        check_equal(fs_watch_open(&watch, root, &config), SALTS_OK);
         check_equal(tt_write_file(child, "x", 1u), SALTS_OK);
         while (!probe_saw(&probe, SALTS_FS_WATCH_CREATED,
                           "nested/child.txt") && attempts++ < 5000u) {
             size_t delivered = 0u;
-            check_equal(salts_fs_watch_run_ready(
+            check_equal(fs_watch_run_ready(
                             &watch, 8u, &delivered), SALTS_OK);
             if (delivered == 0u)
-                cmeta_sleep_ms(1u);
+                sleep_ms(1u);
         }
         check_true(probe_saw(&probe, SALTS_FS_WATCH_CREATED,
                              "nested/child.txt"));
@@ -353,10 +353,10 @@ spec("Native filesystem watch") {
         while (!probe_saw(&probe, SALTS_FS_WATCH_CREATED, "dynamic") &&
                attempts++ < 5000u) {
             size_t delivered = 0u;
-            check_equal(salts_fs_watch_run_ready(
+            check_equal(fs_watch_run_ready(
                             &watch, 8u, &delivered), SALTS_OK);
             if (delivered == 0u)
-                cmeta_sleep_ms(1u);
+                sleep_ms(1u);
         }
         check_true(probe_saw(&probe, SALTS_FS_WATCH_CREATED, "dynamic"));
         check_equal(tt_write_file(dynamic_child, "y", 1u), SALTS_OK);
@@ -364,10 +364,10 @@ spec("Native filesystem watch") {
         while (!probe_saw(&probe, SALTS_FS_WATCH_CREATED,
                           "dynamic/later.txt") && attempts++ < 5000u) {
             size_t delivered = 0u;
-            check_equal(salts_fs_watch_run_ready(
+            check_equal(fs_watch_run_ready(
                             &watch, 8u, &delivered), SALTS_OK);
             if (delivered == 0u)
-                cmeta_sleep_ms(1u);
+                sleep_ms(1u);
         }
         check_true(probe_saw(&probe, SALTS_FS_WATCH_CREATED,
                              "dynamic/later.txt"));

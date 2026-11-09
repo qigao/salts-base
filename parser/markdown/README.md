@@ -29,7 +29,7 @@ imported-parser guard. It must not retain duplicate compiled grammar files.
 
 ## Source-span warning
 
-`salts_md_get_document_view().document.blocks[].byte_begin/end` index into the
+`md_get_document_view().document.blocks[].byte_begin/end` index into the
 **decoded semantic text** arena; `raw_markdown` preserves the exact original
 input independently. They are NOT original Markdown byte offsets. Until a
 separately qualified original-byte span mapping exists, TurboAgent MUST NOT

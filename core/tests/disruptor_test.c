@@ -1,8 +1,8 @@
-#include <disruptor.h>
+#include <queue/disruptor.h>
 #include "tinytest.h"
-#include <thread.h>
-#include <clock.h>
-#include <stdatomic.h>
+#include <threads/threads.h>
+#include <salts/clock.h>
+#include <atomic/atomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -36,7 +36,7 @@ static void disruptor_test_worker_wait(void *ctx) {
 enum { HANDOFF_THREADS = 4, HANDOFF_ROUNDS = 1024, HANDOFF_DEADLINE_MS = 10000 };
 typedef struct disruptor_handoff_lane {
   disruptor_cursor_t cursor;
-  cmeta_thread_t thread;
+  sync_thread_t thread;
   int result;
 } disruptor_handoff_lane;
 static struct {
@@ -57,16 +57,16 @@ static void disruptor_test_handoff(void *ctx) {
     do {
       if (atomic_load_explicit(&handoff.abort, memory_order_acquire)) return;
       phase = atomic_load_explicit(&handoff.phase, memory_order_acquire);
-      if (phase == previous) cmeta_thread_yield();
+      if (phase == previous) sync_thread_yield();
     } while (phase == previous);
     previous = phase;
     lane->result = 1;
     if ((phase & 1u) != 0u) {
       *(uint64_t *)disruptor_acquire_entry(handoff.ring, &lane->cursor) = lane->cursor.sequence;
-      if ((lane->cursor.sequence & 1u) != 0u) cmeta_thread_yield();
+      if ((lane->cursor.sequence & 1u) != 0u) sync_thread_yield();
       lane->result = disruptor_publisher_publish(handoff.ring, &lane->cursor);
     } else if (handoff.mode == DISRUPTOR_MODE_WORKER_POOL) {
-      if ((lane->cursor.sequence & 1u) != 0u) cmeta_thread_yield();
+      if ((lane->cursor.sequence & 1u) != 0u) sync_thread_yield();
       disruptor_worker_release_entry(handoff.ring, &lane->cursor);
     }
     atomic_fetch_add_explicit(&handoff.finished, 1u, memory_order_acq_rel);
@@ -75,11 +75,11 @@ static void disruptor_test_handoff(void *ctx) {
 
 static void disruptor_test_handoff_barrier(unsigned int phase) {
   const size_t expected = (size_t)phase * HANDOFF_THREADS;
-  const uint64_t deadline = cmeta_monotonic_ms() + HANDOFF_DEADLINE_MS;
+  const uint64_t deadline = monotonic_ms() + HANDOFF_DEADLINE_MS;
   atomic_store_explicit(&handoff.phase, phase, memory_order_release);
   while (atomic_load_explicit(&handoff.finished, memory_order_acquire) != expected &&
-         cmeta_monotonic_ms() < deadline)
-    cmeta_thread_yield();
+         monotonic_ms() < deadline)
+    sync_thread_yield();
   check_equal(atomic_load_explicit(&handoff.finished, memory_order_acquire), expected);
   for (size_t i = 0u; i < HANDOFF_THREADS; ++i) check_equal(handoff.lane[i].result, 1);
 }
@@ -96,8 +96,8 @@ spec("Disruptor Tests") {
       atomic_store_explicit(&handoff.abort, true, memory_order_release);
       while (handoff.started != 0u) {
         disruptor_handoff_lane *lane = &handoff.lane[handoff.started - 1u];
-        check_equal(cmeta_thread_join(&lane->thread), SALTS_OK);
-        cmeta_thread_destroy(&lane->thread);
+        check_equal(sync_thread_join(&lane->thread), SALTS_OK);
+        sync_thread_destroy(&lane->thread);
         --handoff.started;
       }
       /* All publishers/releases have returned, including on fatal checks. */
@@ -115,7 +115,7 @@ spec("Disruptor Tests") {
         if (handoff.mode == DISRUPTOR_MODE_BROADCAST)
           check_equal(disruptor_consumer_register(handoff.ring, &consumer), UINT64_C(1));
         for (size_t i = 0u; i < HANDOFF_THREADS; ++i) {
-          check_equal(cmeta_thread_create(&handoff.lane[i].thread,
+          check_equal(sync_thread_create(&handoff.lane[i].thread,
                                          disruptor_test_handoff, &handoff.lane[i]), SALTS_OK);
           ++handoff.started;
         }
@@ -397,7 +397,7 @@ spec("Disruptor Tests") {
                               .consumer_capacity = 1,
                               .mode = DISRUPTOR_MODE_WORKER_POOL};
     disruptor_worker_wait_test_t test;
-    cmeta_thread_t worker = NULL;
+    sync_thread_t worker = NULL;
     disruptor_cursor_t published = {0};
     disruptor_t *d = disruptor_create(&cfg);
     check_not_null(d);
@@ -406,12 +406,12 @@ spec("Disruptor Tests") {
     atomic_init(&test.running, 1);
     atomic_init(&test.entered, 0);
     atomic_init(&test.result, 0);
-    check_equal(cmeta_thread_create(&worker, disruptor_test_worker_wait, &test), 0);
-    while (!atomic_load_explicit(&test.entered, memory_order_acquire)) cmeta_thread_yield();
+    check_equal(sync_thread_create(&worker, disruptor_test_worker_wait, &test), 0);
+    while (!atomic_load_explicit(&test.entered, memory_order_acquire)) sync_thread_yield();
     check_equal(disruptor_publisher_try_claim(d, &published), 1);
     *(uint64_t *)disruptor_acquire_entry(d, &published) = 42;
     check_equal(disruptor_publisher_publish(d, &published), 1);
-    check_equal(cmeta_thread_join(&worker), 0);
+    check_equal(sync_thread_join(&worker), 0);
     check_equal(atomic_load_explicit(&test.result, memory_order_acquire), 1);
     check_equal(test.cursor.sequence, published.sequence);
     check_equal(*(const uint64_t *)disruptor_show_entry(d, &test.cursor), 42);
@@ -425,7 +425,7 @@ spec("Disruptor Tests") {
                               .consumer_capacity = 1,
                               .mode = DISRUPTOR_MODE_WORKER_POOL};
     disruptor_worker_wait_test_t test;
-    cmeta_thread_t worker = NULL;
+    sync_thread_t worker = NULL;
     disruptor_t *d = disruptor_create(&cfg);
     check_not_null(d);
     memset(&test, 0, sizeof(test));
@@ -433,11 +433,11 @@ spec("Disruptor Tests") {
     atomic_init(&test.running, 1);
     atomic_init(&test.entered, 0);
     atomic_init(&test.result, 1);
-    check_equal(cmeta_thread_create(&worker, disruptor_test_worker_wait, &test), 0);
-    while (!atomic_load_explicit(&test.entered, memory_order_acquire)) cmeta_thread_yield();
+    check_equal(sync_thread_create(&worker, disruptor_test_worker_wait, &test), 0);
+    while (!atomic_load_explicit(&test.entered, memory_order_acquire)) sync_thread_yield();
     atomic_store_explicit(&test.running, 0, memory_order_release);
     disruptor_worker_wake_all(d);
-    check_equal(cmeta_thread_join(&worker), 0);
+    check_equal(sync_thread_join(&worker), 0);
     check_equal(atomic_load_explicit(&test.result, memory_order_acquire), 0);
     check_equal(test.cursor.sequence, 0);
     disruptor_destroy(d);

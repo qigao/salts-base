@@ -1,90 +1,92 @@
-# Keep the minimal foundation target usable without platform/transport providers.
-cmake_add_source(core_sources DIRS src src/sds include
-  EXCLUDES src/cmeta_zstd.c include/cmeta_zstd.h)
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${core_sources})
-add_library(saltscore_core SHARED ${core_sources})
-cmake_config_target(saltscore_core ALIAS Salts::Core FOLDER "core")
-target_compile_features(saltscore_core PUBLIC c_std_11)
-cmake_config_target(saltscore_core
-  EXPORT_NAME Core
-  VERSION "${PROJECT_VERSION}"
+# One Core owner for utilities, platform primitives, concurrency, FS and processes.
+# Platform suffixes identify native backends; other files are shared.
+cmake_add_source(core_sources RECURSE DIRS src sds PATTERNS "*.c"
+  EXCLUDES src/*_win.c src/*_linux.c src/*_posix.c src/*_macos.c
+    src/*_bsd.c src/*_unsupported.c)
+set(platform_patterns "*_posix.c" "*_unsupported.c")
+if(WIN32)
+  set(platform_patterns "*_win.c")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  set(platform_patterns "*_posix.c" "*_linux.c")
+elseif(APPLE)
+  set(platform_patterns "*_posix.c" "*_bsd.c")
+  if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    enable_language(OBJC)
+    list(APPEND platform_patterns "*_macos.m")
+  else()
+    list(APPEND platform_patterns "*_unsupported.c")
+  endif()
+endif()
+cmake_add_source(core_platform_sources RECURSE DIRS src PATTERNS ${platform_patterns})
+if(NOT core_platform_sources)
+  message(FATAL_ERROR "Core platform implementations are missing for ${CMAKE_SYSTEM_NAME}: ${platform_patterns}")
+endif()
+list(APPEND core_sources ${core_platform_sources})
+cmake_add_source(core_public_headers RECURSE DIRS include PATTERNS "*.h")
+cmake_add_source(core_private_headers RECURSE DIRS src PATTERNS "*.h")
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
+  FILES ${core_sources} ${core_public_headers} ${core_private_headers})
+add_library(salts SHARED ${core_sources} ${core_public_headers} ${core_private_headers})
+cmake_config_target(salts ALIAS Salts::Core FOLDER "core"
+  EXPORT_NAME Core VERSION "${PROJECT_VERSION}"
   SOVERSION "${SALTSCORE_NATIVE_SOVERSION}")
-set_target_properties(saltscore_core PROPERTIES
+set_target_properties(salts PROPERTIES
   C_STANDARD_REQUIRED ON C_EXTENSIONS OFF
   C_VISIBILITY_PRESET default WINDOWS_EXPORT_ALL_SYMBOLS ON)
-target_include_directories(saltscore_core PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-# Public mem_pool_t and mem_buffer_t contain C11 atomic fields on MSVC.
-# Consumers including cmeta_buffer.h require the same C compiler setting.
+target_compile_features(salts PUBLIC c_std_11)
+target_compile_definitions(salts PRIVATE SALTS_CORE_BUILD=1)
+target_include_directories(salts
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+          "${CMAKE_CURRENT_SOURCE_DIR}/sds")
+target_link_libraries(salts PUBLIC Threads::Threads)
+find_path(CORE_SIMDE_INCLUDE_DIR "simde/x86/sse2.h"
+  PATHS "${SALTS_DEPENDENCY_PREFIX}/include" NO_DEFAULT_PATH REQUIRED)
+target_include_directories(salts SYSTEM PRIVATE "${CORE_SIMDE_INCLUDE_DIR}")
+# The public buffer/pool records contain C11 atomic fields on MSVC.
 if(MSVC)
-  target_compile_options(saltscore_core PUBLIC
+  target_compile_options(salts PUBLIC
     $<$<COMPILE_LANG_AND_ID:C,MSVC>:-experimental:c11atomics>)
 endif()
-
-# Core-owned buffer/pool, byte utility and sole native Base64 implementation.
-# No third-party Base64 DSO, vcpkg port or alternate codec is required.
-# SDS is original private C string storage, not an exported provider target.
-target_include_directories(saltscore_core PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/sds")
-if(APPLE)
-  target_compile_definitions(saltscore_core PRIVATE _DARWIN_C_SOURCE=1)
+if(WIN32)
+  target_compile_definitions(salts PRIVATE WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601)
+  target_link_libraries(salts PRIVATE bcrypt iphlpapi ws2_32)
+elseif(APPLE)
+  target_compile_definitions(salts PRIVATE
+    _DARWIN_C_SOURCE=1)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    target_link_libraries(salts PRIVATE "-framework CoreServices")
+  endif()
 elseif(UNIX)
-  target_compile_definitions(saltscore_core PRIVATE _DEFAULT_SOURCE=1 _POSIX_C_SOURCE=200809L)
+  target_compile_definitions(salts PRIVATE
+    _DEFAULT_SOURCE=1 _POSIX_C_SOURCE=200809L _XOPEN_SOURCE=700)
 endif()
-# Original TLog owns real file and async queue operations, using canonical
-# module implementations rather than replacing these features with stubs.
-target_link_libraries(saltscore_core PUBLIC
-  Salts::Platform Salts::Concurrency Salts::FS)
 
-# Original one-shot Zstd ABI remains in the sole Core owner. The registry pins
-# its exact source revision; never substitute the system codec or a second DSO.
-find_package(zstd 1.6.0 EXACT CONFIG REQUIRED)
-get_target_property(_saltscore_zstd_type zstd::libzstd_static TYPE)
-if(NOT _saltscore_zstd_type STREQUAL "STATIC_LIBRARY")
-  message(FATAL_ERROR "Core Zstd provider must be the original static archive")
-endif()
-file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/zstd-provider-$<CONFIG>.txt"
-  CONTENT "$<TARGET_FILE:zstd::libzstd_static>\n")
-target_sources(saltscore_core PRIVATE src/cmeta_zstd.c)
-target_link_libraries(saltscore_core PRIVATE zstd::libzstd_static)
+find_package(zstd CONFIG REQUIRED
+  PATHS "${SALTS_DEPENDENCY_PREFIX}/share/zstd" NO_DEFAULT_PATH)
+target_link_libraries(salts PRIVATE zstd::libzstd_static)
 if(CMAKE_EXECUTABLE_FORMAT STREQUAL "ELF")
-  # PRIVATE alone does not hide archive symbols. Bind the pinned provider
-  # inside Core so another process-level Zstd cannot interpose its calls.
-  target_link_options(saltscore_core PRIVATE
+  target_link_options(salts PRIVATE
     "LINKER:--exclude-libs,$<TARGET_FILE_NAME:zstd::libzstd_static>")
 endif()
-target_compile_definitions(saltscore_core PUBLIC SALTSCORE_HAS_ZSTD=1)
-install(FILES include/cmeta_zstd.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-# The pinned vcpkg provider owns the third-party license text.
-install(FILES "${zstd_DIR}/copyright"
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/SaltsCore/zstd RENAME LICENSE)
+target_compile_definitions(salts PUBLIC SALTSCORE_HAS_ZSTD=1)
 
-
-if(WIN32)
-  cmake_config_target(saltscore_core
-    OUTPUT_NAME "saltscore_core-${SALTSCORE_NATIVE_SOVERSION}")
-endif()
-install(TARGETS saltscore_core EXPORT SaltsCoreTargets
+install(TARGETS salts EXPORT SaltsBaseTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES
-  include/bytes.h include/runtime_abi.h include/utf8.h
-  include/base64_utils.h include/vstr.h include/salts_api.h
-  include/cmeta_buffer.h include/ring_buffer.h include/cmeta_error.h
-  include/tstr.h include/str.h include/memory_pool.h include/object_pool.h
-  include/bucket_priority_queue.h
-  include/fmt.h include/fmt_pp.h include/tlog.h include/tlog_helper.h
-  include/cmeta_uuid.h include/cmeta_bytes.h include/cmeta_simd_scan.h include/cmeta_mmap.h include/re.h
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-# Original upstream SDS BSD license is mandatory for this private source.
-install(FILES src/sds/LICENSE
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/SaltsCore/sds)
-
-# Keep the original formatter lexer grammar in its own nested module.
+# include/ is exclusively SDK payload; implementation-only files belong in
+# src/ or parser/. Install the complete directory without filtering exceptions.
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES "${zstd_DIR}/copyright"
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/SaltsBase/zstd RENAME LICENSE)
+install(FILES sds/LICENSE
+  DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/SaltsBase/sds)
 add_subdirectory(parser)
-
 if(BUILD_TESTS)
   add_subdirectory(tests)
+endif()
+if(BUILD_BENCHMARKS)
+  add_subdirectory(benchmarks)
 endif()

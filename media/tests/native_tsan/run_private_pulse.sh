@@ -81,7 +81,7 @@ test "$streams" = 1 || {
 
 export LD_LIBRARY_PATH="$build:$SALTS_ROOT/lib:${LD_LIBRARY_PATH:-}"
 ctest --test-dir "$build" \
-  -R '^salts_capture_native_tsan_virtual_monitor$' \
+  -R '^capture_native_tsan_virtual_monitor$' \
   --repeat until-fail:12 --verbose --no-tests=error \
   --output-on-failure --timeout 30 | tee "$private/native-tsan.log"
 
@@ -99,14 +99,14 @@ for marker in \
   }
 done
 
-exe="$build/salts_capture_native_tsan_regression"
+exe="$build/capture_native_tsan_regression"
 lib="$build/libsaltscore_media.a"
 test -x "$exe"
 test -f "$lib"
-for sym in salts_audio_capture_create salts_capture_start salts_capture_stop salts_playback_create; do
+for sym in audio_capture_create capture_start capture_stop playback_create; do
   nm --defined-only "$lib" | grep -F " T $sym"
 done
-nm "$exe" | grep -F 'salts_capture_start'
+nm "$exe" | grep -F 'capture_start'
 nm -D "$exe" | grep -F '__tsan_init'
 ldd "$exe" | tee "$private/native-tsan-loaded.txt"
 if grep -F 'not found' "$private/native-tsan-loaded.txt"; then

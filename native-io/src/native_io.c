@@ -1,7 +1,7 @@
 #include "native_io_internal.h"
 
-#include <error_codes.h>
-#include <coro_pool.h>
+#include <salts/error_codes.h>
+#include <salts/coro_pool.h>
 
 #include <limits.h>
 #include <stdlib.h>
@@ -26,7 +26,7 @@ struct native_io_coroutine {
 };
 
 struct native_io_coroutine_owner {
-  cmeta_io_impl *impl;
+  io_impl *impl;
   coro_pool_t *pool;
   native_io_coroutine *tasks;
   native_io_coroutine_request_owner *request_owners;
@@ -83,7 +83,7 @@ static int native_io_coroutine_resume(native_io_coroutine *coroutine) {
 }
 
 static native_io_coroutine_owner *
-native_io_coroutine_owner_create(cmeta_io_impl *impl, size_t task_capacity,
+native_io_coroutine_owner_create(io_impl *impl, size_t task_capacity,
                                  size_t completion_capacity) {
   native_io_coroutine_owner *owner;
   coro_pool_config_t pool_config = {
@@ -170,12 +170,12 @@ static int native_io_coroutine_route_completion(native_io_coroutine_owner *owner
   return SALTS_OK;
 }
 
-static cmeta_io_impl *native_io_impl(native_io_backend *backend) {
-  return backend != NULL ? (cmeta_io_impl *)backend->impl : NULL;
+static io_impl *native_io_impl(native_io_backend *backend) {
+  return backend != NULL ? (io_impl *)backend->impl : NULL;
 }
 
-static const cmeta_io_impl *native_io_const_impl(const native_io_backend *backend) {
-  return backend != NULL ? (const cmeta_io_impl *)backend->impl : NULL;
+static const io_impl *native_io_const_impl(const native_io_backend *backend) {
+  return backend != NULL ? (const io_impl *)backend->impl : NULL;
 }
 
 native_io_model native_io_backend_kind_model(native_io_backend_kind kind) {
@@ -269,7 +269,7 @@ bool native_io_operation_valid(const native_io_operation *operation) {
 
 int native_io_backend_init(native_io_backend *backend, const native_io_backend_config *config) {
   int status;
-  cmeta_io_impl *impl;
+  io_impl *impl;
   if (backend == NULL) return SALTS_EINVAL;
   backend->impl = NULL;
   if (config == NULL || native_io_backend_kind_model(config->kind) == NATIVE_IO_MODEL_NONE ||
@@ -290,7 +290,7 @@ int native_io_backend_init(native_io_backend *backend, const native_io_backend_c
 
 int native_io_backend_attach_socket(native_io_backend *backend, uintptr_t native_socket,
                                     native_io_endpoint *out_endpoint) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (out_endpoint != NULL) *out_endpoint = (native_io_endpoint){0};
   if (impl == NULL || impl->ops == NULL ||
       out_endpoint == NULL || native_socket == UINTPTR_MAX)
@@ -300,7 +300,7 @@ int native_io_backend_attach_socket(native_io_backend *backend, uintptr_t native
 }
 
 int native_io_backend_release_socket(native_io_backend *backend, native_io_endpoint endpoint) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (impl == NULL || impl->ops == NULL ||
       !native_io_endpoint_valid(endpoint))
     return SALTS_EINVAL;
@@ -310,7 +310,7 @@ int native_io_backend_release_socket(native_io_backend *backend, native_io_endpo
 
 int native_io_backend_attach_pipe(native_io_backend *backend, uintptr_t native_handle,
                                   uint32_t flags, native_io_endpoint *out_endpoint) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (out_endpoint != NULL) *out_endpoint = (native_io_endpoint){0};
   if (out_endpoint == NULL || native_handle == UINTPTR_MAX ||
       flags != NATIVE_IO_PIPE_ENDPOINT_ASYNC_CAPABLE)
@@ -321,7 +321,7 @@ int native_io_backend_attach_pipe(native_io_backend *backend, uintptr_t native_h
 }
 
 int native_io_backend_release_pipe(native_io_backend *backend, native_io_endpoint endpoint) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (impl == NULL || impl->ops == NULL || !native_io_endpoint_valid(endpoint)) return SALTS_EINVAL;
   if (impl->ops->release_pipe == NULL) return SALTS_ENOTSUP;
   return impl->ops->release_pipe(impl, endpoint);
@@ -338,7 +338,7 @@ bool native_io_backend_kind_supports_file(native_io_backend_kind kind,
 
 int native_io_backend_attach_file(native_io_backend *backend, uintptr_t native_handle,
                                   native_io_endpoint *out_endpoint) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (out_endpoint) *out_endpoint = (native_io_endpoint){0};
   if (!impl || !impl->ops || !out_endpoint || native_handle == UINTPTR_MAX) return SALTS_EINVAL;
   if (!impl->ops->attach_file) return SALTS_ENOTSUP;
@@ -346,7 +346,7 @@ int native_io_backend_attach_file(native_io_backend *backend, uintptr_t native_h
 }
 
 int native_io_backend_release_file(native_io_backend *backend, native_io_endpoint endpoint) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (!impl || !impl->ops || !native_io_endpoint_valid(endpoint)) return SALTS_EINVAL;
   if (!impl->ops->release_file) return SALTS_ENOTSUP;
   return impl->ops->release_file(impl, endpoint);
@@ -354,7 +354,7 @@ int native_io_backend_release_file(native_io_backend *backend, native_io_endpoin
 
 bool native_io_backend_endpoint_supports_vector_write(const native_io_backend *backend,
                                                       native_io_endpoint endpoint) {
-  const cmeta_io_impl *impl = native_io_const_impl(backend);
+  const io_impl *impl = native_io_const_impl(backend);
   if (impl == NULL || impl->ops == NULL || impl->ops->supports_vector_write == NULL ||
       !native_io_endpoint_valid(endpoint))
     return false;
@@ -365,7 +365,7 @@ int native_io_internal_submit_stream_accept(
     native_io_backend *backend,
     native_io_endpoint listener,
     native_io_request *out_request) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (out_request != NULL) *out_request = (native_io_request){0};
   if (impl == NULL || impl->ops == NULL ||
       !native_io_endpoint_valid(listener) || out_request == NULL)
@@ -380,7 +380,7 @@ int native_io_internal_take_stream_accept(
     native_io_backend *backend,
     native_io_request request,
     uintptr_t *out_transport) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (out_transport != NULL) *out_transport = UINTPTR_MAX;
   if (impl == NULL || impl->ops == NULL ||
       !native_io_request_valid(request) || out_transport == NULL)
@@ -393,7 +393,7 @@ int native_io_internal_take_stream_accept(
 
 int native_io_backend_submit(native_io_backend *backend, const native_io_operation *operation,
                              native_io_request *out_request) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (out_request != NULL) *out_request = (native_io_request){0};
   if (impl == NULL || impl->ops == NULL || impl->ops->submit == NULL ||
       !native_io_operation_valid(operation) || out_request == NULL)
@@ -404,7 +404,7 @@ int native_io_backend_submit(native_io_backend *backend, const native_io_operati
 int native_io_backend_submit_vector(native_io_backend *backend,
                                     const native_io_vector_operation *operation,
                                     native_io_request *out_request) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (out_request != NULL) *out_request = (native_io_request){0};
   if (impl == NULL || impl->ops == NULL || !native_io_vector_operation_valid(operation) ||
       out_request == NULL)
@@ -415,7 +415,7 @@ int native_io_backend_submit_vector(native_io_backend *backend,
 
 int native_io_backend_prepare(native_io_backend *backend, const native_io_operation *operation,
                               native_io_request *out_request) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (out_request != NULL) *out_request = (native_io_request){0};
   if (impl == NULL || impl->ops == NULL || impl->ops->prepare == NULL ||
       !native_io_operation_valid(operation) || out_request == NULL)
@@ -424,7 +424,7 @@ int native_io_backend_prepare(native_io_backend *backend, const native_io_operat
 }
 
 int native_io_backend_flush(native_io_backend *backend) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (impl == NULL || impl->ops == NULL) return SALTS_EINVAL;
   return impl->ops->flush != NULL ? impl->ops->flush(impl) : SALTS_OK;
 }
@@ -432,7 +432,7 @@ int native_io_backend_flush(native_io_backend *backend) {
 int native_io_backend_spawn_coroutine(native_io_backend *backend,
                                       native_io_coroutine_entry_fn entry, void *user_data,
                                       native_io_coroutine_task *out_task) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   native_io_coroutine_owner *owner;
   native_io_coroutine *coroutine;
   native_io_backend_stats stats;
@@ -565,7 +565,7 @@ int native_io_coroutine_await_vector(native_io_coroutine *coroutine,
 }
 
 int native_io_backend_cancel_coroutine(native_io_backend *backend, native_io_coroutine_task task) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   native_io_coroutine *coroutine;
   if (impl == NULL || impl->ops == NULL || impl->coroutine_owner == NULL ||
       !native_io_coroutine_task_valid(task))
@@ -577,7 +577,7 @@ int native_io_backend_cancel_coroutine(native_io_backend *backend, native_io_cor
 }
 
 int native_io_backend_cancel(native_io_backend *backend, native_io_request request) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (impl == NULL || impl->ops == NULL || impl->ops->cancel == NULL ||
       !native_io_request_valid(request))
     return SALTS_EINVAL;
@@ -586,7 +586,7 @@ int native_io_backend_cancel(native_io_backend *backend, native_io_request reque
 
 int native_io_backend_observe(native_io_backend *backend, native_io_completion *events,
                               size_t event_capacity, uint32_t timeout_ms, size_t *out_count) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   native_io_coroutine_owner *owner;
   size_t raw_count = 0u;
   size_t direct_count = 0u;
@@ -623,19 +623,19 @@ int native_io_backend_observe(native_io_backend *backend, native_io_completion *
 }
 
 int native_io_backend_wake(native_io_backend *backend) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (impl == NULL || impl->ops == NULL || impl->ops->wake == NULL) return SALTS_EINVAL;
   return impl->ops->wake(impl);
 }
 
 int native_io_backend_close(native_io_backend *backend) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   if (impl == NULL || impl->ops == NULL || impl->ops->close == NULL) return SALTS_EINVAL;
   return impl->ops->close(impl);
 }
 
 int native_io_backend_destroy(native_io_backend *backend) {
-  cmeta_io_impl *impl = native_io_impl(backend);
+  io_impl *impl = native_io_impl(backend);
   native_io_coroutine_owner *owner;
   int status;
   if (impl == NULL || impl->ops == NULL || impl->ops->destroy == NULL) return SALTS_EINVAL;
@@ -651,7 +651,7 @@ int native_io_backend_destroy(native_io_backend *backend) {
 
 bool native_io_backend_get_stats(const native_io_backend *backend,
                                  native_io_backend_stats *out_stats) {
-  const cmeta_io_impl *impl = native_io_const_impl(backend);
+  const io_impl *impl = native_io_const_impl(backend);
   if (impl == NULL || impl->ops == NULL || impl->ops->get_stats == NULL || out_stats == NULL)
     return false;
   return impl->ops->get_stats(impl, out_stats);
@@ -659,7 +659,7 @@ bool native_io_backend_get_stats(const native_io_backend *backend,
 
 bool native_io_backend_get_config(const native_io_backend *backend,
                                   native_io_backend_config *out_config) {
-  const cmeta_io_impl *impl = native_io_const_impl(backend);
+  const io_impl *impl = native_io_const_impl(backend);
   native_io_backend_stats stats = {0};
   if (impl == NULL || out_config == NULL ||
       !native_io_backend_get_stats(backend, &stats) ||
@@ -675,7 +675,7 @@ bool native_io_backend_get_config(const native_io_backend *backend,
 
 bool native_io_backend_get_coroutine_stats(const native_io_backend *backend,
                                            native_io_coroutine_stats *out_stats) {
-  const cmeta_io_impl *impl = native_io_const_impl(backend);
+  const io_impl *impl = native_io_const_impl(backend);
   native_io_coroutine_stats stats = NATIVE_IO_COROUTINE_STATS_V1_INITIALIZER;
   if (impl == NULL || out_stats == NULL ||
       out_stats->abi_version != NATIVE_IO_COROUTINE_STATS_ABI_V1 ||

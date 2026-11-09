@@ -1,4 +1,4 @@
-#include "ring_buffer_spsc.h"
+#include <queue/ring_buffer_spsc.h>
 #include "tinytest.h"
 
 #include <string.h>

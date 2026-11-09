@@ -5,8 +5,8 @@
 #include "native_io_internal.h"
 #include "native_io_accept_escrow.h"
 
-#include <clock.h>
-#include <error_codes.h>
+#include <salts/clock.h>
+#include <salts/error_codes.h>
 
 #include <errno.h>
 #include <limits.h>
@@ -52,33 +52,33 @@
   #define SALTS_IO_URING_HAS_TASKRUN_FLAG 0
 #endif
 
-typedef enum cmeta_io_uring_phase {
+typedef enum io_uring_phase {
   SALTS_IO_URING_FREE = 0,
   SALTS_IO_URING_PENDING,
   SALTS_IO_URING_TERMINAL
-} cmeta_io_uring_phase;
+} io_uring_phase;
 
-typedef struct cmeta_io_uring_lane {
+typedef struct io_uring_lane {
   /* Only the head enters the kernel: concurrent recv SQEs need not consume stream bytes FIFO. */
   uint32_t head;
   uint32_t tail;
-} cmeta_io_uring_lane;
+} io_uring_lane;
 
-typedef struct cmeta_io_uring_endpoint {
+typedef struct io_uring_endpoint {
   int fd;
   uint32_t generation;
   size_t active_requests;
   size_t retained_accepts;
-  cmeta_io_uring_lane read_lane;
-  cmeta_io_uring_lane write_lane;
-  cmeta_io_resource_kind resource_kind;
+  io_uring_lane read_lane;
+  io_uring_lane write_lane;
+  io_resource_kind resource_kind;
   bool connected;
   bool connect_active;
   bool active;
-} cmeta_io_uring_endpoint;
+} io_uring_endpoint;
 
-typedef struct cmeta_io_uring_request_record {
-  cmeta_io_uring_phase phase;
+typedef struct io_uring_request_record {
+  io_uring_phase phase;
   native_io_request request;
   native_io_endpoint endpoint;
   native_io_operation operation;
@@ -97,20 +97,20 @@ typedef struct cmeta_io_uring_request_record {
   bool in_flight;
   bool cancel_requested;
   bool stream_accept;
-} cmeta_io_uring_request_record;
+} io_uring_request_record;
 
-typedef struct cmeta_io_uring_accept_result {
+typedef struct io_uring_accept_result {
   native_io_request request;
   native_io_endpoint listener;
   int child_fd;
   bool live;
-} cmeta_io_uring_accept_result;
+} io_uring_accept_result;
 
-typedef struct cmeta_io_uring_impl {
-  cmeta_io_impl base;
-  cmeta_io_uring_endpoint *endpoints;
-  cmeta_io_uring_request_record *requests;
-  cmeta_io_uring_accept_result *accept_results;
+typedef struct io_uring_impl {
+  io_impl base;
+  io_uring_endpoint *endpoints;
+  io_uring_request_record *requests;
+  io_uring_accept_result *accept_results;
   native_io_accept_escrow accept_escrow;
   uint32_t *free_endpoints;
   uint32_t *free_requests;
@@ -159,17 +159,17 @@ typedef struct cmeta_io_uring_impl {
   bool wake_poll_in_flight;
   bool admission_open;
   atomic_bool wake_pending;
-} cmeta_io_uring_impl;
+} io_uring_impl;
 
 enum { SALTS_IO_URING_CANCEL_TOKEN = 0u, SALTS_IO_URING_INDEX_NONE = UINT32_MAX };
 static const uint64_t SALTS_IO_URING_WAKE_TOKEN = UINT64_MAX;
 
-typedef struct cmeta_io_uring_sigpipe_guard {
+typedef struct io_uring_sigpipe_guard {
   sigset_t blocked;
   sigset_t previous;
   bool active;
   bool had_pending;
-} cmeta_io_uring_sigpipe_guard;
+} io_uring_sigpipe_guard;
 
 static void uring_counter_increment(uint64_t *counter) {
   if (*counter != UINT64_MAX) ++*counter;
@@ -180,11 +180,11 @@ static uint32_t uring_next_generation(uint32_t generation) {
   return generation == 0u ? 1u : generation;
 }
 
-static cmeta_io_uring_endpoint *uring_endpoint(
-    cmeta_io_uring_impl *impl, native_io_endpoint endpoint);
+static io_uring_endpoint *uring_endpoint(
+    io_uring_impl *impl, native_io_endpoint endpoint);
 
-static cmeta_io_uring_accept_result *uring_accept_result_from_token(
-    cmeta_io_uring_impl *impl, uintptr_t token) {
+static io_uring_accept_result *uring_accept_result_from_token(
+    io_uring_impl *impl, uintptr_t token) {
   const uintptr_t base = (uintptr_t)impl->accept_results;
   const uintptr_t value = token;
   const size_t bytes =
@@ -202,11 +202,11 @@ static cmeta_io_uring_accept_result *uring_accept_result_from_token(
 
 static int uring_retire_accept_result(
     void *context, uintptr_t transport) {
-  cmeta_io_uring_impl *impl =
-      (cmeta_io_uring_impl *)context;
-  cmeta_io_uring_accept_result *result =
+  io_uring_impl *impl =
+      (io_uring_impl *)context;
+  io_uring_accept_result *result =
       uring_accept_result_from_token(impl, transport);
-  cmeta_io_uring_endpoint *listener;
+  io_uring_endpoint *listener;
   int status = SALTS_OK;
 
   if (result == NULL || !result->live)
@@ -221,14 +221,14 @@ static int uring_retire_accept_result(
   return status;
 }
 
-static cmeta_io_uring_accept_result *uring_accept_result_reserve(
-    cmeta_io_uring_impl *impl,
+static io_uring_accept_result *uring_accept_result_reserve(
+    io_uring_impl *impl,
     native_io_request request,
     native_io_endpoint listener,
     int child_fd) {
   size_t index;
   for (index = 0u; index < impl->request_capacity; ++index) {
-    cmeta_io_uring_accept_result *result =
+    io_uring_accept_result *result =
         &impl->accept_results[index];
     if (result->live)
       continue;
@@ -242,11 +242,11 @@ static cmeta_io_uring_accept_result *uring_accept_result_reserve(
 }
 
 static int uring_publish_accept_result(
-    cmeta_io_uring_impl *impl,
-    cmeta_io_uring_request_record *request,
+    io_uring_impl *impl,
+    io_uring_request_record *request,
     int child_fd) {
-  cmeta_io_uring_accept_result *result;
-  cmeta_io_uring_endpoint *listener;
+  io_uring_accept_result *result;
+  io_uring_endpoint *listener;
   int status;
 
   if (child_fd < 0)
@@ -279,12 +279,12 @@ static int uring_publish_accept_result(
 }
 
 static int uring_discard_listener_accepts(
-    cmeta_io_uring_impl *impl,
+    io_uring_impl *impl,
     native_io_endpoint listener_handle) {
   int first_status = SALTS_OK;
   size_t index;
   for (index = 0u; index < impl->request_capacity; ++index) {
-    cmeta_io_uring_accept_result *result =
+    io_uring_accept_result *result =
         &impl->accept_results[index];
     int status;
     if (!result->live ||
@@ -304,7 +304,7 @@ static uint64_t uring_request_token(uint32_t index, uint32_t generation) {
   return ((uint64_t)generation << 32u) | (uint64_t)(index + 1u);
 }
 
-static int uring_sigpipe_guard_begin(cmeta_io_uring_sigpipe_guard *guard) {
+static int uring_sigpipe_guard_begin(io_uring_sigpipe_guard *guard) {
   sigset_t pending;
   int status;
   memset(guard, 0, sizeof(*guard));
@@ -317,7 +317,7 @@ static int uring_sigpipe_guard_begin(cmeta_io_uring_sigpipe_guard *guard) {
   return SALTS_OK;
 }
 
-static void uring_sigpipe_guard_end(cmeta_io_uring_sigpipe_guard *guard) {
+static void uring_sigpipe_guard_end(io_uring_sigpipe_guard *guard) {
   sigset_t pending;
   if (guard == NULL || !guard->active) return;
   if (!guard->had_pending && sigpending(&pending) == 0 && sigismember(&pending, SIGPIPE) == 1) {
@@ -331,17 +331,17 @@ static void uring_sigpipe_guard_end(cmeta_io_uring_sigpipe_guard *guard) {
   guard->active = false;
 }
 
-static cmeta_io_uring_endpoint *uring_endpoint(cmeta_io_uring_impl *impl,
+static io_uring_endpoint *uring_endpoint(io_uring_impl *impl,
                                                native_io_endpoint endpoint) {
-  cmeta_io_uring_endpoint *record;
+  io_uring_endpoint *record;
   if (!native_io_endpoint_valid(endpoint) || endpoint.slot > impl->endpoint_capacity) return NULL;
   record = &impl->endpoints[endpoint.slot - 1u];
   return record->active && record->generation == endpoint.generation ? record : NULL;
 }
 
-static cmeta_io_uring_request_record *uring_request(cmeta_io_uring_impl *impl,
+static io_uring_request_record *uring_request(io_uring_impl *impl,
                                                     native_io_request request) {
-  cmeta_io_uring_request_record *record;
+  io_uring_request_record *record;
   if (!native_io_request_valid(request) || request.slot > impl->request_capacity) return NULL;
   record = &impl->requests[request.slot - 1u];
   return record->phase != SALTS_IO_URING_FREE && record->request.generation == request.generation
@@ -349,11 +349,11 @@ static cmeta_io_uring_request_record *uring_request(cmeta_io_uring_impl *impl,
              : NULL;
 }
 
-static cmeta_io_uring_request_record *uring_record_for_token(cmeta_io_uring_impl *impl,
+static io_uring_request_record *uring_record_for_token(io_uring_impl *impl,
                                                              uint64_t token) {
   const uint32_t slot = (uint32_t)token;
   const uint32_t generation = (uint32_t)(token >> 32u);
-  cmeta_io_uring_request_record *record;
+  io_uring_request_record *record;
   if (slot == 0u || generation == 0u || slot > impl->request_capacity) return NULL;
   record = &impl->requests[slot - 1u];
   return record->phase == SALTS_IO_URING_PENDING && record->in_flight &&
@@ -368,14 +368,14 @@ static bool uring_is_write(native_io_operation_kind kind) {
          kind == NATIVE_IO_OPERATION_FILE_FLUSH;
 }
 
-static cmeta_io_uring_lane *uring_lane(cmeta_io_uring_endpoint *endpoint, bool write_lane) {
+static io_uring_lane *uring_lane(io_uring_endpoint *endpoint, bool write_lane) {
   return write_lane ? &endpoint->write_lane : &endpoint->read_lane;
 }
 
-static void uring_lane_push(cmeta_io_uring_impl *impl, cmeta_io_uring_endpoint *endpoint,
+static void uring_lane_push(io_uring_impl *impl, io_uring_endpoint *endpoint,
                             uint32_t index) {
-  cmeta_io_uring_request_record *request = &impl->requests[index];
-  cmeta_io_uring_lane *lane = uring_lane(endpoint, request->write_lane);
+  io_uring_request_record *request = &impl->requests[index];
+  io_uring_lane *lane = uring_lane(endpoint, request->write_lane);
   request->previous = lane->tail;
   request->next = SALTS_IO_URING_INDEX_NONE;
   if (lane->tail == SALTS_IO_URING_INDEX_NONE) lane->head = index;
@@ -383,10 +383,10 @@ static void uring_lane_push(cmeta_io_uring_impl *impl, cmeta_io_uring_endpoint *
   lane->tail = index;
 }
 
-static void uring_lane_remove(cmeta_io_uring_impl *impl, cmeta_io_uring_endpoint *endpoint,
+static void uring_lane_remove(io_uring_impl *impl, io_uring_endpoint *endpoint,
                               uint32_t index) {
-  cmeta_io_uring_request_record *request = &impl->requests[index];
-  cmeta_io_uring_lane *lane = uring_lane(endpoint, request->write_lane);
+  io_uring_request_record *request = &impl->requests[index];
+  io_uring_lane *lane = uring_lane(endpoint, request->write_lane);
   if (request->previous == SALTS_IO_URING_INDEX_NONE) lane->head = request->next;
   else impl->requests[request->previous].next = request->next;
   if (request->next == SALTS_IO_URING_INDEX_NONE) lane->tail = request->previous;
@@ -395,7 +395,7 @@ static void uring_lane_remove(cmeta_io_uring_impl *impl, cmeta_io_uring_endpoint
   request->next = SALTS_IO_URING_INDEX_NONE;
 }
 
-static int uring_enter_once(cmeta_io_uring_impl *impl, unsigned submit, unsigned minimum,
+static int uring_enter_once(io_uring_impl *impl, unsigned submit, unsigned minimum,
                             unsigned flags, const void *argument, size_t argument_size) {
   const int status =
       (int)syscall(__NR_io_uring_enter, impl->ring_fd, submit, minimum, flags, argument,
@@ -403,7 +403,7 @@ static int uring_enter_once(cmeta_io_uring_impl *impl, unsigned submit, unsigned
   return status < 0 ? -errno : status;
 }
 
-static int uring_enter(cmeta_io_uring_impl *impl, unsigned submit, unsigned minimum,
+static int uring_enter(io_uring_impl *impl, unsigned submit, unsigned minimum,
                        unsigned flags) {
   int status;
   do {
@@ -414,8 +414,8 @@ static int uring_enter(cmeta_io_uring_impl *impl, unsigned submit, unsigned mini
 
 /* Scheduling links live in the request record: no second payload/owner queue,
  * allocation, or scan over unused endpoint capacity. Admission/removal is O(1). */
-static void uring_stage(cmeta_io_uring_impl *impl, uint32_t index) {
-  cmeta_io_uring_request_record *request = &impl->requests[index];
+static void uring_stage(io_uring_impl *impl, uint32_t index) {
+  io_uring_request_record *request = &impl->requests[index];
   request->staged_previous = impl->staged_tail;
   request->staged_next = SALTS_IO_URING_INDEX_NONE;
   if (impl->staged_tail == SALTS_IO_URING_INDEX_NONE) impl->staged_head = index;
@@ -424,8 +424,8 @@ static void uring_stage(cmeta_io_uring_impl *impl, uint32_t index) {
   request->staged = true;
 }
 
-static void uring_unstage(cmeta_io_uring_impl *impl, uint32_t index) {
-  cmeta_io_uring_request_record *request = &impl->requests[index];
+static void uring_unstage(io_uring_impl *impl, uint32_t index) {
+  io_uring_request_record *request = &impl->requests[index];
   if (!request->staged) return;
   if (request->staged_previous == SALTS_IO_URING_INDEX_NONE)
     impl->staged_head = request->staged_next;
@@ -436,7 +436,7 @@ static void uring_unstage(cmeta_io_uring_impl *impl, uint32_t index) {
   request->staged = false;
 }
 
-static int uring_publish_sqe(cmeta_io_uring_impl *impl, const struct io_uring_sqe *prepared) {
+static int uring_publish_sqe(io_uring_impl *impl, const struct io_uring_sqe *prepared) {
   const unsigned head =
       atomic_load_explicit((_Atomic unsigned *)impl->sq_head, memory_order_acquire);
   const unsigned tail =
@@ -454,7 +454,7 @@ static int uring_publish_sqe(cmeta_io_uring_impl *impl, const struct io_uring_sq
   return submitted < 0 ? submitted : SALTS_EIO;
 }
 
-static int uring_arm_wake_poll(cmeta_io_uring_impl *impl) {
+static int uring_arm_wake_poll(io_uring_impl *impl) {
   struct io_uring_sqe sqe;
   int status;
   if (!impl->ring_native_wait || impl->wake_poll_in_flight) return SALTS_OK;
@@ -468,7 +468,7 @@ static int uring_arm_wake_poll(cmeta_io_uring_impl *impl) {
   return status;
 }
 
-static void uring_prepare_operation(cmeta_io_uring_request_record *record, struct io_uring_sqe *sqe,
+static void uring_prepare_operation(io_uring_request_record *record, struct io_uring_sqe *sqe,
                                     int fd) {
   memset(sqe, 0, sizeof(*sqe));
   sqe->fd = fd;
@@ -547,9 +547,9 @@ static void uring_prepare_operation(cmeta_io_uring_request_record *record, struc
   }
 }
 
-static int uring_start_request(cmeta_io_uring_impl *impl, cmeta_io_uring_request_record *request,
+static int uring_start_request(io_uring_impl *impl, io_uring_request_record *request,
                                int fd) {
-  cmeta_io_uring_sigpipe_guard sigpipe_guard = {0};
+  io_uring_sigpipe_guard sigpipe_guard = {0};
   struct io_uring_sqe sqe;
   const bool guard_sigpipe = request->operation.kind == NATIVE_IO_OPERATION_PIPE_WRITE;
   int status;
@@ -561,9 +561,9 @@ static int uring_start_request(cmeta_io_uring_impl *impl, cmeta_io_uring_request
   return status;
 }
 
-static void uring_release_request(cmeta_io_uring_impl *impl, cmeta_io_uring_request_record *request,
+static void uring_release_request(io_uring_impl *impl, io_uring_request_record *request,
                                   uint32_t index) {
-  cmeta_io_uring_endpoint *endpoint = uring_endpoint(impl, request->endpoint);
+  io_uring_endpoint *endpoint = uring_endpoint(impl, request->endpoint);
   if (endpoint != NULL && endpoint->active_requests != 0u) --endpoint->active_requests;
   request->phase = SALTS_IO_URING_FREE;
   request->native_token = 0u;
@@ -581,14 +581,14 @@ static void uring_release_request(cmeta_io_uring_impl *impl, cmeta_io_uring_requ
   --impl->active_requests;
 }
 
-static void uring_make_completion(cmeta_io_uring_impl *impl, cmeta_io_uring_request_record *request,
+static void uring_make_completion(io_uring_impl *impl, io_uring_request_record *request,
                                   int result, native_io_completion *completion) {
   const bool cancelled = request->cancel_requested && result == -ECANCELED;
   if (result >= 0 && request->operation.kind == NATIVE_IO_OPERATION_UDP_RECV_FROM &&
       (request->message.msg_flags & MSG_TRUNC) != 0)
     result = -EMSGSIZE;
   if (request->operation.kind == NATIVE_IO_OPERATION_STREAM_CONNECT) {
-    cmeta_io_uring_endpoint *endpoint = uring_endpoint(impl, request->endpoint);
+    io_uring_endpoint *endpoint = uring_endpoint(impl, request->endpoint);
     if (endpoint != NULL) {
       endpoint->connect_active = false;
       endpoint->connected = result == 0;
@@ -626,7 +626,7 @@ static void uring_make_completion(cmeta_io_uring_impl *impl, cmeta_io_uring_requ
   uring_counter_increment(&impl->completed);
 }
 
-static void uring_queue_terminal(cmeta_io_uring_impl *impl, cmeta_io_uring_request_record *request,
+static void uring_queue_terminal(io_uring_impl *impl, io_uring_request_record *request,
                                  uint32_t index, int result) {
   const size_t tail = (impl->terminal_head + impl->terminal_count) % impl->request_capacity;
   request->in_flight = false;
@@ -642,19 +642,19 @@ static void uring_queue_terminal(cmeta_io_uring_impl *impl, cmeta_io_uring_reque
   ++impl->terminal_count;
 }
 
-static void uring_start_lane(cmeta_io_uring_impl *impl, cmeta_io_uring_lane *lane) {
+static void uring_start_lane(io_uring_impl *impl, io_uring_lane *lane) {
   if (lane->head != SALTS_IO_URING_INDEX_NONE) {
-    cmeta_io_uring_request_record *request = &impl->requests[lane->head];
+    io_uring_request_record *request = &impl->requests[lane->head];
     if (!request->in_flight && !request->staged) uring_stage(impl, lane->head);
   }
 }
 
-static void uring_fail_staged(cmeta_io_uring_impl *impl, int status) {
+static void uring_fail_staged(io_uring_impl *impl, int status) {
   while (impl->staged_head != SALTS_IO_URING_INDEX_NONE) {
     const uint32_t index = impl->staged_head;
-    cmeta_io_uring_request_record *request = &impl->requests[index];
-    cmeta_io_uring_endpoint *endpoint = uring_endpoint(impl, request->endpoint);
-    cmeta_io_uring_lane *lane = uring_lane(endpoint, request->write_lane);
+    io_uring_request_record *request = &impl->requests[index];
+    io_uring_endpoint *endpoint = uring_endpoint(impl, request->endpoint);
+    io_uring_lane *lane = uring_lane(endpoint, request->write_lane);
     uring_unstage(impl, index);
     uring_lane_remove(impl, endpoint, index);
     uring_queue_terminal(impl, request, index, status);
@@ -666,8 +666,8 @@ static void uring_fail_staged(cmeta_io_uring_impl *impl, int status) {
 /* O(eligible requests), including short enters: keep the prepared suffix in SQ
  * instead of rebuilding it on every retry. With no SQPOLL, an error can withdraw
  * only that unconsumed suffix without releasing any kernel-owned storage. */
-static int uring_flush(cmeta_io_impl *base) {
-  cmeta_io_uring_impl *impl = (cmeta_io_uring_impl *)base;
+static int uring_flush(io_impl *base) {
+  io_uring_impl *impl = (io_uring_impl *)base;
   while (impl->staged_head != SALTS_IO_URING_INDEX_NONE) {
     const unsigned head = atomic_load_explicit((_Atomic unsigned *)impl->sq_head, memory_order_acquire);
     const unsigned tail = atomic_load_explicit((_Atomic unsigned *)impl->sq_tail, memory_order_relaxed);
@@ -675,10 +675,10 @@ static int uring_flush(cmeta_io_impl *base) {
     unsigned count = 0u;
     uint32_t index = impl->staged_head;
     bool pipe_write = false;
-    cmeta_io_uring_sigpipe_guard guard = {0};
+    io_uring_sigpipe_guard guard = {0};
     int status;
     while (index != SALTS_IO_URING_INDEX_NONE && count < available) {
-      cmeta_io_uring_request_record *request = &impl->requests[index];
+      io_uring_request_record *request = &impl->requests[index];
       const unsigned slot = (tail + count) & *impl->sq_mask;
       uring_prepare_operation(request, &impl->sqes[slot],
                               impl->endpoints[request->endpoint.slot - 1u].fd);
@@ -725,10 +725,10 @@ static int uring_flush(cmeta_io_impl *base) {
   return SALTS_OK;
 }
 
-static int uring_attach_endpoint(cmeta_io_uring_impl *impl, int fd,
-                                 cmeta_io_resource_kind resource_kind, bool connected,
+static int uring_attach_endpoint(io_uring_impl *impl, int fd,
+                                 io_resource_kind resource_kind, bool connected,
                                  native_io_endpoint *out_endpoint) {
-  cmeta_io_uring_endpoint *endpoint;
+  io_uring_endpoint *endpoint;
   uint32_t index;
   size_t cursor;
   if (!impl->admission_open) return SALTS_ESHUTDOWN;
@@ -741,9 +741,9 @@ static int uring_attach_endpoint(cmeta_io_uring_impl *impl, int fd,
   endpoint->generation = uring_next_generation(endpoint->generation);
   endpoint->active_requests = 0u;
   endpoint->retained_accepts = 0u;
-  endpoint->read_lane = (cmeta_io_uring_lane){SALTS_IO_URING_INDEX_NONE, SALTS_IO_URING_INDEX_NONE};
+  endpoint->read_lane = (io_uring_lane){SALTS_IO_URING_INDEX_NONE, SALTS_IO_URING_INDEX_NONE};
   endpoint->write_lane =
-      (cmeta_io_uring_lane){SALTS_IO_URING_INDEX_NONE, SALTS_IO_URING_INDEX_NONE};
+      (io_uring_lane){SALTS_IO_URING_INDEX_NONE, SALTS_IO_URING_INDEX_NONE};
   endpoint->resource_kind = resource_kind;
   endpoint->connected = connected;
   endpoint->connect_active = false;
@@ -753,10 +753,10 @@ static int uring_attach_endpoint(cmeta_io_uring_impl *impl, int fd,
   return SALTS_OK;
 }
 
-static int uring_attach_socket(cmeta_io_impl *base, uintptr_t native_socket,
+static int uring_attach_socket(io_impl *base, uintptr_t native_socket,
                                native_io_endpoint *out_endpoint) {
-  cmeta_io_uring_impl *impl = (cmeta_io_uring_impl *)base;
-  cmeta_io_resource_kind resource_kind;
+  io_uring_impl *impl = (io_uring_impl *)base;
+  io_resource_kind resource_kind;
   struct sockaddr_storage peer_address;
   socklen_t peer_address_length = (socklen_t)sizeof(peer_address);
   bool connected = false;
@@ -781,9 +781,9 @@ static int uring_attach_socket(cmeta_io_impl *base, uintptr_t native_socket,
   return uring_attach_endpoint(impl, (int)native_socket, resource_kind, connected, out_endpoint);
 }
 
-static int uring_attach_pipe(cmeta_io_impl *base, uintptr_t native_handle, uint32_t flags,
+static int uring_attach_pipe(io_impl *base, uintptr_t native_handle, uint32_t flags,
                              native_io_endpoint *out_endpoint) {
-  cmeta_io_uring_impl *impl = (cmeta_io_uring_impl *)base;
+  io_uring_impl *impl = (io_uring_impl *)base;
   struct stat descriptor_stat;
   int status;
   int fd;
@@ -799,7 +799,7 @@ static int uring_attach_pipe(cmeta_io_impl *base, uintptr_t native_handle, uint3
   return uring_attach_endpoint(impl, fd, SALTS_IO_RESOURCE_BYTE_PIPE, false, out_endpoint);
 }
 
-static int uring_attach_file(cmeta_io_impl *base, uintptr_t value, native_io_endpoint *out) {
+static int uring_attach_file(io_impl *base, uintptr_t value, native_io_endpoint *out) {
   struct stat info;
   if (value > INT_MAX) return SALTS_EINVAL;
   if (fstat((int)value, &info) != 0) return -errno;
@@ -807,12 +807,12 @@ static int uring_attach_file(cmeta_io_impl *base, uintptr_t value, native_io_end
   int flags = fcntl((int)value, F_GETFL);
   if (flags < 0) return -errno;
   if (flags & O_APPEND) return SALTS_EINVAL;
-  return uring_attach_endpoint((cmeta_io_uring_impl *)base, (int)value, SALTS_IO_RESOURCE_FILE, false, out);
+  return uring_attach_endpoint((io_uring_impl *)base, (int)value, SALTS_IO_RESOURCE_FILE, false, out);
 }
 
-static int uring_release_endpoint(cmeta_io_uring_impl *impl, native_io_endpoint endpoint_handle,
-                                  cmeta_io_resource_kind expected_kind) {
-  cmeta_io_uring_endpoint *endpoint = uring_endpoint(impl, endpoint_handle);
+static int uring_release_endpoint(io_uring_impl *impl, native_io_endpoint endpoint_handle,
+                                  io_resource_kind expected_kind) {
+  io_uring_endpoint *endpoint = uring_endpoint(impl, endpoint_handle);
   uint32_t index;
   if (endpoint == NULL) return SALTS_ENOENT;
   if (expected_kind == 0 ? !native_io_resource_kind_is_socket(endpoint->resource_kind)
@@ -835,7 +835,7 @@ static int uring_release_endpoint(cmeta_io_uring_impl *impl, native_io_endpoint 
   index = endpoint_handle.slot - 1u;
   endpoint->active = false;
   endpoint->fd = -1;
-  endpoint->resource_kind = (cmeta_io_resource_kind)0;
+  endpoint->resource_kind = (io_resource_kind)0;
   endpoint->retained_accepts = 0u;
   endpoint->connected = false;
   endpoint->connect_active = false;
@@ -844,25 +844,25 @@ static int uring_release_endpoint(cmeta_io_uring_impl *impl, native_io_endpoint 
   return SALTS_OK;
 }
 
-static int uring_release_file(cmeta_io_impl *base, native_io_endpoint endpoint) {
-  return uring_release_endpoint((cmeta_io_uring_impl *)base, endpoint, SALTS_IO_RESOURCE_FILE);
+static int uring_release_file(io_impl *base, native_io_endpoint endpoint) {
+  return uring_release_endpoint((io_uring_impl *)base, endpoint, SALTS_IO_RESOURCE_FILE);
 }
 
-static int uring_release_socket(cmeta_io_impl *base, native_io_endpoint endpoint_handle) {
-  return uring_release_endpoint((cmeta_io_uring_impl *)base, endpoint_handle, (cmeta_io_resource_kind)0);
+static int uring_release_socket(io_impl *base, native_io_endpoint endpoint_handle) {
+  return uring_release_endpoint((io_uring_impl *)base, endpoint_handle, (io_resource_kind)0);
 }
 
-static int uring_release_pipe(cmeta_io_impl *base, native_io_endpoint endpoint_handle) {
-  return uring_release_endpoint((cmeta_io_uring_impl *)base, endpoint_handle, SALTS_IO_RESOURCE_BYTE_PIPE);
+static int uring_release_pipe(io_impl *base, native_io_endpoint endpoint_handle) {
+  return uring_release_endpoint((io_uring_impl *)base, endpoint_handle, SALTS_IO_RESOURCE_BYTE_PIPE);
 }
 
-static int uring_admit(cmeta_io_impl *base, const native_io_operation *operation,
+static int uring_admit(io_impl *base, const native_io_operation *operation,
                        const native_io_vector_operation *vector_operation,
                        native_io_request *out_request, bool prepared) {
-  cmeta_io_uring_impl *impl = (cmeta_io_uring_impl *)base;
-  cmeta_io_uring_endpoint *endpoint;
-  cmeta_io_uring_request_record *request;
-  cmeta_io_uring_lane *lane;
+  io_uring_impl *impl = (io_uring_impl *)base;
+  io_uring_endpoint *endpoint;
+  io_uring_request_record *request;
+  io_uring_lane *lane;
   uint32_t index;
   int status;
   if (!impl->admission_open) return SALTS_ESHUTDOWN;
@@ -928,12 +928,12 @@ static int uring_admit(cmeta_io_impl *base, const native_io_operation *operation
   return SALTS_OK;
 }
 
-static int uring_submit(cmeta_io_impl *base, const native_io_operation *operation,
+static int uring_submit(io_impl *base, const native_io_operation *operation,
                         native_io_request *out_request) {
   return uring_admit(base, operation, NULL, out_request, false);
 }
 
-static int uring_submit_vector(cmeta_io_impl *base,
+static int uring_submit_vector(io_impl *base,
                                const native_io_vector_operation *operation,
                                native_io_request *out_request) {
   native_io_operation scalar = {
@@ -945,19 +945,19 @@ static int uring_submit_vector(cmeta_io_impl *base,
   return uring_admit(base, &scalar, operation, out_request, false);
 }
 
-static int uring_prepare(cmeta_io_impl *base, const native_io_operation *operation,
+static int uring_prepare(io_impl *base, const native_io_operation *operation,
                          native_io_request *out_request) {
   return uring_admit(base, operation, NULL, out_request, true);
 }
 
 static int uring_submit_stream_accept(
-    cmeta_io_impl *base,
+    io_impl *base,
     native_io_endpoint listener_handle,
     native_io_request *out_request) {
-  cmeta_io_uring_impl *impl = (cmeta_io_uring_impl *)base;
-  cmeta_io_uring_endpoint *listener;
-  cmeta_io_uring_request_record *request;
-  cmeta_io_uring_lane *lane;
+  io_uring_impl *impl = (io_uring_impl *)base;
+  io_uring_endpoint *listener;
+  io_uring_request_record *request;
+  io_uring_lane *lane;
   int accepting = 0;
   socklen_t option_length = (socklen_t)sizeof(accepting);
   uint32_t index;
@@ -1034,13 +1034,13 @@ static int uring_submit_stream_accept(
 }
 
 static int uring_take_stream_accept(
-    cmeta_io_impl *base,
+    io_impl *base,
     native_io_request request,
     uintptr_t *out_transport) {
-  cmeta_io_uring_impl *impl = (cmeta_io_uring_impl *)base;
+  io_uring_impl *impl = (io_uring_impl *)base;
   uintptr_t token = UINTPTR_MAX;
-  cmeta_io_uring_accept_result *result;
-  cmeta_io_uring_endpoint *listener;
+  io_uring_accept_result *result;
+  io_uring_endpoint *listener;
   int child_fd;
   int status;
 
@@ -1069,10 +1069,10 @@ static int uring_take_stream_accept(
   return SALTS_OK;
 }
 
-static bool uring_supports_vector_write(const cmeta_io_impl *base,
+static bool uring_supports_vector_write(const io_impl *base,
                                         native_io_endpoint endpoint_handle) {
-  const cmeta_io_uring_impl *impl = (const cmeta_io_uring_impl *)base;
-  const cmeta_io_uring_endpoint *endpoint;
+  const io_uring_impl *impl = (const io_uring_impl *)base;
+  const io_uring_endpoint *endpoint;
   if (!native_io_endpoint_valid(endpoint_handle) ||
       endpoint_handle.slot > impl->endpoint_capacity)
     return false;
@@ -1082,10 +1082,10 @@ static bool uring_supports_vector_write(const cmeta_io_impl *base,
           endpoint->resource_kind == SALTS_IO_RESOURCE_BYTE_PIPE);
 }
 
-static int uring_cancel(cmeta_io_impl *base, native_io_request request_handle) {
-  cmeta_io_uring_impl *impl = (cmeta_io_uring_impl *)base;
-  cmeta_io_uring_request_record *request = uring_request(impl, request_handle);
-  cmeta_io_uring_endpoint *endpoint;
+static int uring_cancel(io_impl *base, native_io_request request_handle) {
+  io_uring_impl *impl = (io_uring_impl *)base;
+  io_uring_request_record *request = uring_request(impl, request_handle);
+  io_uring_endpoint *endpoint;
   struct io_uring_sqe sqe;
   uint32_t index;
   int status;
@@ -1097,7 +1097,7 @@ static int uring_cancel(cmeta_io_impl *base, native_io_request request_handle) {
     endpoint = uring_endpoint(impl, request->endpoint);
     if (endpoint == NULL) return SALTS_ENOENT;
     index = request->request.slot - 1u;
-    cmeta_io_uring_lane *lane = uring_lane(endpoint, request->write_lane);
+    io_uring_lane *lane = uring_lane(endpoint, request->write_lane);
     uring_unstage(impl, index);
     uring_lane_remove(impl, endpoint, index);
     uring_queue_terminal(impl, request, index, -ECANCELED);
@@ -1118,7 +1118,7 @@ static int uring_cancel(cmeta_io_impl *base, native_io_request request_handle) {
   return SALTS_OK;
 }
 
-static int uring_drain_wake_fd(cmeta_io_uring_impl *impl) {
+static int uring_drain_wake_fd(io_uring_impl *impl) {
   uint64_t wake_count;
   ssize_t read_status;
   do {
@@ -1129,7 +1129,7 @@ static int uring_drain_wake_fd(cmeta_io_uring_impl *impl) {
   return SALTS_OK;
 }
 
-static int uring_process_cq(cmeta_io_uring_impl *impl, bool *saw_wake) {
+static int uring_process_cq(io_uring_impl *impl, bool *saw_wake) {
   unsigned head = atomic_load_explicit((_Atomic unsigned *)impl->cq_head, memory_order_relaxed);
   const unsigned tail =
       atomic_load_explicit((_Atomic unsigned *)impl->cq_tail, memory_order_acquire);
@@ -1156,11 +1156,11 @@ static int uring_process_cq(cmeta_io_uring_impl *impl, bool *saw_wake) {
       continue;
     }
     {
-      cmeta_io_uring_request_record *request = uring_record_for_token(impl, token);
+      io_uring_request_record *request = uring_record_for_token(impl, token);
       if (request != NULL) {
         const uint32_t index = request->request.slot - 1u;
-        cmeta_io_uring_endpoint *endpoint = uring_endpoint(impl, request->endpoint);
-        cmeta_io_uring_lane *lane;
+        io_uring_endpoint *endpoint = uring_endpoint(impl, request->endpoint);
+        io_uring_lane *lane;
         if (endpoint == NULL) continue;
         lane = uring_lane(endpoint, request->write_lane);
         request->in_flight = false;
@@ -1179,11 +1179,11 @@ static int uring_process_cq(cmeta_io_uring_impl *impl, bool *saw_wake) {
   return SALTS_OK;
 }
 
-static void uring_drain_terminals(cmeta_io_uring_impl *impl, native_io_completion *events,
+static void uring_drain_terminals(io_uring_impl *impl, native_io_completion *events,
                                   size_t limit, size_t *out_count) {
   while (impl->terminal_count != 0u && *out_count < limit) {
     const uint32_t index = impl->terminal_requests[impl->terminal_head];
-    cmeta_io_uring_request_record *request = &impl->requests[index];
+    io_uring_request_record *request = &impl->requests[index];
     events[*out_count] = request->completion;
     ++*out_count;
     impl->terminal_head = (impl->terminal_head + 1u) % impl->request_capacity;
@@ -1192,11 +1192,11 @@ static void uring_drain_terminals(cmeta_io_uring_impl *impl, native_io_completio
   }
 }
 
-static int uring_progress_cq(cmeta_io_uring_impl *impl, bool *saw_wake) {
+static int uring_progress_cq(io_uring_impl *impl, bool *saw_wake) {
   return uring_process_cq(impl, saw_wake);
 }
 
-static int uring_flush_promoted(cmeta_io_uring_impl *impl, bool *saw_wake) {
+static int uring_flush_promoted(io_uring_impl *impl, bool *saw_wake) {
   while (impl->staged_head != SALTS_IO_URING_INDEX_NONE) {
     int status = uring_flush(&impl->base);
     if (status != SALTS_OK) return status;
@@ -1206,7 +1206,7 @@ static int uring_flush_promoted(cmeta_io_uring_impl *impl, bool *saw_wake) {
   return SALTS_OK;
 }
 
-static int uring_submit_staged_and_wait(cmeta_io_uring_impl *impl, uint32_t timeout_ms,
+static int uring_submit_staged_and_wait(io_uring_impl *impl, uint32_t timeout_ms,
                                         bool *timed_out) {
 #if SALTS_IO_URING_HAS_EXT_ARG_WAIT
   struct {
@@ -1224,12 +1224,12 @@ static int uring_submit_staged_and_wait(cmeta_io_uring_impl *impl, uint32_t time
   const unsigned available = *impl->sq_entries - (tail - head);
   uint32_t index = impl->staged_head;
   bool pipe_write = false;
-  cmeta_io_uring_sigpipe_guard guard = {0};
+  io_uring_sigpipe_guard guard = {0};
   int status;
 
   *timed_out = false;
   while (index != SALTS_IO_URING_INDEX_NONE && count < available) {
-    cmeta_io_uring_request_record *request = &impl->requests[index];
+    io_uring_request_record *request = &impl->requests[index];
     const unsigned slot = (tail + count) & *impl->sq_mask;
     uring_prepare_operation(request, &impl->sqes[slot],
                             impl->endpoints[request->endpoint.slot - 1u].fd);
@@ -1313,7 +1313,7 @@ static int uring_submit_staged_and_wait(cmeta_io_uring_impl *impl, uint32_t time
   return status >= 0 ? SALTS_OK : status;
 }
 
-static int uring_observe_poll_fallback(cmeta_io_uring_impl *impl,
+static int uring_observe_poll_fallback(io_uring_impl *impl,
                                        native_io_completion *events, size_t limit,
                                        uint64_t started_ms, uint32_t timeout_ms,
                                        size_t *out_count) {
@@ -1356,7 +1356,7 @@ static int uring_observe_poll_fallback(cmeta_io_uring_impl *impl,
   }
 }
 
-static bool uring_nonblocking_enter_required(const cmeta_io_uring_impl *impl) {
+static bool uring_nonblocking_enter_required(const io_uring_impl *impl) {
 #if SALTS_IO_URING_HAS_TASKRUN_FLAG
   if (impl->taskrun_flag && impl->sq_flags != NULL) {
     const unsigned flags =
@@ -1371,13 +1371,13 @@ static bool uring_nonblocking_enter_required(const cmeta_io_uring_impl *impl) {
   return true;
 }
 
-static int uring_observe(cmeta_io_impl *base, native_io_completion *events, size_t event_capacity,
+static int uring_observe(io_impl *base, native_io_completion *events, size_t event_capacity,
                          uint32_t timeout_ms, size_t *out_count) {
-  cmeta_io_uring_impl *impl = (cmeta_io_uring_impl *)base;
+  io_uring_impl *impl = (io_uring_impl *)base;
   const size_t limit = event_capacity < impl->completion_batch_capacity
                            ? event_capacity
                            : impl->completion_batch_capacity;
-  const uint64_t started_ms = cmeta_monotonic_ms();
+  const uint64_t started_ms = monotonic_ms();
   bool saw_wake = false;
   int status = uring_progress_cq(impl, &saw_wake);
   if (status != SALTS_OK) return status;
@@ -1470,8 +1470,8 @@ static int uring_observe(cmeta_io_impl *base, native_io_completion *events, size
   }
 }
 
-static int uring_wake(cmeta_io_impl *base) {
-  cmeta_io_uring_impl *impl = (cmeta_io_uring_impl *)base;
+static int uring_wake(io_impl *base) {
+  io_uring_impl *impl = (io_uring_impl *)base;
   const uint64_t signal = 1u;
   bool expected = false;
   ssize_t status;
@@ -1487,14 +1487,14 @@ static int uring_wake(cmeta_io_impl *base) {
   return status < 0 ? -errno : SALTS_EIO;
 }
 
-static int uring_close(cmeta_io_impl *base) {
-  cmeta_io_uring_impl *impl = (cmeta_io_uring_impl *)base;
+static int uring_close(io_impl *base) {
+  io_uring_impl *impl = (io_uring_impl *)base;
   if (!impl->admission_open) return SALTS_EALREADY;
   impl->admission_open = false;
   return SALTS_OK;
 }
 
-static void uring_unmap(cmeta_io_uring_impl *impl) {
+static void uring_unmap(io_uring_impl *impl) {
   if (impl->sqes != NULL && impl->sqes != MAP_FAILED) (void)munmap(impl->sqes, impl->sqes_size);
   if (!impl->single_mmap && impl->cq_ring != NULL && impl->cq_ring != MAP_FAILED)
     (void)munmap(impl->cq_ring, impl->cq_ring_size);
@@ -1502,8 +1502,8 @@ static void uring_unmap(cmeta_io_uring_impl *impl) {
     (void)munmap(impl->sq_ring, impl->sq_ring_size);
 }
 
-static int uring_destroy(cmeta_io_impl *base) {
-  cmeta_io_uring_impl *impl = (cmeta_io_uring_impl *)base;
+static int uring_destroy(io_impl *base) {
+  io_uring_impl *impl = (io_uring_impl *)base;
   int escrow_status;
   if (impl->admission_open || impl->active_requests != 0u || impl->endpoint_count != 0u)
     return SALTS_EBUSY;
@@ -1524,8 +1524,8 @@ static int uring_destroy(cmeta_io_impl *base) {
   return SALTS_OK;
 }
 
-static bool uring_get_stats(const cmeta_io_impl *base, native_io_backend_stats *out_stats) {
-  const cmeta_io_uring_impl *impl = (const cmeta_io_uring_impl *)base;
+static bool uring_get_stats(const io_impl *base, native_io_backend_stats *out_stats) {
+  const io_uring_impl *impl = (const io_uring_impl *)base;
   *out_stats = (native_io_backend_stats){impl->endpoint_capacity,
                                         impl->endpoint_count,
                                         impl->request_capacity,
@@ -1541,7 +1541,7 @@ static bool uring_get_stats(const cmeta_io_impl *base, native_io_backend_stats *
   return true;
 }
 
-static const cmeta_io_impl_ops uring_ops = {
+static const io_impl_ops uring_ops = {
     .attach_socket = uring_attach_socket,
     .release_socket = uring_release_socket,
     .submit = uring_submit,
@@ -1576,7 +1576,7 @@ static void *uring_field(void *mapping, unsigned offset) {
   return (void *)((unsigned char *)mapping + (size_t)offset);
 }
 
-static int uring_map(cmeta_io_uring_impl *impl, const struct io_uring_params *params) {
+static int uring_map(io_uring_impl *impl, const struct io_uring_params *params) {
   size_t shared_size;
   if (params->sq_entries == 0u || params->cq_entries == 0u ||
       !uring_mapped_extent(params->sq_off.array, params->sq_entries, sizeof(unsigned),
@@ -1624,7 +1624,7 @@ static int uring_map(cmeta_io_uring_impl *impl, const struct io_uring_params *pa
   return SALTS_OK;
 }
 
-static void uring_free_partial(cmeta_io_uring_impl *impl) {
+static void uring_free_partial(io_uring_impl *impl) {
   uring_unmap(impl);
   if (impl->ring_fd >= 0) (void)close(impl->ring_fd);
   if (impl->wake_fd >= 0) (void)close(impl->wake_fd);
@@ -1638,21 +1638,21 @@ static void uring_free_partial(cmeta_io_uring_impl *impl) {
   free(impl);
 }
 
-int cmeta_io_uring_backend_init(native_io_backend *backend, const native_io_backend_config *config) {
-  cmeta_io_uring_impl *impl;
+int io_uring_backend_init(native_io_backend *backend, const native_io_backend_config *config) {
+  io_uring_impl *impl;
   struct io_uring_params params;
   unsigned entries;
   int status;
   if (config->kind != NATIVE_IO_BACKEND_IO_URING) return SALTS_ENOTSUP;
   if (config->request_capacity > UINT32_MAX / 2u ||
-      config->endpoint_capacity > SIZE_MAX / sizeof(cmeta_io_uring_endpoint) ||
-      config->request_capacity > SIZE_MAX / sizeof(cmeta_io_uring_request_record) ||
-      config->request_capacity > SIZE_MAX / sizeof(cmeta_io_uring_accept_result) ||
+      config->endpoint_capacity > SIZE_MAX / sizeof(io_uring_endpoint) ||
+      config->request_capacity > SIZE_MAX / sizeof(io_uring_request_record) ||
+      config->request_capacity > SIZE_MAX / sizeof(io_uring_accept_result) ||
       config->endpoint_capacity > SIZE_MAX / sizeof(uint32_t) ||
       config->request_capacity > SIZE_MAX / sizeof(uint32_t))
     return SALTS_ERANGE;
   entries = (unsigned)config->request_capacity * 2u;
-  impl = (cmeta_io_uring_impl *)calloc(1u, sizeof(*impl));
+  impl = (io_uring_impl *)calloc(1u, sizeof(*impl));
   if (impl == NULL) return SALTS_ENOMEM;
   impl->ring_fd = -1;
   impl->wake_fd = -1;
@@ -1661,11 +1661,11 @@ int cmeta_io_uring_backend_init(native_io_backend *backend, const native_io_back
   impl->cq_ring = MAP_FAILED;
   impl->sqes = MAP_FAILED;
   impl->endpoints =
-      (cmeta_io_uring_endpoint *)calloc(config->endpoint_capacity, sizeof(*impl->endpoints));
+      (io_uring_endpoint *)calloc(config->endpoint_capacity, sizeof(*impl->endpoints));
   impl->requests =
-      (cmeta_io_uring_request_record *)calloc(config->request_capacity, sizeof(*impl->requests));
+      (io_uring_request_record *)calloc(config->request_capacity, sizeof(*impl->requests));
   impl->accept_results =
-      (cmeta_io_uring_accept_result *)calloc(
+      (io_uring_accept_result *)calloc(
           config->request_capacity, sizeof(*impl->accept_results));
   impl->free_endpoints = (uint32_t *)calloc(config->endpoint_capacity, sizeof(uint32_t));
   impl->free_requests = (uint32_t *)calloc(config->request_capacity, sizeof(uint32_t));

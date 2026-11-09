@@ -5,7 +5,7 @@
 #include <limits.h>
 #include <signal.h>
 #include <stdatomic.h>
-#include <thread.h>
+#include <threads/threads.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -21,7 +21,7 @@ typedef struct {
   bool active;
 } aio_request;
 typedef struct {
-  cmeta_io_impl base;
+  io_impl base;
   native_io_backend_config config;
   aio_endpoint *endpoints;
   aio_request *requests;
@@ -41,7 +41,7 @@ static aio_endpoint *aio_endpoint_find(aio_impl *impl, native_io_endpoint handle
   aio_endpoint *endpoint = &impl->endpoints[handle.slot - 1u];
   return endpoint->active && endpoint->generation == handle.generation ? endpoint : NULL;
 }
-static int aio_attach(cmeta_io_impl *base, uintptr_t value, native_io_endpoint *out) {
+static int aio_attach(io_impl *base, uintptr_t value, native_io_endpoint *out) {
   aio_impl *impl = (aio_impl *)base;
   if (!impl->stats.admission_open) return SALTS_ESHUTDOWN;
   if (value > INT_MAX) return SALTS_EINVAL;
@@ -63,7 +63,7 @@ static int aio_attach(cmeta_io_impl *base, uintptr_t value, native_io_endpoint *
   }
   return SALTS_ENOBUFS;
 }
-static int aio_release(cmeta_io_impl *base, native_io_endpoint handle) {
+static int aio_release(io_impl *base, native_io_endpoint handle) {
   aio_impl *impl = (aio_impl *)base;
   aio_endpoint *endpoint = aio_endpoint_find(impl, handle);
   if (!endpoint) return SALTS_ENOENT;
@@ -72,7 +72,7 @@ static int aio_release(cmeta_io_impl *base, native_io_endpoint handle) {
   --impl->stats.endpoint_count;
   return SALTS_OK;
 }
-static int aio_submit_request(cmeta_io_impl *base, const native_io_operation *operation,
+static int aio_submit_request(io_impl *base, const native_io_operation *operation,
                               native_io_request *out) {
   aio_impl *impl = (aio_impl *)base;
   if (!impl->stats.admission_open) return SALTS_ESHUTDOWN;
@@ -101,7 +101,7 @@ static int aio_submit_request(cmeta_io_impl *base, const native_io_operation *op
   aio_counter_increment(&impl->stats.rejected_full);
   return SALTS_ENOBUFS;
 }
-static int aio_cancel_request(cmeta_io_impl *base, native_io_request handle) {
+static int aio_cancel_request(io_impl *base, native_io_request handle) {
   aio_impl *impl = (aio_impl *)base;
   if (!handle.slot || handle.slot > impl->config.request_capacity) return SALTS_ENOENT;
   aio_request *request = &impl->requests[handle.slot - 1u];
@@ -110,10 +110,10 @@ static int aio_cancel_request(cmeta_io_impl *base, native_io_request handle) {
   aio_counter_increment(&impl->stats.native_cancel_errors);
   return -errno;
 }
-static int aio_observe(cmeta_io_impl *base, native_io_completion *events, size_t capacity,
+static int aio_observe(io_impl *base, native_io_completion *events, size_t capacity,
                         uint32_t timeout_ms, size_t *out_count) {
   aio_impl *impl = (aio_impl *)base;
-  uint64_t start = cmeta_monotonic_ms();
+  uint64_t start = monotonic_ms();
   *out_count = 0u;
   for (;;) {
     if (atomic_exchange(&impl->wake_pending, false)) return SALTS_OK;
@@ -149,34 +149,34 @@ static int aio_observe(cmeta_io_impl *base, native_io_completion *events, size_t
     uint32_t remaining = native_io_remaining_timeout(start, timeout_ms);
     if (!remaining) return SALTS_ETIMEDOUT;
     uint32_t slice = remaining > DARWIN_AIO_WAKE_SLICE_MS ? DARWIN_AIO_WAKE_SLICE_MS : remaining;
-    if (!waiting) { cmeta_sleep_ms(slice); continue; }
+    if (!waiting) { sleep_ms(slice); continue; }
     struct timespec time = {0, (long)slice * 1000000L};
     if (aio_suspend(impl->waiting, (int)waiting, &time) != 0 && errno != EAGAIN && errno != EINTR)
       return -errno;
   }
 }
-static int aio_wake(cmeta_io_impl *base) {
+static int aio_wake(io_impl *base) {
   aio_impl *impl = (aio_impl *)base;
   if (!impl->stats.admission_open) return SALTS_ESHUTDOWN;
   atomic_store(&impl->wake_pending, true);
   return SALTS_OK;
 }
-static int aio_close(cmeta_io_impl *base) {
+static int aio_close(io_impl *base) {
   aio_impl *impl = (aio_impl *)base;
   if (!impl->stats.admission_open) return SALTS_EALREADY;
   impl->stats.admission_open = false;
   return SALTS_OK;
 }
-static int aio_destroy(cmeta_io_impl *base) {
+static int aio_destroy(io_impl *base) {
   aio_impl *impl = (aio_impl *)base;
   if (impl->stats.admission_open || impl->stats.active_requests || impl->stats.endpoint_count) return SALTS_EBUSY;
   free(impl->waiting); free(impl->requests); free(impl->endpoints); free(impl);
   return SALTS_OK;
 }
-static bool aio_stats(const cmeta_io_impl *base, native_io_backend_stats *out) {
+static bool aio_stats(const io_impl *base, native_io_backend_stats *out) {
   *out = ((const aio_impl *)base)->stats; return true;
 }
-static const cmeta_io_impl_ops aio_ops = {
+static const io_impl_ops aio_ops = {
     .attach_file = aio_attach, .release_file = aio_release, .submit = aio_submit_request,
     .cancel = aio_cancel_request, .observe = aio_observe, .wake = aio_wake,
     .close = aio_close, .destroy = aio_destroy, .get_stats = aio_stats};

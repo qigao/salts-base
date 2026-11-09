@@ -1,17 +1,17 @@
 /**
- * @file salts_process.c
+ * @file process.c
  * @brief Native Windows/POSIX child process management backend.
  */
 
-#include <process.h>
+#include <salts/process.h>
 
-#include <error_codes.h>
-#include <thread.h>
-#include <clock.h>
+#include <salts/error_codes.h>
+#include <threads/threads.h>
+#include <salts/clock.h>
 
 #include <errno.h>
 #include <limits.h>
-#include <stdatomic.h>
+#include <atomic/atomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,26 +38,26 @@
 extern char **environ;
 #endif
 
-typedef struct salts_process_buffer { char *data; size_t len; size_t capacity; } salts_process_buffer;
+typedef struct process_buffer { char *data; size_t len; size_t capacity; } process_buffer;
 
-struct salts_process_s {
-  cmeta_mutex_t mutex;
-  cmeta_cond_t changed;
-  cmeta_mutex_t stdin_mutex;
-  cmeta_thread_t monitor_thread;
+struct process_s {
+  sync_mutex_t mutex;
+  sync_cond_t changed;
+  sync_mutex_t stdin_mutex;
+  sync_thread_t monitor_thread;
   int monitor_started;
   int monitor_joined;
 
-  salts_process_state_t state;
-  salts_process_result_t result;
+  process_state_t state;
+  process_result_t result;
   int terminate_requested;
   int native_active;
   uint64_t timeout_ms;
   size_t max_output_bytes;
   size_t captured_bytes;
 
-  salts_process_buffer stdout_data;
-  salts_process_buffer stderr_data;
+  process_buffer stdout_data;
+  process_buffer stderr_data;
   size_t stdout_offset;
   size_t stderr_offset;
   atomic_int stdout_open;
@@ -77,13 +77,13 @@ struct salts_process_s {
 #endif
 };
 
-static int process_state_terminal(salts_process_state_t state) {
+static int process_state_terminal(process_state_t state) {
   return state == SALTS_PROCESS_EXITED || state == SALTS_PROCESS_SIGNALED ||
          state == SALTS_PROCESS_TIMED_OUT || state == SALTS_PROCESS_TERMINATED ||
          state == SALTS_PROCESS_OUTPUT_LIMIT_EXCEEDED || state == SALTS_PROCESS_WAIT_FAILED;
 }
 
-static int process_validate_options(const salts_process_options_t *options) {
+static int process_validate_options(const process_options_t *options) {
   const unsigned int known_flags =
       SALTS_PROCESS_PIPE_STDIN | SALTS_PROCESS_CAPTURE_STDOUT | SALTS_PROCESS_CAPTURE_STDERR |
       SALTS_PROCESS_CLEAN_ENVIRONMENT | SALTS_PROCESS_SHELL_COMMAND;
@@ -94,8 +94,8 @@ static int process_validate_options(const salts_process_options_t *options) {
   return SALTS_OK;
 }
 
-static int process_validate_stdio_conflicts(const salts_process_options_t *options,
-                                            const salts_process_stdio_bindings_t *bindings) {
+static int process_validate_stdio_conflicts(const process_options_t *options,
+                                            const process_stdio_bindings_t *bindings) {
   if ((bindings->stdin_handle != SALTS_PROCESS_STDIO_INHERIT &&
        (options->flags & SALTS_PROCESS_PIPE_STDIN) != 0U) ||
       (bindings->stdout_handle != SALTS_PROCESS_STDIO_INHERIT &&
@@ -106,7 +106,7 @@ static int process_validate_stdio_conflicts(const salts_process_options_t *optio
   return SALTS_OK;
 }
 
-static int process_init(salts_process_t *process, const salts_process_options_t *options) {
+static int process_init(process_t *process, const process_options_t *options) {
   memset(process, 0, sizeof(*process));
 #ifdef _WIN32
   process->process_handle = NULL;
@@ -120,9 +120,9 @@ static int process_init(salts_process_t *process, const salts_process_options_t 
   process->stdout_fd = -1;
   process->stderr_fd = -1;
 #endif
-  cmeta_mutex_init(&process->mutex);
-  cmeta_cond_init(&process->changed);
-  cmeta_mutex_init(&process->stdin_mutex);
+  sync_mutex_init(&process->mutex);
+  sync_cond_init(&process->changed);
+  sync_mutex_init(&process->stdin_mutex);
   if (!process->mutex || !process->changed || !process->stdin_mutex) return SALTS_ENOMEM;
 
   process->state = SALTS_PROCESS_STARTING;
@@ -137,9 +137,9 @@ static int process_init(salts_process_t *process, const salts_process_options_t 
   return SALTS_OK;
 }
 
-static void process_finish(salts_process_t *process, salts_process_state_t state, int exit_code,
+static void process_finish(process_t *process, process_state_t state, int exit_code,
                            int term_signal, int error_code) {
-  cmeta_mutex_lock(&process->mutex);
+  sync_mutex_lock(&process->mutex);
   process->state = state;
   process->result.state = state;
   process->result.exit_code = exit_code;
@@ -147,12 +147,12 @@ static void process_finish(salts_process_t *process, salts_process_state_t state
   process->result.error_code = error_code;
   process->stdout_open = 0;
   process->stderr_open = 0;
-  cmeta_cond_broadcast(&process->changed);
-  cmeta_mutex_unlock(&process->mutex);
+  sync_cond_broadcast(&process->changed);
+  sync_mutex_unlock(&process->mutex);
 }
 
 
-static int process_buffer_append(salts_process_buffer *b, const char *data, size_t n) {
+static int process_buffer_append(process_buffer *b, const char *data, size_t n) {
   size_t required, next_capacity;
   char *next;
   if (n > SIZE_MAX - b->len - 1u) return SALTS_ENOMEM;
@@ -174,14 +174,14 @@ static int process_buffer_append(salts_process_buffer *b, const char *data, size
   return SALTS_OK;
 }
 
-static int process_append_output(salts_process_t *process, int is_stdout, const char *data,
+static int process_append_output(process_t *process, int is_stdout, const char *data,
                                  size_t size) {
-  salts_process_buffer *target;
+  process_buffer *target;
   size_t remaining;
   size_t accepted;
 
   if (size == 0) return SALTS_OK;
-  cmeta_mutex_lock(&process->mutex);
+  sync_mutex_lock(&process->mutex);
   remaining = process->captured_bytes < process->max_output_bytes
                   ? process->max_output_bytes - process->captured_bytes
                   : 0;
@@ -189,19 +189,19 @@ static int process_append_output(salts_process_t *process, int is_stdout, const 
   target = is_stdout ? &process->stdout_data : &process->stderr_data;
   if (accepted > 0) {
     if (process_buffer_append(target, data, accepted) != SALTS_OK) {
-      cmeta_mutex_unlock(&process->mutex);
+      sync_mutex_unlock(&process->mutex);
       return SALTS_ENOMEM;
     }
     process->captured_bytes += accepted;
   }
-  cmeta_cond_broadcast(&process->changed);
-  cmeta_mutex_unlock(&process->mutex);
+  sync_cond_broadcast(&process->changed);
+  sync_mutex_unlock(&process->mutex);
   return accepted == size ? SALTS_OK : SALTS_ERANGE;
 }
 
-static int process_read_buffer(salts_process_t *process, int is_stdout, void *buffer,
+static int process_read_buffer(process_t *process, int is_stdout, void *buffer,
                                size_t capacity, size_t *out_read) {
-  const salts_process_buffer *data;
+  const process_buffer *data;
   size_t *offset;
   size_t available;
   size_t count;
@@ -209,7 +209,7 @@ static int process_read_buffer(salts_process_t *process, int is_stdout, void *bu
 
   if (!process || !out_read || (capacity > 0 && !buffer)) return SALTS_EINVAL;
   *out_read = 0;
-  cmeta_mutex_lock(&process->mutex);
+  sync_mutex_lock(&process->mutex);
   data = is_stdout ? &process->stdout_data : &process->stderr_data;
   offset = is_stdout ? &process->stdout_offset : &process->stderr_offset;
   stream_open = is_stdout ? process->stdout_open : process->stderr_open;
@@ -220,29 +220,29 @@ static int process_read_buffer(salts_process_t *process, int is_stdout, void *bu
     *offset += count;
     *out_read = count;
   }
-  cmeta_mutex_unlock(&process->mutex);
+  sync_mutex_unlock(&process->mutex);
   return count == 0 && !stream_open ? SALTS_EOF : SALTS_OK;
 }
 
-static void process_join_monitor(salts_process_t *process) {
+static void process_join_monitor(process_t *process) {
   int should_join = 0;
-  cmeta_mutex_lock(&process->mutex);
+  sync_mutex_lock(&process->mutex);
   if (process->monitor_started && !process->monitor_joined) {
     process->monitor_joined = 1;
     should_join = 1;
   }
-  cmeta_mutex_unlock(&process->mutex);
-  if (should_join) cmeta_thread_join(&process->monitor_thread);
+  sync_mutex_unlock(&process->mutex);
+  if (should_join) sync_thread_join(&process->monitor_thread);
 }
 
-void salts_process_options_init(salts_process_options_t *options) {
+void process_options_init(process_options_t *options) {
   if (!options) return;
   memset(options, 0, sizeof(*options));
   options->flags = SALTS_PROCESS_CAPTURE_STDOUT | SALTS_PROCESS_CAPTURE_STDERR;
   options->max_output_bytes = SALTS_PROCESS_DEFAULT_MAX_OUTPUT_BYTES;
 }
 
-const char *salts_process_state_name(salts_process_state_t state) {
+const char *process_state_name(process_state_t state) {
   switch (state) {
   case SALTS_PROCESS_STARTING:
     return "starting";
@@ -264,62 +264,62 @@ const char *salts_process_state_name(salts_process_state_t state) {
   return "unknown";
 }
 
-int salts_process_pid(const salts_process_t *process) {
+int process_pid(const process_t *process) {
   int pid;
   if (!process) return -1;
-  cmeta_mutex_lock((cmeta_mutex_t *)&process->mutex);
+  sync_mutex_lock((sync_mutex_t *)&process->mutex);
   pid = process->result.pid;
-  cmeta_mutex_unlock((cmeta_mutex_t *)&process->mutex);
+  sync_mutex_unlock((sync_mutex_t *)&process->mutex);
   return pid;
 }
 
-salts_process_state_t salts_process_state(const salts_process_t *process) {
-  salts_process_state_t state;
+process_state_t process_state(const process_t *process) {
+  process_state_t state;
   if (!process) return SALTS_PROCESS_WAIT_FAILED;
-  cmeta_mutex_lock((cmeta_mutex_t *)&process->mutex);
+  sync_mutex_lock((sync_mutex_t *)&process->mutex);
   state = process->state;
-  cmeta_mutex_unlock((cmeta_mutex_t *)&process->mutex);
+  sync_mutex_unlock((sync_mutex_t *)&process->mutex);
   return state;
 }
 
-bool salts_process_is_running(const salts_process_t *process) {
-  return process && !process_state_terminal(salts_process_state(process));
+bool process_is_running(const process_t *process) {
+  return process && !process_state_terminal(process_state(process));
 }
 
-int salts_process_poll(const salts_process_t *process, salts_process_result_t *out_result) {
+int process_poll(const process_t *process, process_result_t *out_result) {
   if (!process || !out_result) return SALTS_EINVAL;
-  cmeta_mutex_lock((cmeta_mutex_t *)&process->mutex);
+  sync_mutex_lock((sync_mutex_t *)&process->mutex);
   if (!process_state_terminal(process->state)) {
-    cmeta_mutex_unlock((cmeta_mutex_t *)&process->mutex);
+    sync_mutex_unlock((sync_mutex_t *)&process->mutex);
     return SALTS_EBUSY;
   }
   *out_result = process->result;
-  cmeta_mutex_unlock((cmeta_mutex_t *)&process->mutex);
+  sync_mutex_unlock((sync_mutex_t *)&process->mutex);
   return SALTS_OK;
 }
 
-int salts_process_wait(salts_process_t *process, salts_process_result_t *out_result) {
+int process_wait(process_t *process, process_result_t *out_result) {
   if (!process || !out_result) return SALTS_EINVAL;
-  cmeta_mutex_lock(&process->mutex);
+  sync_mutex_lock(&process->mutex);
   while (!process_state_terminal(process->state)) {
-    cmeta_cond_wait(&process->changed, &process->mutex);
+    sync_cond_wait(&process->changed, &process->mutex);
   }
   *out_result = process->result;
-  cmeta_mutex_unlock(&process->mutex);
+  sync_mutex_unlock(&process->mutex);
   return SALTS_OK;
 }
 
-int salts_process_wait_for(salts_process_t *process, uint64_t timeout_ms,
-                           salts_process_result_t *out_result) {
+int process_wait_for(process_t *process, uint64_t timeout_ms,
+                           process_result_t *out_result) {
   uint64_t deadline;
   int rc = SALTS_OK;
   if (!process || !out_result) return SALTS_EINVAL;
-  deadline = cmeta_monotonic_ms();
+  deadline = monotonic_ms();
   deadline = timeout_ms > UINT64_MAX - deadline ? UINT64_MAX : deadline + timeout_ms;
 
-  cmeta_mutex_lock(&process->mutex);
+  sync_mutex_lock(&process->mutex);
   while (!process_state_terminal(process->state)) {
-    uint64_t now = cmeta_monotonic_ms();
+    uint64_t now = monotonic_ms();
     uint64_t remaining_ms;
     if (now >= deadline) {
       rc = SALTS_ETIMEDOUT;
@@ -327,23 +327,23 @@ int salts_process_wait_for(salts_process_t *process, uint64_t timeout_ms,
     }
     remaining_ms = deadline - now;
     if (remaining_ms > 1000U) remaining_ms = 1000U;
-    if (cmeta_cond_timedwait(&process->changed, &process->mutex, remaining_ms * 1000000ULL) != 0 &&
-        !process_state_terminal(process->state) && cmeta_monotonic_ms() >= deadline) {
+    if (sync_cond_timedwait(&process->changed, &process->mutex, remaining_ms * 1000000ULL) != 0 &&
+        !process_state_terminal(process->state) && monotonic_ms() >= deadline) {
       rc = SALTS_ETIMEDOUT;
       break;
     }
   }
   if (rc == SALTS_OK) *out_result = process->result;
-  cmeta_mutex_unlock(&process->mutex);
+  sync_mutex_unlock(&process->mutex);
   return rc;
 }
 
-int salts_process_read_stdout(salts_process_t *process, void *buffer, size_t capacity,
+int process_read_stdout(process_t *process, void *buffer, size_t capacity,
                               size_t *out_read) {
   return process_read_buffer(process, 1, buffer, capacity, out_read);
 }
 
-int salts_process_read_stderr(salts_process_t *process, void *buffer, size_t capacity,
+int process_read_stderr(process_t *process, void *buffer, size_t capacity,
                               size_t *out_read) {
   return process_read_buffer(process, 0, buffer, capacity, out_read);
 }
@@ -511,7 +511,7 @@ static int build_windows_shell_command(const char *text, wchar_t **out_command) 
   return SALTS_OK;
 }
 
-static int build_windows_command(const salts_process_options_t *options, wchar_t **out_command) {
+static int build_windows_command(const process_options_t *options, wchar_t **out_command) {
   size_t count = 1;
   size_t total = 0;
   size_t i;
@@ -692,25 +692,25 @@ cleanup:
   return rc;
 }
 
-static int process_platform_terminate(salts_process_t *process) {
+static int process_platform_terminate(process_t *process) {
   HANDLE job;
   HANDLE child;
-  cmeta_mutex_lock(&process->mutex);
+  sync_mutex_lock(&process->mutex);
   if (process_state_terminal(process->state) || !process->native_active) {
-    cmeta_mutex_unlock(&process->mutex);
+    sync_mutex_unlock(&process->mutex);
     return SALTS_OK;
   }
   process->terminate_requested = 1;
   job = process->job_handle;
   child = process->process_handle;
-  cmeta_mutex_unlock(&process->mutex);
+  sync_mutex_unlock(&process->mutex);
   if (job != NULL && job != INVALID_HANDLE_VALUE) {
     return TerminateJobObject(job, 1) ? SALTS_OK : win32_error();
   }
   return TerminateProcess(child, 1) ? SALTS_OK : win32_error();
 }
 
-static int drain_windows_pipe(salts_process_t *process, HANDLE pipe, int is_stdout,
+static int drain_windows_pipe(process_t *process, HANDLE pipe, int is_stdout,
                               atomic_int *open) {
   char buffer[4096];
   while (*open) {
@@ -747,24 +747,24 @@ static int drain_windows_pipe(salts_process_t *process, HANDLE pipe, int is_stdo
  * real job accounting with a finite teardown budget before publishing a
  * terminal state to callers. The root process handle must be closed first:
  * ActiveProcesses can retain a terminated process while references remain. */
-static int process_windows_wait_job_drained(salts_process_t *process) {
-  uint64_t started = cmeta_monotonic_ms();
+static int process_windows_wait_job_drained(process_t *process) {
+  uint64_t started = monotonic_ms();
   for (;;) {
     JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting = {0};
     if (!QueryInformationJobObject(process->job_handle, JobObjectBasicAccountingInformation,
                                    &accounting, sizeof(accounting), NULL))
       return win32_error();
     if (accounting.ActiveProcesses == 0) return SALTS_OK;
-    if (cmeta_monotonic_ms() - started >= SALTS_PROCESS_WINDOWS_JOB_DRAIN_MS)
+    if (monotonic_ms() - started >= SALTS_PROCESS_WINDOWS_JOB_DRAIN_MS)
       return SALTS_ETIMEDOUT;
-    cmeta_sleep_ms(SALTS_PROCESS_POLL_INTERVAL_MS);
+    sleep_ms(SALTS_PROCESS_POLL_INTERVAL_MS);
   }
 }
 
 static void process_monitor(void *arg) {
-  salts_process_t *process = (salts_process_t *)arg;
-  uint64_t started = cmeta_monotonic_ms();
-  salts_process_state_t terminal = SALTS_PROCESS_EXITED;
+  process_t *process = (process_t *)arg;
+  uint64_t started = monotonic_ms();
+  process_state_t terminal = SALTS_PROCESS_EXITED;
   int error_code = SALTS_OK;
   DWORD exit_code = 1;
 
@@ -791,9 +791,9 @@ static void process_monitor(void *arg) {
         terminal = SALTS_PROCESS_WAIT_FAILED;
         error_code = win32_error();
       }
-      cmeta_mutex_lock(&process->mutex);
+      sync_mutex_lock(&process->mutex);
       process->native_active = 0;
-      cmeta_mutex_unlock(&process->mutex);
+      sync_mutex_unlock(&process->mutex);
       break;
     }
     if (wait_result != WAIT_TIMEOUT) {
@@ -801,17 +801,17 @@ static void process_monitor(void *arg) {
       error_code = win32_error();
       process_platform_terminate(process);
       WaitForSingleObject(process->process_handle, INFINITE);
-      cmeta_mutex_lock(&process->mutex);
+      sync_mutex_lock(&process->mutex);
       process->native_active = 0;
-      cmeta_mutex_unlock(&process->mutex);
+      sync_mutex_unlock(&process->mutex);
       break;
     }
     if (terminal != SALTS_PROCESS_EXITED) continue;
-    cmeta_mutex_lock(&process->mutex);
+    sync_mutex_lock(&process->mutex);
     if (process->terminate_requested) terminal = SALTS_PROCESS_TERMINATED;
-    cmeta_mutex_unlock(&process->mutex);
+    sync_mutex_unlock(&process->mutex);
     if (terminal == SALTS_PROCESS_EXITED && process->timeout_ms != 0 &&
-        cmeta_monotonic_ms() - started >= process->timeout_ms) {
+        monotonic_ms() - started >= process->timeout_ms) {
       terminal = SALTS_PROCESS_TIMED_OUT;
       process_platform_terminate(process);
     }
@@ -844,10 +844,10 @@ static void process_monitor(void *arg) {
   }
   {
     int drain_rc;
-    cmeta_mutex_lock(&process->mutex);
+    sync_mutex_lock(&process->mutex);
     if (terminal == SALTS_PROCESS_EXITED && process->terminate_requested)
       terminal = SALTS_PROCESS_TERMINATED;
-    cmeta_mutex_unlock(&process->mutex);
+    sync_mutex_unlock(&process->mutex);
     /* GetExitCodeProcess above must precede this close. A live handle to
      * the exited root can keep the job's ActiveProcesses accounting nonzero. */
     close_win_handle(&process->process_handle);
@@ -861,8 +861,8 @@ static void process_monitor(void *arg) {
                  error_code);
 }
 
-static int process_platform_spawn(salts_process_t *process, const salts_process_options_t *options,
-                                  const salts_process_stdio_bindings_t *bindings) {
+static int process_platform_spawn(process_t *process, const process_options_t *options,
+                                  const process_stdio_bindings_t *bindings) {
   SECURITY_ATTRIBUTES security = {sizeof(security), NULL, TRUE};
   STARTUPINFOEXW startup;
   PROCESS_INFORMATION info;
@@ -1001,16 +1001,16 @@ cleanup:
   return rc;
 }
 
-int salts_process_write_stdin(salts_process_t *process, const void *data, size_t size,
+int process_write_stdin(process_t *process, const void *data, size_t size,
                               size_t *out_written) {
   const char *cursor = (const char *)data;
   size_t total = 0;
   int rc = SALTS_OK;
   if (!process || (size > 0 && !data)) return SALTS_EINVAL;
   if (out_written) *out_written = 0;
-  cmeta_mutex_lock(&process->stdin_mutex);
+  sync_mutex_lock(&process->stdin_mutex);
   if (process->stdin_write == INVALID_HANDLE_VALUE) {
-    cmeta_mutex_unlock(&process->stdin_mutex);
+    sync_mutex_unlock(&process->stdin_mutex);
     return SALTS_EPIPE;
   }
   while (total < size) {
@@ -1030,19 +1030,19 @@ int salts_process_write_stdin(salts_process_t *process, const void *data, size_t
     total += written;
   }
   if (out_written) *out_written = total;
-  cmeta_mutex_unlock(&process->stdin_mutex);
+  sync_mutex_unlock(&process->stdin_mutex);
   return rc;
 }
 
-int salts_process_close_stdin(salts_process_t *process) {
+int process_close_stdin(process_t *process) {
   if (!process) return SALTS_EINVAL;
-  cmeta_mutex_lock(&process->stdin_mutex);
+  sync_mutex_lock(&process->stdin_mutex);
   close_win_handle(&process->stdin_write);
-  cmeta_mutex_unlock(&process->stdin_mutex);
+  sync_mutex_unlock(&process->stdin_mutex);
   return SALTS_OK;
 }
 
-int salts_process_is_pid_alive(int pid, bool *out_alive) {
+int process_is_pid_alive(int pid, bool *out_alive) {
   HANDLE handle;
   DWORD wait_result;
   DWORD wait_error = ERROR_SUCCESS;
@@ -1114,7 +1114,7 @@ static void close_pipe(int fds[2]) {
 }
 
 /* Same creation/fork boundary for asynchronous stdio pairs in this module. */
-__attribute__((visibility("hidden"))) int salts_process_create_pipe(int fds[2]) {
+__attribute__((visibility("hidden"))) int process_create_pipe(int fds[2]) {
 #if !defined(__linux__)
   int locked = pthread_mutex_lock(&process_spawn_mutex);
   if (locked != 0) return -locked;
@@ -1136,7 +1136,7 @@ static const char *environment_path(const char *const *env, int clean_environmen
   return clean_environment ? NULL : getenv("PATH");
 }
 
-static char **build_argv(const salts_process_options_t *options) {
+static char **build_argv(const process_options_t *options) {
   size_t count = 0;
   char **argv;
   if (options->args) {
@@ -1211,7 +1211,7 @@ static int build_posix_environment(const char *const *overrides, int clean_envir
   return SALTS_OK;
 }
 
-static char **build_program_candidates(const salts_process_options_t *options, size_t *out_count) {
+static char **build_program_candidates(const process_options_t *options, size_t *out_count) {
   const char *path;
   const char *cursor;
   size_t count = 1;
@@ -1323,26 +1323,26 @@ static int duplicate_child_stdio(int source) {
   return duplicated;
 }
 
-static int process_platform_terminate(salts_process_t *process) {
+static int process_platform_terminate(process_t *process) {
   pid_t pid;
   int rc;
-  cmeta_mutex_lock(&process->mutex);
+  sync_mutex_lock(&process->mutex);
   if (process_state_terminal(process->state) || !process->native_active) {
-    cmeta_mutex_unlock(&process->mutex);
+    sync_mutex_unlock(&process->mutex);
     return SALTS_OK;
   }
   process->terminate_requested = 1;
   pid = process->pid;
   if (kill(-pid, SIGKILL) == 0 || errno == ESRCH) {
-    cmeta_mutex_unlock(&process->mutex);
+    sync_mutex_unlock(&process->mutex);
     return SALTS_OK;
   }
   rc = kill(pid, SIGKILL) == 0 || errno == ESRCH ? SALTS_OK : -errno;
-  cmeta_mutex_unlock(&process->mutex);
+  sync_mutex_unlock(&process->mutex);
   return rc;
 }
 
-static int drain_posix_fd(salts_process_t *process, int fd, int is_stdout, atomic_int *open) {
+static int drain_posix_fd(process_t *process, int fd, int is_stdout, atomic_int *open) {
   char buffer[4096];
   while (*open) {
     ssize_t count = read(fd, buffer, sizeof(buffer));
@@ -1383,7 +1383,7 @@ static int process_cleanup_group(pid_t pid) {
   return error == ESRCH ? SALTS_OK : -error;
 }
 
-static pid_t process_poll_posix(salts_process_t *process, int *status, int *tree_error) {
+static pid_t process_poll_posix(process_t *process, int *status, int *tree_error) {
   siginfo_t info;
   int rc;
   memset(&info, 0, sizeof(info));
@@ -1400,9 +1400,9 @@ static pid_t process_poll_posix(salts_process_t *process, int *status, int *tree
 }
 
 static void process_monitor(void *arg) {
-  salts_process_t *process = (salts_process_t *)arg;
-  uint64_t started = cmeta_monotonic_ms();
-  salts_process_state_t terminal = SALTS_PROCESS_EXITED;
+  process_t *process = (process_t *)arg;
+  uint64_t started = monotonic_ms();
+  process_state_t terminal = SALTS_PROCESS_EXITED;
   int error_code = SALTS_OK;
   int status = 0;
 
@@ -1424,12 +1424,12 @@ static void process_monitor(void *arg) {
       process_platform_terminate(process);
     }
 
-    cmeta_mutex_lock(&process->mutex);
+    sync_mutex_lock(&process->mutex);
     do {
       waited = process_poll_posix(process, &status, &tree_error);
     } while (waited < 0 && errno == EINTR);
     if (waited == process->pid || waited < 0) process->native_active = 0;
-    cmeta_mutex_unlock(&process->mutex);
+    sync_mutex_unlock(&process->mutex);
     if (tree_error != SALTS_OK) {
       terminal = SALTS_PROCESS_WAIT_FAILED;
       error_code = tree_error;
@@ -1445,16 +1445,16 @@ static void process_monitor(void *arg) {
       break;
     }
     if (terminal == SALTS_PROCESS_EXITED) {
-      cmeta_mutex_lock(&process->mutex);
+      sync_mutex_lock(&process->mutex);
       if (process->terminate_requested) terminal = SALTS_PROCESS_TERMINATED;
-      cmeta_mutex_unlock(&process->mutex);
+      sync_mutex_unlock(&process->mutex);
       if (terminal == SALTS_PROCESS_EXITED && process->timeout_ms != 0 &&
-          cmeta_monotonic_ms() - started >= process->timeout_ms) {
+          monotonic_ms() - started >= process->timeout_ms) {
         terminal = SALTS_PROCESS_TIMED_OUT;
         process_platform_terminate(process);
       }
     }
-    cmeta_sleep_ms(SALTS_PROCESS_POLL_INTERVAL_MS);
+    sleep_ms(SALTS_PROCESS_POLL_INTERVAL_MS);
   }
 
   if (process->stdout_open) {
@@ -1478,9 +1478,9 @@ static void process_monitor(void *arg) {
   close_fd(&process->stdout_fd);
   close_fd(&process->stderr_fd);
   if (terminal == SALTS_PROCESS_EXITED) {
-    cmeta_mutex_lock(&process->mutex);
+    sync_mutex_lock(&process->mutex);
     if (process->terminate_requested) terminal = SALTS_PROCESS_TERMINATED;
-    cmeta_mutex_unlock(&process->mutex);
+    sync_mutex_unlock(&process->mutex);
   }
   if (terminal == SALTS_PROCESS_EXITED && WIFSIGNALED(status)) terminal = SALTS_PROCESS_SIGNALED;
   process_finish(process, terminal,
@@ -1490,8 +1490,8 @@ static void process_monitor(void *arg) {
                  WIFSIGNALED(status) ? WTERMSIG(status) : 0, error_code);
 }
 
-static int process_platform_spawn(salts_process_t *process, const salts_process_options_t *options,
-                                  const salts_process_stdio_bindings_t *bindings) {
+static int process_platform_spawn(process_t *process, const process_options_t *options,
+                                  const process_stdio_bindings_t *bindings) {
   int stdin_pipe[2] = {-1, -1};
   int stdout_pipe[2] = {-1, -1};
   int stderr_pipe[2] = {-1, -1};
@@ -1658,16 +1658,16 @@ cleanup:
   return rc;
 }
 
-int salts_process_write_stdin(salts_process_t *process, const void *data, size_t size,
+int process_write_stdin(process_t *process, const void *data, size_t size,
                               size_t *out_written) {
   const char *cursor = (const char *)data;
   size_t total = 0;
   int rc = SALTS_OK;
   if (!process || (size > 0 && !data)) return SALTS_EINVAL;
   if (out_written) *out_written = 0;
-  cmeta_mutex_lock(&process->stdin_mutex);
+  sync_mutex_lock(&process->stdin_mutex);
   if (process->stdin_fd < 0) {
-    cmeta_mutex_unlock(&process->stdin_mutex);
+    sync_mutex_unlock(&process->stdin_mutex);
     return SALTS_EPIPE;
   }
   while (total < size) {
@@ -1681,19 +1681,19 @@ int salts_process_write_stdin(salts_process_t *process, const void *data, size_t
     break;
   }
   if (out_written) *out_written = total;
-  cmeta_mutex_unlock(&process->stdin_mutex);
+  sync_mutex_unlock(&process->stdin_mutex);
   return rc;
 }
 
-int salts_process_close_stdin(salts_process_t *process) {
+int process_close_stdin(process_t *process) {
   if (!process) return SALTS_EINVAL;
-  cmeta_mutex_lock(&process->stdin_mutex);
+  sync_mutex_lock(&process->stdin_mutex);
   close_fd(&process->stdin_fd);
-  cmeta_mutex_unlock(&process->stdin_mutex);
+  sync_mutex_unlock(&process->stdin_mutex);
   return SALTS_OK;
 }
 
-int salts_process_is_pid_alive(int pid, bool *out_alive) {
+int process_is_pid_alive(int pid, bool *out_alive) {
   if (pid <= 0 || !out_alive) return SALTS_EINVAL;
   if (kill((pid_t)pid, 0) == 0 || errno == EPERM) {
     *out_alive = true;
@@ -1708,12 +1708,12 @@ int salts_process_is_pid_alive(int pid, bool *out_alive) {
 
 #endif
 
-static int process_spawn(const salts_process_options_t *options,
-                         const salts_process_stdio_bindings_t *bindings,
-                         salts_process_t **out_process) {
-  salts_process_t *process;
+static int process_spawn_impl(const process_options_t *options,
+                         const process_stdio_bindings_t *bindings,
+                         process_t **out_process) {
+  process_t *process;
 #ifndef _WIN32
-  salts_process_options_t shell_options;
+  process_options_t shell_options;
   const char *shell_args[] = {"-c", NULL, NULL};
 #endif
   int rc;
@@ -1734,13 +1734,13 @@ static int process_spawn(const salts_process_options_t *options,
     options = &shell_options;
   }
 #endif
-  process = (salts_process_t *)calloc(1, sizeof(*process));
+  process = (process_t *)calloc(1, sizeof(*process));
   if (!process) return SALTS_ENOMEM;
   rc = process_init(process, options);
   if (rc != SALTS_OK) goto error;
   rc = process_platform_spawn(process, options, bindings);
   if (rc != SALTS_OK) goto error;
-  rc = cmeta_thread_create(&process->monitor_thread, process_monitor, process);
+  rc = sync_thread_create(&process->monitor_thread, process_monitor, process);
   if (rc != SALTS_OK) {
     process_platform_terminate(process);
 #ifdef _WIN32
@@ -1755,7 +1755,7 @@ static int process_spawn(const salts_process_options_t *options,
   return SALTS_OK;
 
 error:
-  salts_process_close_stdin(process);
+  process_close_stdin(process);
 #ifdef _WIN32
   close_win_handle(&process->stdout_read);
   close_win_handle(&process->stderr_read);
@@ -1767,36 +1767,36 @@ error:
 #endif
   free(process->stdout_data.data);
   free(process->stderr_data.data);
-  cmeta_mutex_destroy(&process->stdin_mutex);
-  cmeta_cond_destroy(&process->changed);
-  cmeta_mutex_destroy(&process->mutex);
+  sync_mutex_destroy(&process->stdin_mutex);
+  sync_cond_destroy(&process->changed);
+  sync_mutex_destroy(&process->mutex);
   free(process);
   return rc;
 }
 
-int salts_process_spawn(const salts_process_options_t *options, salts_process_t **out_process) {
-  return process_spawn(options, NULL, out_process);
+int process_spawn(const process_options_t *options, process_t **out_process) {
+  return process_spawn_impl(options, NULL, out_process);
 }
 
-int salts_process_spawn_with_stdio(const salts_process_options_t *options,
-                                   const salts_process_stdio_bindings_t *bindings,
-                                   salts_process_t **out_process) {
+int process_spawn_with_stdio(const process_options_t *options,
+                                   const process_stdio_bindings_t *bindings,
+                                   process_t **out_process) {
   if (!bindings) {
     if (out_process) *out_process = NULL;
     return SALTS_EINVAL;
   }
-  return process_spawn(options, bindings, out_process);
+  return process_spawn_impl(options, bindings, out_process);
 }
 
-int salts_process_terminate(salts_process_t *process) {
+int process_terminate(process_t *process) {
   if (!process) return SALTS_EINVAL;
   return process_platform_terminate(process);
 }
 
-void salts_process_destroy(salts_process_t *process) {
+void process_destroy(process_t *process) {
   if (!process) return;
-  salts_process_terminate(process);
-  salts_process_close_stdin(process);
+  process_terminate(process);
+  process_close_stdin(process);
   process_join_monitor(process);
 #ifdef _WIN32
   close_win_handle(&process->job_handle);
@@ -1807,40 +1807,40 @@ void salts_process_destroy(salts_process_t *process) {
 #endif
   free(process->stdout_data.data);
   free(process->stderr_data.data);
-  cmeta_mutex_destroy(&process->stdin_mutex);
-  cmeta_cond_destroy(&process->changed);
-  cmeta_mutex_destroy(&process->mutex);
+  sync_mutex_destroy(&process->stdin_mutex);
+  sync_cond_destroy(&process->changed);
+  sync_mutex_destroy(&process->mutex);
   free(process);
 }
 
 
-typedef enum salts_process_retainer_slot_state {
+typedef enum process_retainer_slot_state {
   SALTS_PROCESS_RETAINER_EMPTY = 0,
   SALTS_PROCESS_RETAINER_RESERVED,
   SALTS_PROCESS_RETAINER_ADOPTED
-} salts_process_retainer_slot_state;
+} process_retainer_slot_state;
 
-typedef struct salts_process_retainer_slot {
+typedef struct process_retainer_slot {
   uint64_t generation;
-  salts_process_retainer_slot_state state;
-  salts_process_t *process;
+  process_retainer_slot_state state;
+  process_t *process;
   void *payload;
-  salts_process_retainer_release_fn release;
-} salts_process_retainer_slot;
+  process_retainer_release_fn release;
+} process_retainer_slot;
 
-typedef struct salts_process_retainer_impl {
-  salts_process_retainer_slot *slots;
+typedef struct process_retainer_impl {
+  process_retainer_slot *slots;
   size_t capacity;
-} salts_process_retainer_impl;
+} process_retainer_impl;
 
-static salts_process_retainer_impl *process_retainer_impl(
-    salts_process_retainer_t *owner) {
-  return owner ? (salts_process_retainer_impl *)owner->impl : NULL;
+static process_retainer_impl *process_retainer_get_impl(
+    process_retainer_t *owner) {
+  return owner ? (process_retainer_impl *)owner->impl : NULL;
 }
 
-static salts_process_retainer_slot *process_retainer_reserved_slot(
-    salts_process_retainer_impl *impl, salts_process_retainer_token_t token) {
-  salts_process_retainer_slot *slot;
+static process_retainer_slot *process_retainer_reserved_slot(
+    process_retainer_impl *impl, process_retainer_token_t token) {
+  process_retainer_slot *slot;
   if (!impl || token.index >= impl->capacity || token.generation == 0u)
     return NULL;
   slot = &impl->slots[token.index];
@@ -1850,24 +1850,24 @@ static salts_process_retainer_slot *process_retainer_reserved_slot(
              : NULL;
 }
 
-static int process_retainer_can_adopt(salts_process_t *process) {
+static int process_retainer_can_adopt(process_t *process) {
   int allowed;
   if (!process) return 0;
-  cmeta_mutex_lock(&process->mutex);
+  sync_mutex_lock(&process->mutex);
   allowed = process->terminate_requested || process_state_terminal(process->state);
-  cmeta_mutex_unlock(&process->mutex);
+  sync_mutex_unlock(&process->mutex);
   return allowed;
 }
 
-int salts_process_retainer_init(salts_process_retainer_t *owner, size_t capacity) {
-  salts_process_retainer_impl *impl;
+int process_retainer_init(process_retainer_t *owner, size_t capacity) {
+  process_retainer_impl *impl;
   if (!owner || owner->impl || capacity == 0u ||
-      capacity > SIZE_MAX / sizeof(salts_process_retainer_slot))
+      capacity > SIZE_MAX / sizeof(process_retainer_slot))
     return SALTS_EINVAL;
-  impl = (salts_process_retainer_impl *)calloc(1u, sizeof(*impl));
+  impl = (process_retainer_impl *)calloc(1u, sizeof(*impl));
   if (!impl) return SALTS_ENOMEM;
   impl->slots =
-      (salts_process_retainer_slot *)calloc(capacity, sizeof(*impl->slots));
+      (process_retainer_slot *)calloc(capacity, sizeof(*impl->slots));
   if (!impl->slots) {
     free(impl);
     return SALTS_ENOMEM;
@@ -1877,14 +1877,14 @@ int salts_process_retainer_init(salts_process_retainer_t *owner, size_t capacity
   return SALTS_OK;
 }
 
-int salts_process_retainer_reserve(salts_process_retainer_t *owner,
-                                   salts_process_retainer_token_t *out_token) {
-  salts_process_retainer_impl *impl = process_retainer_impl(owner);
+int process_retainer_reserve(process_retainer_t *owner,
+                                   process_retainer_token_t *out_token) {
+  process_retainer_impl *impl = process_retainer_get_impl(owner);
   size_t index;
-  if (out_token) *out_token = (salts_process_retainer_token_t){0};
+  if (out_token) *out_token = (process_retainer_token_t){0};
   if (!impl || !out_token) return SALTS_EINVAL;
   for (index = 0u; index < impl->capacity; ++index) {
-    salts_process_retainer_slot *slot = &impl->slots[index];
+    process_retainer_slot *slot = &impl->slots[index];
     if (slot->state != SALTS_PROCESS_RETAINER_EMPTY) continue;
     ++slot->generation;
     if (slot->generation == 0u) ++slot->generation;
@@ -1896,23 +1896,23 @@ int salts_process_retainer_reserve(salts_process_retainer_t *owner,
   return SALTS_ENOBUFS;
 }
 
-int salts_process_retainer_release(salts_process_retainer_t *owner,
-                                   salts_process_retainer_token_t token) {
-  salts_process_retainer_slot *slot =
-      process_retainer_reserved_slot(process_retainer_impl(owner), token);
+int process_retainer_release(process_retainer_t *owner,
+                                   process_retainer_token_t token) {
+  process_retainer_slot *slot =
+      process_retainer_reserved_slot(process_retainer_get_impl(owner), token);
   if (!slot) return SALTS_EINVAL;
   slot->state = SALTS_PROCESS_RETAINER_EMPTY;
   return SALTS_OK;
 }
 
-int salts_process_retainer_adopt(salts_process_retainer_t *owner,
-                                 salts_process_retainer_token_t token,
-                                 salts_process_t **source_process,
+int process_retainer_adopt(process_retainer_t *owner,
+                                 process_retainer_token_t token,
+                                 process_t **source_process,
                                  void *payload,
-                                 salts_process_retainer_release_fn release) {
-  salts_process_retainer_slot *slot =
-      process_retainer_reserved_slot(process_retainer_impl(owner), token);
-  salts_process_t *process;
+                                 process_retainer_release_fn release) {
+  process_retainer_slot *slot =
+      process_retainer_reserved_slot(process_retainer_get_impl(owner), token);
+  process_t *process;
   if (!slot || !source_process || !*source_process || !payload || !release)
     return SALTS_EINVAL;
   process = *source_process;
@@ -1926,11 +1926,11 @@ int salts_process_retainer_adopt(salts_process_retainer_t *owner,
   return SALTS_OK;
 }
 
-int salts_process_retainer_run_ready(salts_process_retainer_t *owner,
+int process_retainer_run_ready(process_retainer_t *owner,
                                      size_t max_steps,
                                      size_t *out_reaped,
                                      size_t *out_pending) {
-  salts_process_retainer_impl *impl = process_retainer_impl(owner);
+  process_retainer_impl *impl = process_retainer_get_impl(owner);
   size_t index;
   size_t advanced = 0u;
   size_t reaped = 0u;
@@ -1943,8 +1943,8 @@ int salts_process_retainer_run_ready(salts_process_retainer_t *owner,
     return SALTS_EINVAL;
 
   for (index = 0u; index < impl->capacity; ++index) {
-    salts_process_retainer_slot *slot = &impl->slots[index];
-    salts_process_result_t result;
+    process_retainer_slot *slot = &impl->slots[index];
+    process_result_t result;
     int status;
 
     if (slot->state == SALTS_PROCESS_RETAINER_EMPTY) continue;
@@ -1964,9 +1964,9 @@ int salts_process_retainer_run_ready(salts_process_retainer_t *owner,
       continue;
     }
 
-    status = salts_process_poll(slot->process, &result);
+    status = process_poll(slot->process, &result);
     if (status == SALTS_EBUSY) {
-      status = salts_process_terminate(slot->process);
+      status = process_terminate(slot->process);
       if (status != SALTS_OK && first_error == SALTS_OK) first_error = status;
       ++pending;
       continue;
@@ -1978,14 +1978,14 @@ int salts_process_retainer_run_ready(salts_process_retainer_t *owner,
     }
 
     {
-      salts_process_retainer_release_fn release = slot->release;
+      process_retainer_release_fn release = slot->release;
       void *payload = slot->payload;
-      salts_process_t *process = slot->process;
+      process_t *process = slot->process;
       slot->process = NULL;
       slot->payload = NULL;
       slot->release = NULL;
       slot->state = SALTS_PROCESS_RETAINER_EMPTY;
-      salts_process_destroy(process);
+      process_destroy(process);
       release(payload);
       ++reaped;
     }
@@ -1997,8 +1997,8 @@ int salts_process_retainer_run_ready(salts_process_retainer_t *owner,
   return pending == 0u ? SALTS_OK : SALTS_EBUSY;
 }
 
-int salts_process_retainer_destroy(salts_process_retainer_t *owner) {
-  salts_process_retainer_impl *impl = process_retainer_impl(owner);
+int process_retainer_destroy(process_retainer_t *owner) {
+  process_retainer_impl *impl = process_retainer_get_impl(owner);
   size_t index;
   if (!impl) return SALTS_EINVAL;
   for (index = 0u; index < impl->capacity; ++index) {

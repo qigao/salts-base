@@ -1,8 +1,8 @@
 #include "native_io_internal.h"
 
-#include <error_codes.h>
+#include <salts/error_codes.h>
 
-int cmeta_io_kqueue_backend_init(native_io_backend *backend, const native_io_backend_config *config);
+int io_kqueue_backend_init(native_io_backend *backend, const native_io_backend_config *config);
 
 bool native_io_platform_backend_supported(native_io_backend_kind kind) {
 #ifdef SALTS_NATIVE_DARWIN_AIO
@@ -21,6 +21,6 @@ int native_io_platform_backend_init(native_io_backend *backend,
   int native_io_darwin_aio_init(native_io_backend *, const native_io_backend_config *);
   if (config->kind == NATIVE_IO_BACKEND_DARWIN_AIO) return native_io_darwin_aio_init(backend, config);
 #endif
-  if (config->kind == NATIVE_IO_BACKEND_KQUEUE) return cmeta_io_kqueue_backend_init(backend, config);
+  if (config->kind == NATIVE_IO_BACKEND_KQUEUE) return io_kqueue_backend_init(backend, config);
   return SALTS_ENOTSUP;
 }

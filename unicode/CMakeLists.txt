@@ -36,42 +36,26 @@ unset(_unicode17_properties_sha256)
 unset(_unicode17_categories_sha256)
 
 # Default Full Case Folding belongs to the same pinned Unicode 17.0.0
-# database as re2c properties/categories. Both authoritative source bytes and
-# the committed generated C11 table are immutable release inputs. Normalize
-# checkout CRLF before hashing (Windows); regeneration requires an explicit
+# database as re2c properties/categories. The committed generated C11 table
+# is an immutable release input. Restore raw data only for tests or regeneration.
+# Normalize checkout CRLF before hashing (Windows); regeneration requires an explicit
 # new data/API review, never a silent SDK semantic change.
-set(_unicode17_casefold_source "${CMAKE_CURRENT_SOURCE_DIR}/data/17.0.0/CaseFolding.txt")
 set(_unicode17_casefold_generated "${CMAKE_CURRENT_SOURCE_DIR}/src/unicode_casefold_data.h")
-foreach(_fixture IN ITEMS "${_unicode17_casefold_source}" "${_unicode17_casefold_generated}")
-  if(NOT EXISTS "${_fixture}")
-    message(FATAL_ERROR "Required Unicode 17 casefold release fixture is missing: ${_fixture}")
-  endif()
-endforeach()
-file(READ "${_unicode17_casefold_source}" _unicode17_casefold_source_text)
-string(REPLACE "\r\n" "\n" _unicode17_casefold_source_text "${_unicode17_casefold_source_text}")
-string(SHA256 _unicode17_casefold_source_sha256 "${_unicode17_casefold_source_text}")
-if(NOT _unicode17_casefold_source_sha256 STREQUAL
-       "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183")
-  message(FATAL_ERROR
-    "Unicode 17 CaseFolding.txt differs from pinned authoritative C/F data; "
-    "explicit data/API/provenance review required")
+if(NOT EXISTS "${_unicode17_casefold_generated}")
+  message(FATAL_ERROR "Required Unicode 17 casefold release fixture is missing: ${_unicode17_casefold_generated}")
 endif()
 file(READ "${_unicode17_casefold_generated}" _unicode17_casefold_generated_text)
 string(REPLACE "\r\n" "\n" _unicode17_casefold_generated_text "${_unicode17_casefold_generated_text}")
 string(SHA256 _unicode17_casefold_generated_sha256 "${_unicode17_casefold_generated_text}")
 if(NOT _unicode17_casefold_generated_sha256 STREQUAL
-       "9a262099e14fa7520bfc12d491da271260ba246a722190f2ad49b551bdb8a14b")
+       "370670365c3d9ab9ab852cc9f97b5bfde666909f0eab3fc599af7ce5d4a8d19d")
   message(FATAL_ERROR
     "Generated Unicode 17 Default Full Case Folding table differs from "
     "its qualified immutable fixture; rerun generator and qualify changes")
 endif()
-unset(_unicode17_casefold_source)
 unset(_unicode17_casefold_generated)
-unset(_unicode17_casefold_source_text)
 unset(_unicode17_casefold_generated_text)
-unset(_unicode17_casefold_source_sha256)
 unset(_unicode17_casefold_generated_sha256)
-unset(_fixture)
 
 execute_process(
   COMMAND "${RE2C_EXECUTABLE}" --version
@@ -94,14 +78,16 @@ if(NOT _unicode_re2c_in_root)
 endif()
 
 cmake_add_grammar(saltscore_unicode
-  LEXER_RE src/salts_unicode.re
-  LEXER_OUTPUT salts_unicode_gen.c
+  LEXER_RE src/unicode.re
+  LEXER_OUTPUT unicode_gen.c
   RE2C_EXECUTABLE "${RE2C_EXECUTABLE}"
   LEXER_DEPENDS "${RE2C_UNICODE_PROPERTIES}" "${RE2C_UNICODE_CATEGORIES}"
   LEXER_OPTIONS --lang c --utf8 --encoding-policy fail
     --no-generation-date -W -Werror -I "${RE2C_ROOT}/share/re2c/stdlib"
   FOLDER "unicode")
-cmake_add_source(unicode_sources DIRS src include)
+cmake_add_source(unicode_sources DIRS src)
+cmake_add_source(unicode_sources_headers RECURSE DIRS include PATTERNS "*.h" "*.hpp")
+list(APPEND unicode_sources ${unicode_sources_headers})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${unicode_sources})
 source_group("Generated" FILES ${saltscore_unicode_LEXER_GEN})
 add_library(saltscore_unicode STATIC ${unicode_sources} ${saltscore_unicode_LEXER_GEN})
@@ -116,10 +102,9 @@ target_include_directories(saltscore_unicode
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_link_libraries(saltscore_unicode PUBLIC Salts::Core)
-install(TARGETS saltscore_unicode EXPORT SaltsCoreTargets
+install(TARGETS saltscore_unicode EXPORT SaltsBaseTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(FILES include/unicode.h include/unicode_normalize.h
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(FILES data/LICENSE.txt
   DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/SaltsCore/unicode)
 

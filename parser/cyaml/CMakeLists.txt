@@ -3,7 +3,7 @@ set(TARGET_FOLDER "parser/${TARGET_NAME}")
 
 cmake_add_grammar(CYAML_YPATH
   RE2C_EXECUTABLE "${RE2C_EXECUTABLE}"
-  LEMON_TARGET lemon
+  LEMON_TARGET Lemon::Lemon
   LEMON_TEMPLATE "${LEMPAR}"
   LEXER_RE ${CMAKE_CURRENT_SOURCE_DIR}/src/cyaml_ypath_lexer.re
   GRAMMAR_Y ${CMAKE_CURRENT_SOURCE_DIR}/src/cyaml_ypath_expr_grammar.y
@@ -12,17 +12,10 @@ cmake_add_grammar(CYAML_YPATH
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cyaml_ypath_lexer.h
   FOLDER "${TARGET_FOLDER}/grammar")
 
-set(CYAML_SOURCES
-  src/cyaml.c
-  src/cyaml_utf8.c
-  src/cyaml_parser.c
-  src/cyaml_emitter.c
-  src/cyaml_events.c
-  src/cyaml_json.c
-  src/cyaml_path.c
-  src/cyaml_modify.c
-  ${CYAML_YPATH_LEXER_GEN}
-  ${CYAML_YPATH_GRAMMAR_GEN})
+cmake_add_source(CYAML_SOURCES DIRS src PATTERNS "*.c" "*.h")
+cmake_add_source(cyaml_headers RECURSE DIRS include PATTERNS "*.h")
+list(APPEND CYAML_SOURCES ${cyaml_headers})
+list(APPEND CYAML_SOURCES ${CYAML_YPATH_LEXER_GEN} ${CYAML_YPATH_GRAMMAR_GEN})
 
 if(MSVC)
   set_source_files_properties(${CYAML_YPATH_GRAMMAR_GEN}
@@ -43,9 +36,9 @@ target_link_libraries(${TARGET_NAME} PRIVATE Salts::Core PUBLIC Salts::QueryVM)
 
 target_include_directories(${TARGET_NAME}
   PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-    $<INSTALL_INTERFACE:include/cyaml>
-  PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_definitions(${TARGET_NAME}
   PRIVATE CYAML_VERSION_STR="${PROJECT_VERSION}")
 
@@ -57,15 +50,14 @@ install(
   TARGETS ${TARGET_NAME}
   EXPORT SaltsBaseTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(FILES src/cyaml.h DESTINATION include/cyaml)
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 # JSON support is an adapter target so the CYAML core stays independent.
-add_library(cyaml_json_adapter STATIC
-  adapter/cyaml_json_adapter.c
-  adapter/cyaml_json_adapter.h)
+cmake_add_source(cyaml_adapter_sources DIRS adapter)
+add_library(cyaml_json_adapter STATIC ${cyaml_adapter_sources})
 target_include_directories(cyaml_json_adapter
-  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/adapter>
-         $<INSTALL_INTERFACE:include/cyaml>
+  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(cyaml_json_adapter PUBLIC ${TARGET_NAME} json_parser)
 cmake_config_target(cyaml_json_adapter
@@ -119,6 +111,7 @@ if(BUILD_TESTS)
     cmake_add_executable(${TOOL}
       SOURCES ${TOOL_SOURCE}
       LIBS ${TARGET_NAME}
+      INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
       FOLDER "${TARGET_FOLDER}/tools")
   endforeach()
 endif()

@@ -1,6 +1,6 @@
-#include <atomic.h>
-#include <rcu.h>
-#include <thread.h>
+#include <atomic/atomic.h>
+#include <salts/rcu.h>
+#include <threads/threads.h>
 #include "tinytest.h"
 
 SALTS_ATOMIC_TYPE(IntAtomic, int);
@@ -14,7 +14,7 @@ static void acquire_payload(void *arg) {
     int ready = 0;
     while (ready == 0) {
         if (IntAtomic_load(&ctx->ready, memory_order_acquire, &ready) != SALTS_OK) return;
-        cmeta_thread_yield();
+        sync_thread_yield();
     }
     ctx->seen = ctx->payload;
 }
@@ -78,14 +78,14 @@ spec("Concurrency typed atomic and RCU ownership") {
         check_equal(PointerAtomic_is_lock_free(&pointer, &lock_free), SALTS_OK);
     }
     it("publishes payload through explicit release/acquire and exposes typed RCU ownership") {
-        publication ctx = {0}; cmeta_thread_t thread = NULL;
+        publication ctx = {0}; sync_thread_t thread = NULL;
         IntRcu domain = {0}; IntRcu_guard guard = {0};
         int first = 1, second = 2; int *out = NULL;
         check_equal(IntAtomic_init(&ctx.ready, 0), SALTS_OK);
-        check_equal(cmeta_thread_create(&thread, acquire_payload, &ctx), 0);
+        check_equal(sync_thread_create(&thread, acquire_payload, &ctx), 0);
         ctx.payload = 42;
         check_equal(IntAtomic_store(&ctx.ready, 1, memory_order_release), SALTS_OK);
-        if (thread != NULL) check_equal(cmeta_thread_join(&thread), 0);
+        if (thread != NULL) check_equal(sync_thread_join(&thread), 0);
         check_equal(ctx.seen, 42);
         check_equal(IntRcu_init(&domain, &first, 1), SALTS_OK);
         check_equal(IntRcu_read_lock(&domain, &guard), SALTS_OK);

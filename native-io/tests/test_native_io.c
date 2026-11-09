@@ -1,6 +1,6 @@
 #include <native_io.h>
 #include <native_io_sharded.h>
-#include <error_codes.h>
+#include <salts/error_codes.h>
 #include <tinytest.h>
 
 static native_io_backend_kind native_backend(void) {

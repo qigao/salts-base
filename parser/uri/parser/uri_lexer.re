@@ -1,5 +1,5 @@
 // re2c --lang c
-#include "uri_parser.h"
+#include <uri_parser.h>
 #include "uri_parser_internal.h"
 #include <limits.h>
 #include <stdio.h>

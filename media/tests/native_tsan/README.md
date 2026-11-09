@@ -8,7 +8,7 @@ It compiles the **actual repository** Capture Linux production source
 (`capture_video.c`, `capture_linux.c`, `capture_video_linux.c`,
 `capture_screen_linux.c`, `capture_audio_miniaudio.c` and
 `miniaudio_impl.c`) together with pinned upstream miniaudio
-`0.11.22` using `-fsanitize=thread`. No `salts_capture_*`
+`0.11.22` using `-fsanitize=thread`. No `capture_*`
 function is stubbed or replaced. The only external native SDK input
 is the explicitly pinned installed SaltsCore SDK; standard OS
 PipeWire, PulseAudio and X11 libraries remain external.
@@ -37,7 +37,7 @@ recorded or persisted.
   Callback registration remains fixed before the first start.
 - The actual native audio callback is **deliberately held in-flight** on
   a bounded pthread condition variable while a different control
-  thread calls `salts_capture_stop`. The stop call must remain
+  thread calls `capture_stop`. The stop call must remain
   blocked until the callback has been explicitly released and joined,
   or the test fails. The callback has a deadline which releases it on
   timeout to avoid unsafe forced destruction.

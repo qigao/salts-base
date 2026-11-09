@@ -2,8 +2,8 @@
  * All clients use the one Platform Atomic ABI, never a volatile race.
  */
 #include <tinytest.h>
-#include <clock.h>
-#include <platform_thread.h>
+#include <salts/clock.h>
+#include <threads/threads.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -13,19 +13,19 @@ static int worker(void *opaque) {
     int i;
     (void)opaque;
     for (i=0;i<SAMPLES;i++) {
-        now=cmeta_hrtime();
+        now=hrtime();
         if (now==0 || (before && now<before)) return -1;
         before=now;
     }
     return 29;
 }
 static int saltscore_legacy_entry_test_clock_atomic_owner_c(void) {
-    salts_platform_thread *threads[WORKERS] = {0};
+    thrd_t threads[WORKERS] = {0};
     int i, result;
     for(i=0;i<WORKERS;i++)
-        if(salts_platform_thread_create(&threads[i], worker, NULL)) return 1;
+        if(thrd_create(&threads[i], worker, NULL) != thrd_success) return 1;
     for(i=0;i<WORKERS;i++) {
-        if(salts_platform_thread_join(&threads[i], &result) || result!=29)
+        if(thrd_join(threads[i], &result) != thrd_success || result!=29)
             { fprintf(stderr,"clock worker %d result=%d\n",i,result); return 2; }
     }
     puts("production Platform monotonic clock and atomic frequency initialization PASS");

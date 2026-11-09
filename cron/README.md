@@ -60,13 +60,13 @@ This is important. `0 0 13 * 5` means "the 13th of the month, or every Friday", 
 ## Quick Start
 
 ```c
-#include "cron.h"
+#include <salts/cron.h>
 
-salts_cron_expr_t expr;
+cron_expr_t expr;
 time_t next_fire;
 
-if (salts_cron_parse("*/15 9-17 * * 1-5", &expr) == SALTS_CRON_OK &&
-    salts_cron_next(&expr, time(NULL), &next_fire) == SALTS_CRON_OK) {
+if (cron_parse("*/15 9-17 * * 1-5", &expr) == SALTS_CRON_OK &&
+    cron_next(&expr, time(NULL), &next_fire) == SALTS_CRON_OK) {
   /* next_fire now holds the next matching local time */
 }
 ```
@@ -74,21 +74,21 @@ if (salts_cron_parse("*/15 9-17 * * 1-5", &expr) == SALTS_CRON_OK &&
 ## Next N Fire Times
 
 ```c
-#include "cron.h"
+#include <salts/cron.h>
 
-salts_cron_expr_t expr;
+cron_expr_t expr;
 time_t next_times[5];
 int count;
 
-if (salts_cron_parse("*/20 9-10 * * *", &expr) == SALTS_CRON_OK) {
-  count = salts_cron_next_n(&expr, time(NULL), next_times, 5);
+if (cron_parse("*/20 9-10 * * *", &expr) == SALTS_CRON_OK) {
+  count = cron_next_n(&expr, time(NULL), next_times, 5);
   if (count > 0) {
     /* next_times[0..count-1] now holds future matching local times */
   }
 }
 ```
 
-`salts_cron_next_n()` is useful when:
+`cron_next_n()` is useful when:
 
 - building a debug screen
 - previewing a user's schedule before saving it
@@ -96,18 +96,18 @@ if (salts_cron_parse("*/20 9-10 * * *", &expr) == SALTS_CRON_OK) {
 
 ## Formatting Helper
 
-If thou merely needest a stable local-time string, use `salts_cron_format_time()`:
+If thou merely needest a stable local-time string, use `cron_format_time()`:
 
 ```c
 char buf[32];
-salts_cron_format_time(next_times[0], buf, sizeof(buf), NULL);
+cron_format_time(next_times[0], buf, sizeof(buf), NULL);
 /* buf -> "2024-01-02 03:04" */
 ```
 
 Pass a custom `strftime` format when needed:
 
 ```c
-salts_cron_format_time(next_times[0], buf, sizeof(buf), "%H:%M");
+cron_format_time(next_times[0], buf, sizeof(buf), "%H:%M");
 ```
 
 ## Crontab-Like Table Loader
@@ -129,14 +129,14 @@ Examples:
 Use it like this:
 
 ```c
-salts_cron_table_t table;
-salts_cron_table_init(&table);
+cron_table_t table;
+cron_table_init(&table);
 
-if (salts_cron_table_load_file("jobs.cron", &table, NULL, 0) == SALTS_CRON_OK) {
+if (cron_table_load_file("jobs.cron", &table, NULL, 0) == SALTS_CRON_OK) {
   /* table.entries[i].expr + table.entries[i].payload */
 }
 
-salts_cron_table_free(&table);
+cron_table_free(&table);
 ```
 
 This module does not execute payloads. It only parses and stores them. The
@@ -146,29 +146,29 @@ anything else.
 ## Background Runner
 
 ```c
-static void on_fire(const salts_cron_expr_t *expr, time_t scheduled_at, void *user_data) {
+static void on_fire(const cron_expr_t *expr, time_t scheduled_at, void *user_data) {
   (void)expr;
   (void)scheduled_at;
   (void)user_data;
 }
 
-salts_cron_runner_t *runner =
-    salts_cron_runner_create("0 * * * *", on_fire, NULL);
+cron_runner_t *runner =
+    cron_runner_create("0 * * * *", on_fire, NULL);
 
-salts_cron_runner_start(runner);
+cron_runner_start(runner);
 /* ... */
-salts_cron_runner_stop(runner);
-salts_cron_runner_destroy(runner);
+cron_runner_stop(runner);
+cron_runner_destroy(runner);
 ```
 
 See [cron_example.c](examples/cron_example.c) for a full example.
 
 ## Deterministic Testing
 
-For unit tests, use `salts_cron_runner_advance()` instead of sleeping on real time:
+For unit tests, use `cron_runner_advance()` instead of sleeping on real time:
 
 ```c
-salts_cron_runner_advance(runner, fake_now);
+cron_runner_advance(runner, fake_now);
 ```
 
 This advances the runner to a chosen local minute and fires every due callback exactly once.

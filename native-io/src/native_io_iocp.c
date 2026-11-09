@@ -1,7 +1,7 @@
 #include "native_io_internal.h"
 #include "native_io_accept_escrow.h"
 
-#include <error_codes.h>
+#include <salts/error_codes.h>
 
 #if defined(interface)
   #undef interface
@@ -18,34 +18,34 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef enum cmeta_iocp_record_phase {
+typedef enum iocp_record_phase {
   SALTS_IOCP_RECORD_FREE = 0,
   SALTS_IOCP_RECORD_PENDING
-} cmeta_iocp_record_phase;
+} iocp_record_phase;
 
-typedef struct cmeta_iocp_endpoint_record {
+typedef struct iocp_endpoint_record {
   uintptr_t native_handle;
   uint32_t generation;
   size_t active_requests;
   size_t retained_accepts;
-  cmeta_io_resource_kind resource_kind;
+  io_resource_kind resource_kind;
   LPFN_CONNECTEX connect_ex;
   LPFN_ACCEPTEX accept_ex;
   bool connected;
   bool connect_active;
   bool active;
-} cmeta_iocp_endpoint_record;
+} iocp_endpoint_record;
 
 enum {
   SALTS_IOCP_ACCEPT_ADDRESS_BYTES = sizeof(SOCKADDR_STORAGE) + 16u
 };
 
-typedef struct cmeta_iocp_request_record {
+typedef struct iocp_request_record {
   OVERLAPPED overlapped;
   WSABUF buffer;
   WSABUF vector_buffers[NATIVE_IO_VECTOR_MAX];
   DWORD vector_buffer_count;
-  cmeta_iocp_record_phase phase;
+  iocp_record_phase phase;
   native_io_request request;
   native_io_endpoint endpoint;
   native_io_operation_kind operation_kind;
@@ -57,24 +57,24 @@ typedef struct cmeta_iocp_request_record {
   SOCKET accepted_socket;
   unsigned char accept_address[SALTS_IOCP_ACCEPT_ADDRESS_BYTES * 2u];
   bool stream_accept;
-} cmeta_iocp_request_record;
+} iocp_request_record;
 
-typedef struct cmeta_iocp_accept_result {
+typedef struct iocp_accept_result {
   native_io_request request;
   native_io_endpoint listener;
   SOCKET child;
   bool live;
-} cmeta_iocp_accept_result;
+} iocp_accept_result;
 
-_Static_assert(offsetof(cmeta_iocp_request_record, overlapped) == 0u,
+_Static_assert(offsetof(iocp_request_record, overlapped) == 0u,
                "OVERLAPPED must remain the stable request prefix");
 
-typedef struct cmeta_iocp_impl {
-  cmeta_io_impl base;
+typedef struct iocp_impl {
+  io_impl base;
   HANDLE port;
-  cmeta_iocp_endpoint_record *endpoints;
-  cmeta_iocp_request_record *requests;
-  cmeta_iocp_accept_result *accept_results;
+  iocp_endpoint_record *endpoints;
+  iocp_request_record *requests;
+  iocp_accept_result *accept_results;
   native_io_accept_escrow accept_escrow;
   uint32_t *free_endpoints;
   uint32_t *free_requests;
@@ -95,13 +95,13 @@ typedef struct cmeta_iocp_impl {
   bool admission_open;
   bool winsock_started;
   atomic_bool wake_pending;
-} cmeta_iocp_impl;
+} iocp_impl;
 
-typedef struct cmeta_iocp_file_mode_information {
+typedef struct iocp_file_mode_information {
   ULONG mode;
-} cmeta_iocp_file_mode_information;
+} iocp_file_mode_information;
 
-typedef NTSTATUS(NTAPI *cmeta_iocp_query_file_fn)(HANDLE file, PIO_STATUS_BLOCK status,
+typedef NTSTATUS(NTAPI *iocp_query_file_fn)(HANDLE file, PIO_STATUS_BLOCK status,
                                                   PVOID information, ULONG length,
                                                   FILE_INFORMATION_CLASS information_class);
 
@@ -123,11 +123,11 @@ static int iocp_native_error(DWORD error) {
   return -(int)error;
 }
 
-static cmeta_iocp_endpoint_record *iocp_endpoint(
-    cmeta_iocp_impl *impl, native_io_endpoint endpoint);
+static iocp_endpoint_record *iocp_endpoint(
+    iocp_impl *impl, native_io_endpoint endpoint);
 
-static cmeta_iocp_accept_result *iocp_accept_result_from_token(
-    cmeta_iocp_impl *impl, uintptr_t token) {
+static iocp_accept_result *iocp_accept_result_from_token(
+    iocp_impl *impl, uintptr_t token) {
   const uintptr_t base = (uintptr_t)impl->accept_results;
   const uintptr_t value = token;
   const size_t bytes = impl->request_capacity * sizeof(*impl->accept_results);
@@ -141,10 +141,10 @@ static cmeta_iocp_accept_result *iocp_accept_result_from_token(
 }
 
 static int iocp_retire_accept_result(void *context, uintptr_t transport) {
-  cmeta_iocp_impl *impl = (cmeta_iocp_impl *)context;
-  cmeta_iocp_accept_result *result =
+  iocp_impl *impl = (iocp_impl *)context;
+  iocp_accept_result *result =
       iocp_accept_result_from_token(impl, transport);
-  cmeta_iocp_endpoint_record *listener;
+  iocp_endpoint_record *listener;
   int status = SALTS_OK;
 
   if (result == NULL || !result->live)
@@ -161,12 +161,12 @@ static int iocp_retire_accept_result(void *context, uintptr_t transport) {
   return status;
 }
 
-static cmeta_iocp_accept_result *iocp_accept_result_reserve(
-    cmeta_iocp_impl *impl, native_io_request request,
+static iocp_accept_result *iocp_accept_result_reserve(
+    iocp_impl *impl, native_io_request request,
     native_io_endpoint listener, SOCKET child) {
   size_t index;
   for (index = 0u; index < impl->request_capacity; ++index) {
-    cmeta_iocp_accept_result *result = &impl->accept_results[index];
+    iocp_accept_result *result = &impl->accept_results[index];
     if (result->live)
       continue;
     result->request = request;
@@ -179,9 +179,9 @@ static cmeta_iocp_accept_result *iocp_accept_result_reserve(
 }
 
 static int iocp_publish_accept_result(
-    cmeta_iocp_impl *impl, cmeta_iocp_request_record *request) {
-  cmeta_iocp_accept_result *result;
-  cmeta_iocp_endpoint_record *listener;
+    iocp_impl *impl, iocp_request_record *request) {
+  iocp_accept_result *result;
+  iocp_endpoint_record *listener;
   int status;
 
   if (request->accepted_socket == INVALID_SOCKET)
@@ -213,11 +213,11 @@ static int iocp_publish_accept_result(
 }
 
 static int iocp_discard_listener_accepts(
-    cmeta_iocp_impl *impl, native_io_endpoint listener_handle) {
+    iocp_impl *impl, native_io_endpoint listener_handle) {
   int first_status = SALTS_OK;
   size_t index;
   for (index = 0u; index < impl->request_capacity; ++index) {
-    cmeta_iocp_accept_result *result = &impl->accept_results[index];
+    iocp_accept_result *result = &impl->accept_results[index];
     int status;
     if (!result->live ||
         result->listener.slot != listener_handle.slot ||
@@ -231,16 +231,16 @@ static int iocp_discard_listener_accepts(
   return first_status;
 }
 
-static cmeta_iocp_endpoint_record *iocp_endpoint(cmeta_iocp_impl *impl,
+static iocp_endpoint_record *iocp_endpoint(iocp_impl *impl,
                                                  native_io_endpoint endpoint) {
-  cmeta_iocp_endpoint_record *record;
+  iocp_endpoint_record *record;
   if (!native_io_endpoint_valid(endpoint) || endpoint.slot > impl->endpoint_capacity) return NULL;
   record = &impl->endpoints[endpoint.slot - 1u];
   return record->active && record->generation == endpoint.generation ? record : NULL;
 }
 
-static cmeta_iocp_request_record *iocp_request(cmeta_iocp_impl *impl, native_io_request request) {
-  cmeta_iocp_request_record *record;
+static iocp_request_record *iocp_request(iocp_impl *impl, native_io_request request) {
+  iocp_request_record *record;
   if (!native_io_request_valid(request) || request.slot > impl->request_capacity) return NULL;
   record = &impl->requests[request.slot - 1u];
   return record->phase == SALTS_IOCP_RECORD_PENDING &&
@@ -249,11 +249,11 @@ static cmeta_iocp_request_record *iocp_request(cmeta_iocp_impl *impl, native_io_
              : NULL;
 }
 
-static int iocp_attach_endpoint(cmeta_iocp_impl *impl, uintptr_t native_handle,
-                                cmeta_io_resource_kind resource_kind,
+static int iocp_attach_endpoint(iocp_impl *impl, uintptr_t native_handle,
+                                io_resource_kind resource_kind,
                                 native_io_endpoint *out_endpoint) {
   uint32_t index;
-  cmeta_iocp_endpoint_record *endpoint;
+  iocp_endpoint_record *endpoint;
   HANDLE associated;
   size_t cursor;
 
@@ -286,9 +286,9 @@ static int iocp_attach_endpoint(cmeta_iocp_impl *impl, uintptr_t native_handle,
   return SALTS_OK;
 }
 
-static int iocp_release_endpoint(cmeta_iocp_impl *impl, native_io_endpoint endpoint_handle,
-                                 cmeta_io_resource_kind expected_kind) {
-  cmeta_iocp_endpoint_record *endpoint = iocp_endpoint(impl, endpoint_handle);
+static int iocp_release_endpoint(iocp_impl *impl, native_io_endpoint endpoint_handle,
+                                 io_resource_kind expected_kind) {
+  iocp_endpoint_record *endpoint = iocp_endpoint(impl, endpoint_handle);
   uint32_t index;
   if (endpoint == NULL) return SALTS_ENOENT;
   if (expected_kind == 0 ? !native_io_resource_kind_is_socket(endpoint->resource_kind)
@@ -309,7 +309,7 @@ static int iocp_release_endpoint(cmeta_iocp_impl *impl, native_io_endpoint endpo
 
   index = endpoint_handle.slot - 1u;
   endpoint->native_handle = UINTPTR_MAX;
-  endpoint->resource_kind = (cmeta_io_resource_kind)0;
+  endpoint->resource_kind = (io_resource_kind)0;
   endpoint->connect_ex = NULL;
   endpoint->accept_ex = NULL;
   endpoint->retained_accepts = 0u;
@@ -322,10 +322,10 @@ static int iocp_release_endpoint(cmeta_iocp_impl *impl, native_io_endpoint endpo
   return SALTS_OK;
 }
 
-static int iocp_attach_socket(cmeta_io_impl *base, uintptr_t native_socket,
+static int iocp_attach_socket(io_impl *base, uintptr_t native_socket,
                               native_io_endpoint *out_endpoint) {
-  cmeta_iocp_impl *impl = (cmeta_iocp_impl *)base;
-  cmeta_io_resource_kind resource_kind;
+  iocp_impl *impl = (iocp_impl *)base;
+  io_resource_kind resource_kind;
   LPFN_CONNECTEX connect_ex = NULL;
   GUID connect_ex_id = WSAID_CONNECTEX;
   DWORD extension_bytes = 0u;
@@ -358,28 +358,28 @@ static int iocp_attach_socket(cmeta_io_impl *base, uintptr_t native_socket,
   }
   status = iocp_attach_endpoint(impl, native_socket, resource_kind, out_endpoint);
   if (status == SALTS_OK) {
-    cmeta_iocp_endpoint_record *endpoint = iocp_endpoint(impl, *out_endpoint);
+    iocp_endpoint_record *endpoint = iocp_endpoint(impl, *out_endpoint);
     endpoint->connect_ex = connect_ex;
     endpoint->connected = connected;
   }
   return status;
 }
 
-static int iocp_release_socket(cmeta_io_impl *base, native_io_endpoint endpoint_handle) {
-  return iocp_release_endpoint((cmeta_iocp_impl *)base, endpoint_handle, (cmeta_io_resource_kind)0);
+static int iocp_release_socket(io_impl *base, native_io_endpoint endpoint_handle) {
+  return iocp_release_endpoint((iocp_impl *)base, endpoint_handle, (io_resource_kind)0);
 }
 
 static int iocp_validate_async_handle(HANDLE native_handle) {
   HMODULE native_library;
-  cmeta_iocp_query_file_fn query_file;
+  iocp_query_file_fn query_file;
   IO_STATUS_BLOCK query_status = {0};
-  cmeta_iocp_file_mode_information mode = {0};
+  iocp_file_mode_information mode = {0};
   NTSTATUS status;
   /* Win32 exposes no public query for the synchronous-open mode retained by a handle. */
   native_library = GetModuleHandleW(L"ntdll.dll");
   if (native_library == NULL) return SALTS_ENOTSUP;
   query_file =
-      (cmeta_iocp_query_file_fn)(void *)GetProcAddress(native_library, "NtQueryInformationFile");
+      (iocp_query_file_fn)(void *)GetProcAddress(native_library, "NtQueryInformationFile");
   if (query_file == NULL) return SALTS_ENOTSUP;
   status = query_file(native_handle, &query_status, &mode, (ULONG)sizeof(mode),
                       (FILE_INFORMATION_CLASS)SALTS_IOCP_FILE_MODE_INFORMATION_CLASS);
@@ -400,7 +400,7 @@ static int iocp_validate_pipe_handle(HANDLE native_handle) {
   return iocp_validate_async_handle(native_handle);
 }
 
-static int iocp_attach_file(cmeta_io_impl *base, uintptr_t value, native_io_endpoint *out) {
+static int iocp_attach_file(io_impl *base, uintptr_t value, native_io_endpoint *out) {
   HANDLE handle = (HANDLE)value;
   FILE_STANDARD_INFO info;
   if (!handle || handle == INVALID_HANDLE_VALUE || GetFileType(handle) != FILE_TYPE_DISK)
@@ -410,30 +410,30 @@ static int iocp_attach_file(cmeta_io_impl *base, uintptr_t value, native_io_endp
   if (info.Directory) return SALTS_EINVAL;
   int status = iocp_validate_async_handle(handle);
   if (status != SALTS_OK) return status;
-  return iocp_attach_endpoint((cmeta_iocp_impl *)base, value, SALTS_IO_RESOURCE_FILE, out);
+  return iocp_attach_endpoint((iocp_impl *)base, value, SALTS_IO_RESOURCE_FILE, out);
 }
 
-static int iocp_release_file(cmeta_io_impl *base, native_io_endpoint endpoint) {
-  return iocp_release_endpoint((cmeta_iocp_impl *)base, endpoint, SALTS_IO_RESOURCE_FILE);
+static int iocp_release_file(io_impl *base, native_io_endpoint endpoint) {
+  return iocp_release_endpoint((iocp_impl *)base, endpoint, SALTS_IO_RESOURCE_FILE);
 }
 
-static int iocp_attach_pipe(cmeta_io_impl *base, uintptr_t native_handle, uint32_t flags,
+static int iocp_attach_pipe(io_impl *base, uintptr_t native_handle, uint32_t flags,
                             native_io_endpoint *out_endpoint) {
   int status;
   if (flags != NATIVE_IO_PIPE_ENDPOINT_ASYNC_CAPABLE) return SALTS_EINVAL;
   status = iocp_validate_pipe_handle((HANDLE)native_handle);
   if (status != SALTS_OK) return status;
-  return iocp_attach_endpoint((cmeta_iocp_impl *)base, native_handle, SALTS_IO_RESOURCE_BYTE_PIPE,
+  return iocp_attach_endpoint((iocp_impl *)base, native_handle, SALTS_IO_RESOURCE_BYTE_PIPE,
                               out_endpoint);
 }
 
-static int iocp_release_pipe(cmeta_io_impl *base, native_io_endpoint endpoint_handle) {
-  return iocp_release_endpoint((cmeta_iocp_impl *)base, endpoint_handle, SALTS_IO_RESOURCE_BYTE_PIPE);
+static int iocp_release_pipe(io_impl *base, native_io_endpoint endpoint_handle) {
+  return iocp_release_endpoint((iocp_impl *)base, endpoint_handle, SALTS_IO_RESOURCE_BYTE_PIPE);
 }
 
-static void iocp_release_request(cmeta_iocp_impl *impl, cmeta_iocp_request_record *request,
+static void iocp_release_request(iocp_impl *impl, iocp_request_record *request,
                                  uint32_t index) {
-  cmeta_iocp_endpoint_record *endpoint = iocp_endpoint(impl, request->endpoint);
+  iocp_endpoint_record *endpoint = iocp_endpoint(impl, request->endpoint);
   if (endpoint != NULL && endpoint->active_requests != 0u) --endpoint->active_requests;
   if (request->accepted_socket != INVALID_SOCKET) {
     (void)closesocket(request->accepted_socket);
@@ -484,11 +484,11 @@ static int iocp_bind_connect_socket(SOCKET socket_value, const SOCKADDR *remote_
   return SALTS_OK;
 }
 
-static int iocp_submit(cmeta_io_impl *base, const native_io_operation *operation,
+static int iocp_submit(io_impl *base, const native_io_operation *operation,
                        native_io_request *out_request) {
-  cmeta_iocp_impl *impl = (cmeta_iocp_impl *)base;
-  cmeta_iocp_endpoint_record *endpoint;
-  cmeta_iocp_request_record *request;
+  iocp_impl *impl = (iocp_impl *)base;
+  iocp_endpoint_record *endpoint;
+  iocp_request_record *request;
   uint32_t index;
   uint32_t generation;
   DWORD immediate_bytes = 0u;
@@ -651,12 +651,12 @@ static int iocp_submit(cmeta_io_impl *base, const native_io_operation *operation
   return iocp_native_error(native_error);
 }
 
-static int iocp_submit_vector(cmeta_io_impl *base,
+static int iocp_submit_vector(io_impl *base,
                               const native_io_vector_operation *operation,
                               native_io_request *out_request) {
-  cmeta_iocp_impl *impl = (cmeta_iocp_impl *)base;
-  cmeta_iocp_endpoint_record *endpoint;
-  cmeta_iocp_request_record *request;
+  iocp_impl *impl = (iocp_impl *)base;
+  iocp_endpoint_record *endpoint;
+  iocp_request_record *request;
   uint32_t index;
   uint32_t generation;
   DWORD immediate_bytes = 0u;
@@ -720,10 +720,10 @@ static int iocp_submit_vector(cmeta_io_impl *base,
   return iocp_native_error(native_error);
 }
 
-static bool iocp_supports_vector_write(const cmeta_io_impl *base,
+static bool iocp_supports_vector_write(const io_impl *base,
                                        native_io_endpoint endpoint_handle) {
-  const cmeta_iocp_impl *impl = (const cmeta_iocp_impl *)base;
-  const cmeta_iocp_endpoint_record *endpoint;
+  const iocp_impl *impl = (const iocp_impl *)base;
+  const iocp_endpoint_record *endpoint;
   if (!native_io_endpoint_valid(endpoint_handle) ||
       endpoint_handle.slot > impl->endpoint_capacity)
     return false;
@@ -733,11 +733,11 @@ static bool iocp_supports_vector_write(const cmeta_io_impl *base,
 }
 
 static int iocp_submit_stream_accept(
-    cmeta_io_impl *base, native_io_endpoint listener_handle,
+    io_impl *base, native_io_endpoint listener_handle,
     native_io_request *out_request) {
-  cmeta_iocp_impl *impl = (cmeta_iocp_impl *)base;
-  cmeta_iocp_endpoint_record *listener;
-  cmeta_iocp_request_record *request;
+  iocp_impl *impl = (iocp_impl *)base;
+  iocp_endpoint_record *listener;
+  iocp_request_record *request;
   SOCKADDR_STORAGE local_address;
   int local_address_length = (int)sizeof(local_address);
   int accept_address_length;
@@ -845,12 +845,12 @@ static int iocp_submit_stream_accept(
 }
 
 static int iocp_take_stream_accept(
-    cmeta_io_impl *base, native_io_request request,
+    io_impl *base, native_io_request request,
     uintptr_t *out_transport) {
-  cmeta_iocp_impl *impl = (cmeta_iocp_impl *)base;
+  iocp_impl *impl = (iocp_impl *)base;
   uintptr_t token = UINTPTR_MAX;
-  cmeta_iocp_accept_result *result;
-  cmeta_iocp_endpoint_record *listener;
+  iocp_accept_result *result;
+  iocp_endpoint_record *listener;
   SOCKET child;
   int status;
 
@@ -879,9 +879,9 @@ static int iocp_take_stream_accept(
   return SALTS_OK;
 }
 
-static int iocp_cancel(cmeta_io_impl *base, native_io_request request_handle) {
-  cmeta_iocp_impl *impl = (cmeta_iocp_impl *)base;
-  cmeta_iocp_request_record *request = iocp_request(impl, request_handle);
+static int iocp_cancel(io_impl *base, native_io_request request_handle) {
+  iocp_impl *impl = (iocp_impl *)base;
+  iocp_request_record *request = iocp_request(impl, request_handle);
   DWORD error;
   if (request == NULL) return SALTS_ENOENT;
   if (CancelIoEx((HANDLE)request->native_handle, &request->overlapped)) return SALTS_OK;
@@ -891,8 +891,8 @@ static int iocp_cancel(cmeta_io_impl *base, native_io_request request_handle) {
   return iocp_native_error(error);
 }
 
-static cmeta_iocp_request_record *
-iocp_completed_request(cmeta_iocp_impl *impl, OVERLAPPED *overlapped, uint32_t *out_index) {
+static iocp_request_record *
+iocp_completed_request(iocp_impl *impl, OVERLAPPED *overlapped, uint32_t *out_index) {
   const uintptr_t base = (uintptr_t)impl->requests;
   const uintptr_t value = (uintptr_t)overlapped;
   const size_t bytes = impl->request_capacity * sizeof(*impl->requests);
@@ -905,7 +905,7 @@ iocp_completed_request(cmeta_iocp_impl *impl, OVERLAPPED *overlapped, uint32_t *
   return &impl->requests[*out_index];
 }
 
-static void iocp_make_completion(cmeta_iocp_impl *impl, cmeta_iocp_request_record *request,
+static void iocp_make_completion(iocp_impl *impl, iocp_request_record *request,
                                  uint32_t request_index, DWORD bytes, DWORD native_error,
                                  native_io_completion *event) {
   int accept_status = SALTS_OK;
@@ -925,7 +925,7 @@ static void iocp_make_completion(cmeta_iocp_impl *impl, cmeta_iocp_request_recor
                  0) == SOCKET_ERROR)
     native_error = (DWORD)WSAGetLastError();
   if (request->operation_kind == NATIVE_IO_OPERATION_STREAM_CONNECT) {
-    cmeta_iocp_endpoint_record *endpoint = iocp_endpoint(impl, request->endpoint);
+    iocp_endpoint_record *endpoint = iocp_endpoint(impl, request->endpoint);
     if (endpoint != NULL) {
       endpoint->connect_active = false;
       endpoint->connected = native_error == ERROR_SUCCESS;
@@ -971,9 +971,9 @@ static void iocp_make_completion(cmeta_iocp_impl *impl, cmeta_iocp_request_recor
   iocp_release_request(impl, request, request_index);
 }
 
-static int iocp_observe(cmeta_io_impl *base, native_io_completion *events, size_t event_capacity,
+static int iocp_observe(io_impl *base, native_io_completion *events, size_t event_capacity,
                         uint32_t timeout_ms, size_t *out_count) {
-  cmeta_iocp_impl *impl = (cmeta_iocp_impl *)base;
+  iocp_impl *impl = (iocp_impl *)base;
   const size_t limit = event_capacity < impl->completion_batch_capacity
                            ? event_capacity
                            : impl->completion_batch_capacity;
@@ -987,7 +987,7 @@ static int iocp_observe(cmeta_io_impl *base, native_io_completion *events, size_
     const BOOL ok =
         GetQueuedCompletionStatus(impl->port, &bytes, &completion_key, &overlapped, wait_ms);
     const DWORD native_error = ok ? ERROR_SUCCESS : GetLastError();
-    cmeta_iocp_request_record *request;
+    iocp_request_record *request;
     uint32_t request_index = 0u;
     if (overlapped == NULL) {
       *out_count = count;
@@ -1010,8 +1010,8 @@ static int iocp_observe(cmeta_io_impl *base, native_io_completion *events, size_
   return SALTS_OK;
 }
 
-static int iocp_wake(cmeta_io_impl *base) {
-  cmeta_iocp_impl *impl = (cmeta_iocp_impl *)base;
+static int iocp_wake(io_impl *base) {
+  iocp_impl *impl = (iocp_impl *)base;
   bool expected = false;
   if (!impl->admission_open) return SALTS_ESHUTDOWN;
   if (!atomic_compare_exchange_strong_explicit(&impl->wake_pending, &expected, true,
@@ -1022,15 +1022,15 @@ static int iocp_wake(cmeta_io_impl *base) {
   return iocp_native_error(GetLastError());
 }
 
-static int iocp_close(cmeta_io_impl *base) {
-  cmeta_iocp_impl *impl = (cmeta_iocp_impl *)base;
+static int iocp_close(io_impl *base) {
+  iocp_impl *impl = (iocp_impl *)base;
   if (!impl->admission_open) return SALTS_EALREADY;
   impl->admission_open = false;
   return SALTS_OK;
 }
 
-static int iocp_destroy(cmeta_io_impl *base) {
-  cmeta_iocp_impl *impl = (cmeta_iocp_impl *)base;
+static int iocp_destroy(io_impl *base) {
+  iocp_impl *impl = (iocp_impl *)base;
   int cleanup_status;
   int escrow_status;
   if (impl->admission_open || impl->active_requests != 0u || impl->endpoint_count != 0u)
@@ -1057,8 +1057,8 @@ static int iocp_destroy(cmeta_io_impl *base) {
   return SALTS_OK;
 }
 
-static bool iocp_get_stats(const cmeta_io_impl *base, native_io_backend_stats *out_stats) {
-  const cmeta_iocp_impl *impl = (const cmeta_iocp_impl *)base;
+static bool iocp_get_stats(const io_impl *base, native_io_backend_stats *out_stats) {
+  const iocp_impl *impl = (const iocp_impl *)base;
   *out_stats = (native_io_backend_stats){impl->endpoint_capacity,
                                         impl->endpoint_count,
                                         impl->request_capacity,
@@ -1074,7 +1074,7 @@ static bool iocp_get_stats(const cmeta_io_impl *base, native_io_backend_stats *o
   return true;
 }
 
-static const cmeta_io_impl_ops iocp_ops = {
+static const io_impl_ops iocp_ops = {
     .attach_socket = iocp_attach_socket,
     .release_socket = iocp_release_socket,
     .submit = iocp_submit,
@@ -1105,26 +1105,26 @@ bool native_io_platform_pipe_supported(native_io_backend_kind kind) {
 
 int native_io_platform_backend_init(native_io_backend *backend,
                                    const native_io_backend_config *config) {
-  cmeta_iocp_impl *impl;
+  iocp_impl *impl;
   WSADATA winsock_data;
   size_t index;
   int status;
 
-  if (config->endpoint_capacity > SIZE_MAX / sizeof(cmeta_iocp_endpoint_record) ||
-      config->request_capacity > SIZE_MAX / sizeof(cmeta_iocp_request_record) ||
-      config->request_capacity > SIZE_MAX / sizeof(cmeta_iocp_accept_result) ||
+  if (config->endpoint_capacity > SIZE_MAX / sizeof(iocp_endpoint_record) ||
+      config->request_capacity > SIZE_MAX / sizeof(iocp_request_record) ||
+      config->request_capacity > SIZE_MAX / sizeof(iocp_accept_result) ||
       config->endpoint_capacity > SIZE_MAX / sizeof(uint32_t) ||
       config->request_capacity > SIZE_MAX / sizeof(uint32_t))
     return SALTS_ERANGE;
 
-  impl = (cmeta_iocp_impl *)calloc(1u, sizeof(*impl));
+  impl = (iocp_impl *)calloc(1u, sizeof(*impl));
   if (impl == NULL) return SALTS_ENOMEM;
   impl->endpoints =
-      (cmeta_iocp_endpoint_record *)calloc(config->endpoint_capacity, sizeof(*impl->endpoints));
+      (iocp_endpoint_record *)calloc(config->endpoint_capacity, sizeof(*impl->endpoints));
   impl->requests =
-      (cmeta_iocp_request_record *)calloc(config->request_capacity, sizeof(*impl->requests));
+      (iocp_request_record *)calloc(config->request_capacity, sizeof(*impl->requests));
   impl->accept_results =
-      (cmeta_iocp_accept_result *)calloc(config->request_capacity, sizeof(*impl->accept_results));
+      (iocp_accept_result *)calloc(config->request_capacity, sizeof(*impl->accept_results));
   impl->free_endpoints =
       (uint32_t *)calloc(config->endpoint_capacity, sizeof(*impl->free_endpoints));
   impl->free_requests = (uint32_t *)calloc(config->request_capacity, sizeof(*impl->free_requests));

@@ -1,5 +1,5 @@
-#include <error_codes.h>
-#include <random.h>
+#include <salts/error_codes.h>
+#include <salts/platform.h>
 
 #include <errno.h>
 #include <limits.h>
@@ -24,7 +24,7 @@
 
 enum { SALTS_PLATFORM_RANDOM_CHUNK_BYTES = 256 };
 
-int cmeta_platform_secure_random(void *buffer, size_t length) {
+int secure_random(void *buffer, size_t length) {
   uint8_t *cursor = (uint8_t *)buffer;
   if (length == 0u) return SALTS_OK;
   if (buffer == NULL) return SALTS_EINVAL;
