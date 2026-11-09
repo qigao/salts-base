@@ -1,4 +1,4 @@
-#include "cyaml_json_adapter.h"
+#include <cyaml_json_adapter.h>
 #include "tinytest.h"
 
 #include <stdlib.h>

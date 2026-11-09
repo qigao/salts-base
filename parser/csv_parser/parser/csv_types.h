@@ -6,9 +6,8 @@
 #ifndef CSV_TYPES_H
 #define CSV_TYPES_H
 
-#include "csv_parser.h"
-#include <memory_pool.h>
-#include <cstl/vec.h>
+#include <csv_parser.h>
+#include <memory/memory_pool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,7 +47,8 @@ struct csv_doc_s {
     csv_row_node_t *header;
     csv_row_node_t *rows;
     csv_row_node_t *rows_tail;
-    vec_t           row_index;
+    csv_row_node_t **row_index;
+    size_t          row_capacity;
     size_t          row_count;
     size_t          column_count;
 };

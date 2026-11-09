@@ -2,7 +2,7 @@
 
 This directory contains a standalone, source-instrumented **Linux C11**
 regression for the `capture/src/capture_audio_miniaudio.c` private atomic
-callback admission introduced by [SaltsUtils #653](https://github.com/qigao/salts-utils/pull/653).
+callback admission introduced by [SaltsBase #653](https://github.com/qigao/salts-utils/pull/653).
 
 It compiles the **actual repository** Capture Linux production source
 (`capture_video.c`, `capture_linux.c`, `capture_video_linux.c`,
@@ -59,7 +59,7 @@ The earlier [unmodified-source negative](https://github.com/qigao/TurboAgent/act
 caught the actual public-`capture->state` callback/control data race.
 The [single-file private atomic fix](https://github.com/qigao/salts-utils/pull/653)
 passed independent [six consecutive original-source TSan tests](https://github.com/qigao/TurboAgent/actions/runs/38865851955).
-This upstream regression is separately owned by SaltsUtils, so future
+This upstream regression is separately owned by SaltsBase, so future
 Capture changes cannot quietly reintroduce the same bug without
 breaking CI.
 

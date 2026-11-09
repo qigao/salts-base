@@ -161,15 +161,15 @@ cmd /d /c 'call "C:\Program Files\Microsoft Visual Studio\2022\Professional\Comm
 M1 的源码迁入不等于已发布 SDK，也不提供 NFC 或 IDNA；这些后续能力见
 [#1091](https://github.com/qigao/salts/issues/1091)。各阶段均不是 Salts 2.3 RC 的前置条件。
 
-上游事实源为 SaltsUtils `c259f4c6fabc8c5d4c9663c44c5cb738519f5c30` 的 `unicode/`，
+上游事实源为 SaltsBase `c259f4c6fabc8c5d4c9663c44c5cb738519f5c30` 的 `unicode/`，
 原树为 `6e040ea59aa60e2b02f984ffa6a9399daac28cf9`，包含 56 个文件。
 迁移保留公开符号、结构体布局、借用生命周期、原有算法与数据；构建和安装归属改为
-`SaltsTargets`。SaltsUtils/Jinja 切换后只消费安装的 `Salts::Unicode`，删除旧实现和导出，
+`SaltsTargets`。SaltsBase/Jinja 切换后只消费安装的 `Salts::Unicode`，删除旧实现和导出，
 不建立长期 shim 或反向依赖。
 
-| Salts SDK | SaltsUtils SDK | 配对结果 |
+| Salts SDK | SaltsBase SDK | 配对结果 |
 | --- | --- | --- |
-| 迁移前 | 迁移前 | Unicode 由 SaltsUtils 导出 |
+| 迁移前 | 迁移前 | Unicode 由 SaltsBase 导出 |
 | 迁移后 | 迁移后 | Unicode 仅由 Salts 导出 |
 | 迁移后 | 迁移前 | 两个 export set 都定义 `Salts::Unicode`，不能作为支持的组合 |
 | 迁移前 | 迁移后 | 缺少必须的 Unicode target，配置失败 |
@@ -187,7 +187,7 @@ latest 解析并完成跨平台安装测试后再恢复。无法协调的外部�
 集成 CI 的成功只能证明其记录的构建，不能代替全平台候选制品验收或授权稳定发布。
 
 回滚以 SDK 对为单位。尚未晋级时保留旧发布对；晋级后暂停 restore，按分发系统允许的
-方式恢复已验收的完整配对，不能只降级 Salts。使用新安装前缀，避免旧 SaltsUtils 的
+方式恢复已验收的完整配对，不能只降级 Salts。使用新安装前缀，避免旧 SaltsBase 的
 Unicode header/library 残留。不得覆写不可变包、添加 EXACT pin、静默 fallback，或以
 目标存在检查绕开双所有者冲突。
 
@@ -234,13 +234,13 @@ output capacity、overflow。重排最坏复杂度为最长组合序列长度的
 独立的 [`Salts::IDNA`](../idna/README.md) 复用 NFC、scanner 和 Bidi_Class，提供
 固定版本的 UTS #46 nontransitional ToASCII，完整说明 profile、ContextJ/O、A-label、
 容量、错误和连接身份约束。它只依赖 Unicode/Core，不向基础 Unicode 引入 DNS、CNet、
-TLS、ICU 或 SaltsUtils。公开头文件只包含已实现的接口，不包含占位 API。
+TLS、ICU 或 SaltsBase。公开头文件只包含已实现的接口，不包含占位 API。
 
 正式 `test_salts_unicode_normalize` 运行 Unicode 17 `NormalizationTest.txt` 全部
 20,034 条五列 NFC 不变量及 Part 1 未列出合法 scalar 的恒等性；现有安装测试同时
 覆盖 C11/C++17 的 NFC/IDNA 导出。数据和生成方法见 [data/README.md](data/README.md)。
 平台与 sanitizer 验证以实际运行记录为准，不能将交叉编译当作设备运行结果。
 
-原 SaltsUtils Unicode 所有权迁移的配对发布要求保持不变。当前只是提供可显式调用的
+原 SaltsBase Unicode 所有权迁移的配对发布要求保持不变。当前只是提供可显式调用的
 转换库和本地 DNS 集成测试；不自动启用消费应用的转换路径，不修改 CNet 的 ASCII、
 尾点或 numeric-IP 接纳语义。DNS、TLS hostname 与 SNI 必须使用同一成功 ASCII 结果。

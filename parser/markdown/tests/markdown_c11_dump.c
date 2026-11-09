@@ -3,7 +3,7 @@
  * Each line: index TAB kind TAB parent TAB heading-level TAB text-hex
  *            TAB metadata-hex. No JSON/text escaping or third-party runtime.
  */
-#include <salts/markdown.h>
+#include <markdown.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -18,7 +18,7 @@ enum {
     SALTS_MD_ORACLE_MAX_NODES = 16384
 };
 
-static const char *node_kind(salts_md_block_kind kind) {
+static const char *node_kind(md_block_kind kind) {
     switch (kind) {
     case SALTS_MD_BLOCK_DOCUMENT: return "document";
     case SALTS_MD_BLOCK_PARAGRAPH: return "paragraph";
@@ -102,8 +102,8 @@ int main(void) {
         free(bytes);
         return 2;
     }
-    salts_md_document *doc=NULL;
-    const salts_md_status status=salts_md_parse(
+    md_document *doc=NULL;
+    const md_status status=md_parse(
         bytes,length,SALTS_MD_ORACLE_MAX_NODES,
         SALTS_MD_ORACLE_MAX_SOURCE,&doc);
     free(bytes);
@@ -112,19 +112,19 @@ int main(void) {
         return 2;
     }
 
-    const salts_md_rich_document_view view=salts_md_get_document_view(doc);
-    if (salts_md_rich_document_validate(
+    const md_rich_document_view view=md_get_document_view(doc);
+    if (md_rich_document_validate(
             &view,SALTS_MD_ORACLE_MAX_NODES)!=SALTS_MD_OK) {
         fputs("AST dump: invalid RichDoc\n",stderr);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         return 2;
     }
     for (size_t i=0;i<view.document.block_count;++i) {
-        const salts_md_block *node=&view.document.blocks[i];
+        const md_block *node=&view.document.blocks[i];
         const char *kind=node_kind(node->kind);
         if (!kind) {
             fputs("AST dump: unrecognized block kind\n",stderr);
-            salts_md_document_destroy(doc);
+            md_document_destroy(doc);
             return 2;
         }
         printf("%zu\t%s\t%u\t%u\t",i,kind,
@@ -136,16 +136,16 @@ int main(void) {
         putchar('\t');
         const char *metadata=NULL;
         size_t metadata_size=0;
-        if (salts_md_rich_document_metadata(
+        if (md_rich_document_metadata(
                 &view,i,&metadata,&metadata_size)!=SALTS_MD_OK) {
             fputs("AST dump: invalid metadata range\n",stderr);
-            salts_md_document_destroy(doc);
+            md_document_destroy(doc);
             return 2;
         }
         write_hex(metadata,metadata_size);
         putchar('\n');
     }
     const int result=ferror(stdout) ? 2 : 0;
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return result;
 }

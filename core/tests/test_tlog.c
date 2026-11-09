@@ -1,11 +1,11 @@
-#include "tlog.h"
-#include <fs.h>
+#include <salts/tlog.h>
+#include <file/fs.h>
 #include "tinytest.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdatomic.h>
+#include <atomic/atomic.h>
 #include <string.h>
-#include <thread.h>
+#include <threads/threads.h>
 
 static int callback_count = 0;
 static vstr callback_file = {NULL, 0};
@@ -18,27 +18,27 @@ static int custom_destroy_count = 0;
 static atomic_int blocking_callback_entered;
 static atomic_int blocking_callback_release;
 
-static void test_callback(const cmeta_log_entry_t *entry, void *user_data) {
+static void test_callback(const log_entry_t *entry, void *user_data) {
   (void)user_data;
   callback_count++;
-  printf("  [Callback] level=%s msg=%.*s\n", cmeta_log_level_name(entry->level),
+  printf("  [Callback] level=%s msg=%.*s\n", log_level_name(entry->level),
          (int)entry->message.len, entry->message.data ? entry->message.data : "");
 }
 
-static void source_callback(const cmeta_log_entry_t *entry, void *user_data) {
+static void source_callback(const log_entry_t *entry, void *user_data) {
   (void)user_data;
   callback_file = entry->file;
   callback_line = entry->line;
   callback_count++;
 }
 
-static void count_only_callback(const cmeta_log_entry_t *entry, void *user_data) {
+static void count_only_callback(const log_entry_t *entry, void *user_data) {
   (void)entry;
   (void)user_data;
   callback_count++;
 }
 
-static void capture_message_callback(const cmeta_log_entry_t *entry, void *user_data) {
+static void capture_message_callback(const log_entry_t *entry, void *user_data) {
   size_t n = entry->message.len < sizeof(callback_message) - 1
                  ? entry->message.len
                  : sizeof(callback_message) - 1;
@@ -48,7 +48,7 @@ static void capture_message_callback(const cmeta_log_entry_t *entry, void *user_
   callback_count++;
 }
 
-static int component_predicate(const cmeta_log_entry_t *entry, void *user_data) {
+static int component_predicate(const log_entry_t *entry, void *user_data) {
   const char *required = (const char *)user_data;
   size_t required_len;
   if (!required) return 0;
@@ -57,7 +57,7 @@ static int component_predicate(const cmeta_log_entry_t *entry, void *user_data) 
          (required_len == 0 || memcmp(entry->component.data, required, required_len) == 0);
 }
 
-static void custom_sink_write_callback(const cmeta_log_entry_t *entry, void *user_data) {
+static void custom_sink_write_callback(const log_entry_t *entry, void *user_data) {
   size_t n = entry->message.len < sizeof(callback_message) - 1
                  ? entry->message.len
                  : sizeof(callback_message) - 1;
@@ -77,12 +77,12 @@ static void custom_sink_destroy_callback(void *user_data) {
   custom_destroy_count++;
 }
 
-static void blocking_callback(const cmeta_log_entry_t *entry, void *user_data) {
+static void blocking_callback(const log_entry_t *entry, void *user_data) {
   (void)entry;
   (void)user_data;
   atomic_store(&blocking_callback_entered, 1);
   while (!atomic_load(&blocking_callback_release)) {
-    cmeta_thread_yield();
+    sync_thread_yield();
   }
 }
 
@@ -127,10 +127,10 @@ spec("TLog Tests") {
     tlog_t *logger = tlog_create(&config);
     check_not_null(logger);
 
-    cmeta_console_sink_opts_t sink_opts = {.output = stdout,
+    console_sink_opts_t sink_opts = {.output = stdout,
                                            .use_colors = 0,
                                            .pattern = NULL};
-    tlog_add_sink(logger, cmeta_sink_console_create(&sink_opts));
+    tlog_add_sink(logger, sink_console_create(&sink_opts));
 
     SALTS_LOG_INFO(logger, "test", "Info message");
     SALTS_LOG_WARN(logger, "test", "Warning message");
@@ -147,17 +147,17 @@ spec("TLog Tests") {
     check_not_null(logger);
 
     // Add console sink
-    cmeta_console_sink_opts_t console_opts = {.output = stdout,
+    console_sink_opts_t console_opts = {.output = stdout,
                                               .use_colors = 1,
                                               .pattern = SALTS_LOG_FULL_PATTERN};
-    tlog_add_sink(logger, cmeta_sink_console_create(&console_opts));
+    tlog_add_sink(logger, sink_console_create(&console_opts));
 
     // Add file sink
-    cmeta_file_sink_opts_t file_opts = {.path = "test_log.txt",
+    file_sink_opts_t file_opts = {.path = "test_log.txt",
                                         .max_size = 0,
                                         .max_files = 0,
                                         .append = 0};
-    cmeta_log_sink_t *file_sink = cmeta_sink_file_create(&file_opts);
+    log_sink_t *file_sink = sink_file_create(&file_opts);
     if (file_sink) {
       tlog_add_sink(logger, file_sink);
     }
@@ -171,15 +171,15 @@ spec("TLog Tests") {
     tlog_t *logger = tlog_create(NULL);
     check_not_null(logger);
 
-    tlog_add_sink(logger, cmeta_sink_console_create(NULL));
+    tlog_add_sink(logger, sink_console_create(NULL));
 
     tlog_set_level(logger, SALTS_LOG_LEVEL_WARN);
     check_equal(tlog_get_level(logger), SALTS_LOG_LEVEL_WARN);
     check_equal(tlog_set_level_ex(logger, SALTS_LOG_LEVEL_ERROR), 0);
     check_equal(tlog_get_level(logger), SALTS_LOG_LEVEL_ERROR);
-    check_equal(tlog_set_level_ex(logger, (cmeta_log_level_t)-1), -1);
+    check_equal(tlog_set_level_ex(logger, (log_level_t)-1), -1);
     check_equal(tlog_get_level(logger), SALTS_LOG_LEVEL_ERROR);
-    tlog_set_level(logger, (cmeta_log_level_t)(SALTS_LOG_LEVEL_FATAL + 1));
+    tlog_set_level(logger, (log_level_t)(SALTS_LOG_LEVEL_FATAL + 1));
     check_equal(tlog_get_level(logger), SALTS_LOG_LEVEL_ERROR);
     tlog_set_level(logger, SALTS_LOG_LEVEL_WARN);
 
@@ -190,66 +190,66 @@ spec("TLog Tests") {
   }
 
   it("should reject invalid logger configuration") {
-    tlog_config_t config = {.min_level = (cmeta_log_level_t)(SALTS_LOG_LEVEL_FATAL + 1)};
+    tlog_config_t config = {.min_level = (log_level_t)(SALTS_LOG_LEVEL_FATAL + 1)};
     check_null(tlog_create(&config));
   }
 
   it("should return correct level names") {
-    check_equal(cmeta_log_level_name(SALTS_LOG_LEVEL_DEBUG), "DEBUG");
-    check_equal(cmeta_log_level_name(SALTS_LOG_LEVEL_INFO), "INFO");
-    check_equal(cmeta_log_level_name(SALTS_LOG_LEVEL_WARN), "WARN");
-    check_equal(cmeta_log_level_name(SALTS_LOG_LEVEL_ERROR), "ERROR");
-    check_equal(cmeta_log_level_name(SALTS_LOG_LEVEL_FATAL), "FATAL");
+    check_equal(log_level_name(SALTS_LOG_LEVEL_DEBUG), "DEBUG");
+    check_equal(log_level_name(SALTS_LOG_LEVEL_INFO), "INFO");
+    check_equal(log_level_name(SALTS_LOG_LEVEL_WARN), "WARN");
+    check_equal(log_level_name(SALTS_LOG_LEVEL_ERROR), "ERROR");
+    check_equal(log_level_name(SALTS_LOG_LEVEL_FATAL), "FATAL");
 
-    check_equal(cmeta_log_level_from_name("DEBUG"), SALTS_LOG_LEVEL_DEBUG);
-    check_equal(cmeta_log_level_from_name("INFO"), SALTS_LOG_LEVEL_INFO);
-    check_equal(cmeta_log_level_from_name("WARN"), SALTS_LOG_LEVEL_WARN);
-    check_equal(cmeta_log_level_from_name("ERROR"), SALTS_LOG_LEVEL_ERROR);
-    check_equal(cmeta_log_level_from_name("FATAL"), SALTS_LOG_LEVEL_FATAL);
+    check_equal(log_level_from_name("DEBUG"), SALTS_LOG_LEVEL_DEBUG);
+    check_equal(log_level_from_name("INFO"), SALTS_LOG_LEVEL_INFO);
+    check_equal(log_level_from_name("WARN"), SALTS_LOG_LEVEL_WARN);
+    check_equal(log_level_from_name("ERROR"), SALTS_LOG_LEVEL_ERROR);
+    check_equal(log_level_from_name("FATAL"), SALTS_LOG_LEVEL_FATAL);
   }
 
   it("should expose log level metadata without changing legacy parsing") {
-    const tlog_enum_desc *meta = cmeta_log_level_t_meta();
+    const tlog_enum_desc *meta = log_level_t_meta();
 
     check_equal((int)meta->count, 5);
     check_equal(SALTS_LOG_LEVEL_DEBUG, 0);
     check_equal(SALTS_LOG_LEVEL_FATAL, 4);
-    check_equal(cmeta_log_level_t_to_string(SALTS_LOG_LEVEL_ERROR), "ERROR");
-    check_equal(cmeta_log_level_name((cmeta_log_level_t)99), "UNKNOWN");
-    check_equal(cmeta_log_level_from_name("SALTS_LOG_LEVEL_ERROR"), SALTS_LOG_LEVEL_INFO);
-    check_equal(cmeta_log_level_from_name(NULL), SALTS_LOG_LEVEL_INFO);
+    check_equal(log_level_t_to_string(SALTS_LOG_LEVEL_ERROR), "ERROR");
+    check_equal(log_level_name((log_level_t)99), "UNKNOWN");
+    check_equal(log_level_from_name("SALTS_LOG_LEVEL_ERROR"), SALTS_LOG_LEVEL_INFO);
+    check_equal(log_level_from_name(NULL), SALTS_LOG_LEVEL_INFO);
   }
 
   it("should expose the stable log entry layout as read-only metadata") {
-    const tlog_struct_desc *meta = cmeta_log_entry_t_meta();
+    const tlog_struct_desc *meta = log_entry_t_meta();
     const char *names[] = {
         "level", "timestamp_ms", "thread_id", "component",
         "file", "line", "message"};
     const char *types[] = {
-        "cmeta_log_level_t", "uint64_t", "uint32_t", "vstr",
+        "log_level_t", "uint64_t", "uint32_t", "vstr",
         "vstr", "int", "vstr"};
     const size_t offsets[] = {
-        offsetof(cmeta_log_entry_t, level),
-        offsetof(cmeta_log_entry_t, timestamp_ms),
-        offsetof(cmeta_log_entry_t, thread_id),
-        offsetof(cmeta_log_entry_t, component),
-        offsetof(cmeta_log_entry_t, file),
-        offsetof(cmeta_log_entry_t, line),
-        offsetof(cmeta_log_entry_t, message)};
+        offsetof(log_entry_t, level),
+        offsetof(log_entry_t, timestamp_ms),
+        offsetof(log_entry_t, thread_id),
+        offsetof(log_entry_t, component),
+        offsetof(log_entry_t, file),
+        offsetof(log_entry_t, line),
+        offsetof(log_entry_t, message)};
     const size_t sizes[] = {
-        sizeof(cmeta_log_level_t), sizeof(uint64_t), sizeof(uint32_t),
+        sizeof(log_level_t), sizeof(uint64_t), sizeof(uint32_t),
         sizeof(vstr), sizeof(vstr), sizeof(int), sizeof(vstr)};
     const size_t aligns[] = {
-        _Alignof(cmeta_log_level_t), _Alignof(uint64_t),
+        _Alignof(log_level_t), _Alignof(uint64_t),
         _Alignof(uint32_t), _Alignof(vstr),
         _Alignof(vstr), _Alignof(int), _Alignof(vstr)};
     const tlog_field_desc *component_field;
     const tlog_field_desc *message_field;
 
     check_not_null(meta);
-    check_equal(meta->name, "cmeta_log_entry_t");
-    check_equal(meta->size, sizeof(cmeta_log_entry_t));
-    check_equal(meta->align, _Alignof(cmeta_log_entry_t));
+    check_equal(meta->name, "log_entry_t");
+    check_equal(meta->size, sizeof(log_entry_t));
+    check_equal(meta->align, _Alignof(log_entry_t));
     check_equal(meta->field_count, (size_t)7);
     for (size_t i = 0; i < meta->field_count; ++i) {
       check_equal(meta->fields[i].name, names[i]);
@@ -275,7 +275,7 @@ spec("TLog Tests") {
     tlog_t *logger = tlog_create(NULL);
     check_not_null(logger);
 
-    tlog_add_sink(logger, cmeta_sink_console_create(NULL));
+    tlog_add_sink(logger, sink_console_create(NULL));
 
     SALTS_LOG_INFO(logger, "server", "Server message");
     SALTS_LOG_INFO(logger, "client", "Client message");
@@ -302,10 +302,10 @@ spec("TLog Tests") {
     tlog_config_t config = {.min_level = SALTS_LOG_LEVEL_DEBUG};
 
     tlog_t *custom_logger = tlog_create(&config);
-    cmeta_console_sink_opts_t sink_opts = {.output = stdout,
+    console_sink_opts_t sink_opts = {.output = stdout,
                                            .use_colors = 1,
                                            .pattern = SALTS_LOG_FULL_PATTERN};
-    tlog_add_sink(custom_logger, cmeta_sink_console_create(&sink_opts));
+    tlog_add_sink(custom_logger, sink_console_create(&sink_opts));
     tlog_set_default(custom_logger);
 
     TLOG_INFO("Custom logger with file:line info");
@@ -337,13 +337,13 @@ spec("TLog Tests") {
     tlog_t *logger = tlog_create(NULL);
     check_not_null(logger);
 
-    cmeta_log_sink_t *cb_sink = cmeta_sink_callback_create(blocking_callback, NULL);
+    log_sink_t *cb_sink = sink_callback_create(blocking_callback, NULL);
     check_not_null(cb_sink);
     tlog_add_sink(logger, cb_sink);
 
     SALTS_LOG_INFO(logger, "queue", "blocked queue-size sample");
     while (!atomic_load(&blocking_callback_entered)) {
-      cmeta_thread_yield();
+      sync_thread_yield();
     }
 
     check(tlog_get_queue_size(logger) > 0);
@@ -360,7 +360,7 @@ spec("TLog Tests") {
     tlog_t *logger = tlog_create(NULL);
     check_not_null(logger);
 
-    cmeta_log_sink_t *cb_sink = cmeta_sink_callback_create(test_callback, NULL);
+    log_sink_t *cb_sink = sink_callback_create(test_callback, NULL);
     check_not_null(cb_sink);
     tlog_add_sink(logger, cb_sink);
 
@@ -381,9 +381,9 @@ spec("TLog Tests") {
     tlog_t *logger = tlog_create(&config);
     check_not_null(logger);
 
-    cmeta_log_sink_t *inner = cmeta_sink_callback_create(count_only_callback, NULL);
+    log_sink_t *inner = sink_callback_create(count_only_callback, NULL);
     check_not_null(inner);
-    cmeta_log_sink_t *metrics = cmeta_sink_metrics_create(inner, SALTS_SINK_OWNED);
+    log_sink_t *metrics = sink_metrics_create(inner, SALTS_SINK_OWNED);
     check_not_null(metrics);
     tlog_add_sink(logger, metrics);
 
@@ -391,8 +391,8 @@ spec("TLog Tests") {
     SALTS_LOG_WARN(logger, "decorator", "decorated message two");
     tlog_flush(logger);
 
-    cmeta_sink_metrics_t stats = {0};
-    check_equal(cmeta_sink_metrics_snapshot(metrics, &stats), 0);
+    sink_metrics_t stats = {0};
+    check_equal(sink_metrics_snapshot(metrics, &stats), 0);
     check_equal(callback_count, 2);
     check_equal((size_t)stats.entries_seen, 2);
     check_equal((size_t)stats.entries_forwarded, 2);
@@ -403,15 +403,15 @@ spec("TLog Tests") {
   }
 
   it("should reject metrics snapshots for non-metrics sinks") {
-    cmeta_log_sink_t *sink = cmeta_sink_callback_create(count_only_callback, NULL);
+    log_sink_t *sink = sink_callback_create(count_only_callback, NULL);
     check_not_null(sink);
 
-    cmeta_sink_metrics_t stats = {0};
-    check_equal(cmeta_sink_metrics_snapshot(sink, &stats), -1);
-    check_equal(cmeta_sink_metrics_snapshot(NULL, &stats), -1);
-    check_equal(cmeta_sink_metrics_snapshot(sink, NULL), -1);
+    sink_metrics_t stats = {0};
+    check_equal(sink_metrics_snapshot(sink, &stats), -1);
+    check_equal(sink_metrics_snapshot(NULL, &stats), -1);
+    check_equal(sink_metrics_snapshot(sink, NULL), -1);
 
-    cmeta_sink_destroy(sink);
+    sink_destroy(sink);
   }
 
   it("should let a metrics decorator filter before forwarding") {
@@ -421,20 +421,20 @@ spec("TLog Tests") {
     tlog_t *logger = tlog_create(&config);
     check_not_null(logger);
 
-    cmeta_log_sink_t *inner = cmeta_sink_callback_create(count_only_callback, NULL);
+    log_sink_t *inner = sink_callback_create(count_only_callback, NULL);
     check_not_null(inner);
-    cmeta_log_sink_t *metrics = cmeta_sink_metrics_create(inner, SALTS_SINK_OWNED);
+    log_sink_t *metrics = sink_metrics_create(inner, SALTS_SINK_OWNED);
     check_not_null(metrics);
-    check_equal(cmeta_sink_set_min_level(metrics, SALTS_LOG_LEVEL_WARN), 0);
-    check_equal(cmeta_sink_get_min_level(metrics), SALTS_LOG_LEVEL_WARN);
+    check_equal(sink_set_min_level(metrics, SALTS_LOG_LEVEL_WARN), 0);
+    check_equal(sink_get_min_level(metrics), SALTS_LOG_LEVEL_WARN);
     tlog_add_sink(logger, metrics);
 
     SALTS_LOG_DEBUG(logger, "decorator", "filtered debug message");
     SALTS_LOG_ERROR(logger, "decorator", "forwarded error message");
     tlog_flush(logger);
 
-    cmeta_sink_metrics_t stats = {0};
-    check_equal(cmeta_sink_metrics_snapshot(metrics, &stats), 0);
+    sink_metrics_t stats = {0};
+    check_equal(sink_metrics_snapshot(metrics, &stats), 0);
     check_equal(callback_count, 1);
     check_equal((size_t)stats.entries_seen, 2);
     check_equal((size_t)stats.entries_forwarded, 1);
@@ -445,40 +445,40 @@ spec("TLog Tests") {
 
   it("should expose sink attributes through accessors") {
     int marker = 7;
-    cmeta_log_sink_t *sink = cmeta_sink_callback_create(count_only_callback, NULL);
+    log_sink_t *sink = sink_callback_create(count_only_callback, NULL);
     check_not_null(sink);
 
-    check_equal(cmeta_sink_set_min_level(sink, SALTS_LOG_LEVEL_ERROR), 0);
-    check_equal(cmeta_sink_get_min_level(sink), SALTS_LOG_LEVEL_ERROR);
-    check_equal(cmeta_sink_set_min_level(sink, (cmeta_log_level_t)-1), -1);
-    check_equal(cmeta_sink_set_min_level(sink, (cmeta_log_level_t)(SALTS_LOG_LEVEL_FATAL + 1)), -1);
-    check_equal(cmeta_sink_set_user_data(sink, &marker), 0);
-    check(cmeta_sink_get_user_data(sink) == &marker);
+    check_equal(sink_set_min_level(sink, SALTS_LOG_LEVEL_ERROR), 0);
+    check_equal(sink_get_min_level(sink), SALTS_LOG_LEVEL_ERROR);
+    check_equal(sink_set_min_level(sink, (log_level_t)-1), -1);
+    check_equal(sink_set_min_level(sink, (log_level_t)(SALTS_LOG_LEVEL_FATAL + 1)), -1);
+    check_equal(sink_set_user_data(sink, &marker), 0);
+    check(sink_get_user_data(sink) == &marker);
 
-    cmeta_sink_destroy(sink);
+    sink_destroy(sink);
   }
 
   it("should keep ownership with caller when sink attach or decorator creation fails") {
     custom_destroy_count = 0;
 
-    cmeta_sink_custom_opts_t custom_opts = {
+    sink_custom_opts_t custom_opts = {
         .write = custom_sink_write_callback,
         .flush = NULL,
         .destroy = custom_sink_destroy_callback,
         .user_data = NULL
     };
-    cmeta_log_sink_t *inner = cmeta_sink_custom_create(&custom_opts);
+    log_sink_t *inner = sink_custom_create(&custom_opts);
     check_not_null(inner);
 
-    cmeta_sink_filter_opts_t filter_opts = SALTS_SINK_FILTER_OPTS_DEFAULT;
+    sink_filter_opts_t filter_opts = SALTS_SINK_FILTER_OPTS_DEFAULT;
     filter_opts.min_level = SALTS_LOG_LEVEL_ERROR;
     filter_opts.max_level = SALTS_LOG_LEVEL_INFO;
-    check_null(cmeta_sink_filter_create(inner, SALTS_SINK_OWNED, &filter_opts));
+    check_null(sink_filter_create(inner, SALTS_SINK_OWNED, &filter_opts));
     check_equal(custom_destroy_count, 0);
 
     check_equal(tlog_add_sink(NULL, inner), -1);
     check_equal(custom_destroy_count, 0);
-    cmeta_sink_destroy(inner);
+    sink_destroy(inner);
     check_equal(custom_destroy_count, 1);
   }
 
@@ -489,14 +489,14 @@ spec("TLog Tests") {
     tlog_t *logger = tlog_create(&config);
     check_not_null(logger);
 
-    cmeta_log_sink_t *inner = cmeta_sink_callback_create(count_only_callback, NULL);
+    log_sink_t *inner = sink_callback_create(count_only_callback, NULL);
     check_not_null(inner);
-    cmeta_sink_filter_opts_t opts = SALTS_SINK_FILTER_OPTS_DEFAULT;
+    sink_filter_opts_t opts = SALTS_SINK_FILTER_OPTS_DEFAULT;
     opts.min_level = SALTS_LOG_LEVEL_INFO;
     opts.max_level = SALTS_LOG_LEVEL_ERROR;
     opts.predicate = component_predicate;
     opts.predicate_user_data = "allowed";
-    cmeta_log_sink_t *filter = cmeta_sink_filter_create(inner, SALTS_SINK_OWNED, &opts);
+    log_sink_t *filter = sink_filter_create(inner, SALTS_SINK_OWNED, &opts);
     check_not_null(filter);
     tlog_add_sink(logger, filter);
 
@@ -520,10 +520,10 @@ spec("TLog Tests") {
     check_not_null(logger);
 
     int marker = 11;
-    cmeta_log_sink_t *inner = cmeta_sink_callback_create(capture_message_callback, &marker);
+    log_sink_t *inner = sink_callback_create(capture_message_callback, &marker);
     check_not_null(inner);
-    cmeta_log_sink_t *format =
-        cmeta_sink_format_create(inner, SALTS_SINK_OWNED, "[{level}] {component}: {message}");
+    log_sink_t *format =
+        sink_format_create(inner, SALTS_SINK_OWNED, "[{level}] {component}: {message}");
     check_not_null(format);
     tlog_add_sink(logger, format);
 
@@ -538,21 +538,21 @@ spec("TLog Tests") {
   }
 
   it("should fail fast on oversized format patterns") {
-    cmeta_console_sink_opts_t console_opts = {
+    console_sink_opts_t console_opts = {
         .output = stdout,
         .use_colors = 0,
         .pattern = "{message}{message}{message}{message}{message}{message}{message}{message}"
                    "{message}{message}{message}{message}{message}{message}{message}{message}"
                    "{message}"
     };
-    check_null(cmeta_sink_console_create(&console_opts));
+    check_null(sink_console_create(&console_opts));
 
-    cmeta_log_sink_t *inner = cmeta_sink_callback_create(count_only_callback, NULL);
+    log_sink_t *inner = sink_callback_create(count_only_callback, NULL);
     check_not_null(inner);
-    cmeta_log_sink_t *format =
-        cmeta_sink_format_create(inner, SALTS_SINK_OWNED, console_opts.pattern);
+    log_sink_t *format =
+        sink_format_create(inner, SALTS_SINK_OWNED, console_opts.pattern);
     check_null(format);
-    cmeta_sink_destroy(inner);
+    sink_destroy(inner);
   }
 
   it("should support opaque custom sinks") {
@@ -566,13 +566,13 @@ spec("TLog Tests") {
     check_not_null(logger);
 
     int marker = 17;
-    cmeta_sink_custom_opts_t opts = {
+    sink_custom_opts_t opts = {
         .write = custom_sink_write_callback,
         .flush = custom_sink_flush_callback,
         .destroy = custom_sink_destroy_callback,
         .user_data = &marker
     };
-    cmeta_log_sink_t *sink = cmeta_sink_custom_create(&opts);
+    log_sink_t *sink = sink_custom_create(&opts);
     check_not_null(sink);
     tlog_add_sink(logger, sink);
 
@@ -596,7 +596,7 @@ spec("TLog Tests") {
     tlog_t *logger = tlog_create(NULL);
     check_not_null(logger);
 
-    cmeta_log_sink_t *cb_sink = cmeta_sink_callback_create(source_callback, NULL);
+    log_sink_t *cb_sink = sink_callback_create(source_callback, NULL);
     check_not_null(cb_sink);
     tlog_add_sink(logger, cb_sink);
 
@@ -627,26 +627,26 @@ spec("TLog Tests") {
 #ifdef _WIN32
     sep = "\\";
 #endif
-    salts_fs_get_tmpdir(base_path, sizeof(base_path) - 48);
+    fs_get_tmpdir(base_path, sizeof(base_path) - 48);
     strcat(base_path, sep);
     strcat(base_path, "test_tlog_rotate.log");
     snprintf(rotated_path, sizeof(rotated_path), "%s.1", base_path);
 
-    salts_fs_unlink(base_path);
-    salts_fs_unlink(rotated_path);
+    fs_unlink(base_path);
+    fs_unlink(rotated_path);
 
     tlog_config_t config = {.min_level = SALTS_LOG_LEVEL_DEBUG};
     tlog_t *logger = tlog_create(&config);
     check_not_null(logger);
 
-    cmeta_file_sink_opts_t file_opts = {
+    file_sink_opts_t file_opts = {
         .path = base_path,
         .max_size = 128,
         .max_files = 1,
         .append = 0,
         .pattern = "{message}"
     };
-    cmeta_log_sink_t *file_sink = cmeta_sink_file_create(&file_opts);
+    log_sink_t *file_sink = sink_file_create(&file_opts);
     check_not_null(file_sink);
     tlog_add_sink(logger, file_sink);
 
@@ -657,16 +657,16 @@ spec("TLog Tests") {
     tlog_flush(logger);
     tlog_destroy(logger);
 
-    salts_fs_stat_t st_base = {0};
-    salts_fs_stat_t st_rot = {0};
-    check_equal(salts_fs_stat(base_path, &st_base), 0);
-    check_equal(salts_fs_stat(rotated_path, &st_rot), 0);
+    fs_stat_t st_base = {0};
+    fs_stat_t st_rot = {0};
+    check_equal(fs_stat(base_path, &st_base), 0);
+    check_equal(fs_stat(rotated_path, &st_rot), 0);
     check(st_base.is_file);
     check(st_rot.is_file);
     check_greater((size_t)st_rot.size, 0);
 
-    salts_fs_unlink(base_path);
-    salts_fs_unlink(rotated_path);
+    fs_unlink(base_path);
+    fs_unlink(rotated_path);
   }
 
   it("should sustain high-volume async logging without pool exhaustion") {
@@ -680,7 +680,7 @@ spec("TLog Tests") {
     tlog_t *logger = tlog_create(&config);
     check_not_null(logger);
 
-    cmeta_log_sink_t *cb_sink = cmeta_sink_callback_create(count_only_callback, NULL);
+    log_sink_t *cb_sink = sink_callback_create(count_only_callback, NULL);
     check_not_null(cb_sink);
     tlog_add_sink(logger, cb_sink);
 

@@ -14,7 +14,7 @@ extern "C" {
 #define SALTS_PLAYBACK_MIN_BUFFER_MS 10u
 #define SALTS_PLAYBACK_MAX_BUFFER_MS 2000u
 
-typedef enum salts_playback_result {
+typedef enum playback_result {
   SALTS_PLAYBACK_OK = 0,
   SALTS_PLAYBACK_ERR_NOMEM = -1,
   SALTS_PLAYBACK_ERR_DEVICE = -2,
@@ -22,40 +22,40 @@ typedef enum salts_playback_result {
   SALTS_PLAYBACK_ERR_BUSY = -4,
   SALTS_PLAYBACK_ERR_TIMEOUT = -5,
   SALTS_PLAYBACK_ERR_UNSUPPORTED = -6
-} salts_playback_result_t;
+} playback_result_t;
 
-typedef enum salts_playback_state {
+typedef enum playback_state {
   SALTS_PLAYBACK_STATE_STOPPED = 0,
   SALTS_PLAYBACK_STATE_STARTING,
   SALTS_PLAYBACK_STATE_PLAYING,
   SALTS_PLAYBACK_STATE_PAUSED,
   SALTS_PLAYBACK_STATE_STOPPING,
   SALTS_PLAYBACK_STATE_ERROR
-} salts_playback_state_t;
+} playback_state_t;
 
-typedef enum salts_playback_format {
+typedef enum playback_format {
   SALTS_PLAYBACK_FORMAT_S16 = 0,
   SALTS_PLAYBACK_FORMAT_S32,
   SALTS_PLAYBACK_FORMAT_F32
-} salts_playback_format_t;
+} playback_format_t;
 
-typedef struct salts_playback_device {
+typedef struct playback_device {
   uint32_t index;
   char name[256];
   /* Enumeration-scoped opaque identity. Pass the whole object to create(). */
   uint8_t id[SALTS_PLAYBACK_DEVICE_ID_BYTES];
   uint32_t id_size;
   int is_default;
-} salts_playback_device_t;
+} playback_device_t;
 
-typedef struct salts_playback_config {
+typedef struct playback_config {
   uint32_t sample_rate; /* 8000, 16000, 24000, or 48000 Hz */
   uint32_t channels;    /* 1 or 2 */
-  salts_playback_format_t format;
+  playback_format_t format;
   uint32_t buffer_duration_ms; /* 10 through 2000 ms */
-} salts_playback_config_t;
+} playback_config_t;
 
-typedef struct salts_playback salts_playback_t;
+typedef struct playback playback_t;
 
 /**
  * Threading contract: one control owner calls all mutating APIs except write().
@@ -70,40 +70,40 @@ typedef struct salts_playback salts_playback_t;
  * get_state() and operation results. Callback registration is allowed only
  * while stopped. Callbacks are notifications and must not call mutating APIs.
  */
-typedef void (*salts_playback_state_cb)(salts_playback_t *playback, salts_playback_state_t state,
+typedef void (*playback_state_cb)(playback_t *playback, playback_state_t state,
                                         void *user_data);
 
- int salts_playback_list_devices(salts_playback_device_t *devices,
+ int playback_list_devices(playback_device_t *devices,
                                                    size_t capacity, size_t *out_count);
- int salts_playback_get_default_device(salts_playback_device_t *device);
+ int playback_get_default_device(playback_device_t *device);
 
 /**
  * Creates a bounded PCM sink. The object owns its native device and internal
  * storage. device is NULL for the default device; otherwise it must be an
  * unchanged enumeration result. Failure clears out_playback.
  */
- int salts_playback_create(const salts_playback_device_t *device,
-                                             const salts_playback_config_t *config,
-                                             salts_playback_t **out_playback);
+ int playback_create(const playback_device_t *device,
+                                             const playback_config_t *config,
+                                             playback_t **out_playback);
 
 /**
  * Stops the device, waits for its callback to quiesce, and discards storage.
  * The producer must be quiescent before this call.
  */
- void salts_playback_destroy(salts_playback_t *playback);
+ void playback_destroy(playback_t *playback);
 
- int salts_playback_set_state_callback(salts_playback_t *playback,
-                                                         salts_playback_state_cb callback,
+ int playback_set_state_callback(playback_t *playback,
+                                                         playback_state_cb callback,
                                                          void *user_data);
- int salts_playback_start(salts_playback_t *playback);
- int salts_playback_stop(salts_playback_t *playback);
- int salts_playback_pause(salts_playback_t *playback);
- int salts_playback_resume(salts_playback_t *playback);
- salts_playback_state_t
-salts_playback_get_state(const salts_playback_t *playback);
+ int playback_start(playback_t *playback);
+ int playback_stop(playback_t *playback);
+ int playback_pause(playback_t *playback);
+ int playback_resume(playback_t *playback);
+ playback_state_t
+playback_get_state(const playback_t *playback);
 
- int salts_playback_set_volume(salts_playback_t *playback, float volume);
- int salts_playback_get_volume(const salts_playback_t *playback,
+ int playback_set_volume(playback_t *playback, float volume);
+ int playback_get_volume(const playback_t *playback,
                                                  float *out_volume);
 
 /**
@@ -111,22 +111,22 @@ salts_playback_get_state(const salts_playback_t *playback);
  * call this function. Success may write fewer than len bytes; that is explicit
  * backpressure. Failure clears out_written and preserves input ownership.
  */
- int salts_playback_write(salts_playback_t *playback, const void *samples,
+ int playback_write(playback_t *playback, const void *samples,
                                             size_t len, size_t *out_written);
- size_t salts_playback_get_available(const salts_playback_t *playback);
- size_t salts_playback_get_buffered(const salts_playback_t *playback);
+ size_t playback_get_available(const playback_t *playback);
+ size_t playback_get_buffered(const playback_t *playback);
 
 /**
  * Clears retained PCM without changing the public lifecycle state. The sole
  * producer must be quiescent for the duration of this call.
  */
- int salts_playback_clear(salts_playback_t *playback);
+ int playback_clear(playback_t *playback);
 
 /**
  * Waits until retained PCM is consumed. It does not stop the device or change
  * state. timeout_ms must be positive.
  */
- int salts_playback_drain(salts_playback_t *playback, uint32_t timeout_ms);
+ int playback_drain(playback_t *playback, uint32_t timeout_ms);
 
 #ifdef __cplusplus
 }

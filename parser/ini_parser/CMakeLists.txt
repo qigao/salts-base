@@ -3,7 +3,7 @@ set(TARGET_NAME ini_parser)
 # Generated files
 cmake_add_grammar(INI
   RE2C_EXECUTABLE "${RE2C_EXECUTABLE}"
-  LEMON_TARGET lemon
+  LEMON_TARGET Lemon::Lemon
   LEMON_TEMPLATE "${LEMPAR}"
   LEXER_RE ${CMAKE_CURRENT_SOURCE_DIR}/parser/ini_lexer.re
   GRAMMAR_Y ${CMAKE_CURRENT_SOURCE_DIR}/parser/ini_grammar.y

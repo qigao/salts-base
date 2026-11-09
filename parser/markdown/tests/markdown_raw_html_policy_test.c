@@ -1,5 +1,5 @@
-#include <salts/markdown.h>
-#include <salts/markdown_html.h>
+#include <markdown.h>
+#include <markdown_html.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,7 +14,7 @@ typedef struct raw_fixture {
     const char *source,*spec,*safe;
     size_t raw_nodes;
 } raw_fixture;
-static size_t raw_nodes(salts_md_rich_document_view v) {
+static size_t raw_nodes(md_rich_document_view v) {
     size_t found=0u;
     for(size_t i=1u;i<v.document.block_count;++i)
         found+=v.document.blocks[i].kind==SALTS_MD_BLOCK_RAW_HTML_INLINE;
@@ -24,37 +24,37 @@ static int verify(const raw_fixture *f) {
     const size_t n=strlen(f->source);
     char *input=(char*)malloc(n+1u);CHECK(input!=NULL);
     memcpy(input,f->source,n+1u);
-    salts_md_document *doc=NULL,*rejected=NULL;
-    CHECK(salts_md_parse(input,n,256u,n+1u,&doc)==SALTS_MD_OK);
+    md_document *doc=NULL,*rejected=NULL;
+    CHECK(md_parse(input,n,256u,n+1u,&doc)==SALTS_MD_OK);
     CHECK(doc!=NULL);memset(input,'!',n);free(input);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    CHECK(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    CHECK(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
     CHECK(v.raw_markdown_bytes==n &&
           !memcmp(v.raw_markdown,f->source,n));
     CHECK(raw_nodes(v)==f->raw_nodes);
     for(unsigned policy=0u;policy<2u;++policy) {
-        const salts_md_html_policy mode=policy?
+        const md_html_policy mode=policy?
             SALTS_MD_HTML_SPEC_CONFORMANCE:SALTS_MD_HTML_SAFE_APPLICATION;
         const char *expected=policy?f->spec:f->safe;
         const size_t bytes=strlen(expected);
         size_t required=SIZE_MAX,reported=SIZE_MAX;
-        CHECK(salts_md_render_html_with_policy(
+        CHECK(md_render_html_with_policy(
             &v,256u,mode,NULL,0u,&required)==SALTS_MD_OK);
         CHECK(required==bytes);
         char *out=(char*)malloc(bytes+3u);CHECK(out!=NULL);
         memset(out,0x55,bytes+3u);
-        CHECK(salts_md_render_html_with_policy(
+        CHECK(md_render_html_with_policy(
             &v,256u,mode,out,bytes,&reported)==SALTS_MD_CAPACITY_EXCEEDED);
         CHECK(reported==bytes);
         for(size_t i=0u;i<bytes+3u;++i)
             CHECK((unsigned char)out[i]==0x55u);
-        CHECK(salts_md_render_html_with_policy(
+        CHECK(md_render_html_with_policy(
             &v,256u,mode,out,bytes+1u,&reported)==SALTS_MD_OK);
         CHECK(reported==bytes && !memcmp(out,expected,bytes+1u));
         CHECK((unsigned char)out[bytes+1u]==0x55u);
         if(!policy) {
             size_t measured=SIZE_MAX;
-            CHECK(salts_md_render_html(&v,256u,out,bytes+1u,&measured)
+            CHECK(md_render_html(&v,256u,out,bytes+1u,&measured)
                   ==SALTS_MD_OK);
             CHECK(measured==bytes && !memcmp(out,expected,bytes+1u));
         }
@@ -62,14 +62,14 @@ static int verify(const raw_fixture *f) {
     }
     char unchanged[64];memset(unchanged,0x47,sizeof(unchanged));
     size_t needed=SIZE_MAX;
-    CHECK(salts_md_render_html_with_policy(&v,256u,
-          (salts_md_html_policy)42,unchanged,sizeof(unchanged),&needed)
+    CHECK(md_render_html_with_policy(&v,256u,
+          (md_html_policy)42,unchanged,sizeof(unchanged),&needed)
           ==SALTS_MD_INVALID_ARGUMENT);
     for(size_t i=0u;i<sizeof(unchanged);++i)
         CHECK((unsigned char)unchanged[i]==0x47u);
     const size_t count=v.document.block_count;
-    salts_md_document_destroy(doc);
-    CHECK(salts_md_parse(f->source,n,count-1u,n+1u,&rejected)
+    md_document_destroy(doc);
+    CHECK(md_parse(f->source,n,count-1u,n+1u,&rejected)
           ==SALTS_MD_CAPACITY_EXCEEDED);
     CHECK(rejected==NULL);
     return 0;
@@ -248,14 +248,14 @@ static const raw_fixture block_fixtures[]={
 static int verify_block(const raw_fixture *f) {
     if(verify(f))return 1;
     const size_t n=strlen(f->source);
-    salts_md_document *doc=NULL;
-    CHECK(salts_md_parse(f->source,n,256u,n+1u,&doc)==SALTS_MD_OK);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
+    md_document *doc=NULL;
+    CHECK(md_parse(f->source,n,256u,n+1u,&doc)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
     size_t blocks=0u;
     for(size_t i=0u;i<v.document.block_count;++i)
         blocks+=v.document.blocks[i].kind==SALTS_MD_BLOCK_RAW_HTML_BLOCK;
     CHECK(blocks>0u);
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return 0;
 }
 
@@ -270,13 +270,13 @@ static int test_type6_exact_admission(void) {
         "<menuitem>x\n*foo*\n",
         "<table/foo>x\n*foo*\n"
     };
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     for(size_t k=0u;k<sizeof(nonblocks)/sizeof(nonblocks[0]);++k) {
         const char *input=nonblocks[k];size_t n=strlen(input);
-        CHECK(salts_md_parse(input,n,128u,n+1u,&doc)==SALTS_MD_OK);
+        CHECK(md_parse(input,n,128u,n+1u,&doc)==SALTS_MD_OK);
         CHECK(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        CHECK(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        CHECK(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
         size_t raw_blocks=0u,emphasis=0u;
         for(size_t i=0u;i<v.document.block_count;++i) {
             raw_blocks+=v.document.blocks[i].kind==
@@ -285,7 +285,7 @@ static int test_type6_exact_admission(void) {
                       SALTS_MD_BLOCK_EMPHASIS;
         }
         CHECK(raw_blocks==0u && emphasis==1u);
-        salts_md_document_destroy(doc);doc=NULL;
+        md_document_destroy(doc);doc=NULL;
     }
     return 0;
 }
@@ -301,14 +301,14 @@ static int test_multiline_html_nonadmission(void) {
     };
     for(size_t k=0u;k<sizeof(rejected)/sizeof(rejected[0]);++k) {
         const size_t bytes=strlen(rejected[k]);
-        salts_md_document *doc=NULL;
-        CHECK(salts_md_parse(rejected[k],bytes,256u,bytes+1u,&doc)
+        md_document *doc=NULL;
+        CHECK(md_parse(rejected[k],bytes,256u,bytes+1u,&doc)
               ==SALTS_MD_OK);
         CHECK(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        CHECK(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        CHECK(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
         CHECK(raw_nodes(v)==0u);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
     }
     return 0;
 }

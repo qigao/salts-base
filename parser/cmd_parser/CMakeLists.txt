@@ -10,10 +10,10 @@ cmake_add_grammar(CMD_ARGER
 # Library
 # =============================================================================
 
-add_library(${TARGET_NAME} STATIC
-    ${CMD_ARGER_LEXER_GEN}
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/cmd_arger.c
-)
+cmake_add_source(cmd_sources DIRS src)
+cmake_add_source(cmd_sources_headers RECURSE DIRS include PATTERNS "*.h" "*.hpp")
+list(APPEND cmd_sources ${cmd_sources_headers})
+add_library(${TARGET_NAME} STATIC ${cmd_sources} ${CMD_ARGER_LEXER_GEN})
 add_dependencies(${TARGET_NAME} ${CMD_ARGER_LEXER_TARGET})
 
 cmake_config_target(${TARGET_NAME}

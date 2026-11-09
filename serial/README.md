@@ -9,7 +9,7 @@ owners. It does not require CMeta, CSTL, CFlow, TinyMock or libserialport.
 ## Source layout
 
 - `include/serial.h`: public C/C++ API, installed as `<serial.h>`.
-- `src/salts_serial.c`: handle ownership, queues and asynchronous pump.
+- `src/serial.c`: handle ownership, queues and asynchronous pump.
 - `src/serial_internal.h`: private storage and backend contracts.
 - `src/backend_posix.c`, `src/backend_win32.c`: mutually exclusive native backends.
 - `test/`: formal module tests and test-only injection support.
@@ -49,10 +49,10 @@ macro. Do not define `SALTS_SERIAL_EXPORTS` in an application.
 
 ## Ownership and byte behavior
 
-Create a handle with `salts_serial_create`, open/configure it with
-`salts_serial_open`, and release it with `salts_serial_destroy`. Destruction
+Create a handle with `serial_create`, open/configure it with
+`serial_open`, and release it with `serial_destroy`. Destruction
 stops the async pump, closes the port and releases the handle-owned queues.
-`salts_serial_close` permits a later reopen and is idempotent while closed.
+`serial_close` permits a later reopen and is idempotent while closed.
 
 The receive and transmit paths carry bytes, including NUL and bytes that are
 not valid UTF-8. A configured power-of-two queue size reserves one sentinel
@@ -63,10 +63,10 @@ or full write reports `SALTS_SERIAL_WOULD_BLOCK` with a zero count.
 Async operation has one pump thread, one application receive consumer and one
 application transmit producer. Applications must synchronize additional
 readers or writers. Blocking port I/O cannot run while the pump is active.
-The adapter helpers `salts_serial_buffer_rx` and
-`salts_serial_drain_tx_buffer` also require a stopped pump.
+The adapter helpers `serial_buffer_rx` and
+`serial_drain_tx_buffer` also require a stopped pump.
 
-Port metadata belongs to its `salts_serial_port_list_t` snapshot. All six
+Port metadata belongs to its `serial_port_list_t` snapshot. All six
 optional strings are owned copies; `NULL` metadata remains distinct from an
 allocated empty string. Views expire when the snapshot is destroyed. Windows
 keeps the original UTF-16/UTF-8 conversion path; serial payloads do not pass

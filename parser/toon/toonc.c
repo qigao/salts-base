@@ -1,5 +1,5 @@
-#include "toonc.h"
-#include "toon_json_adapter.h"
+#include <toonc.h>
+#include <toon_json_adapter.h>
 #include "toon_lexer.h"
 #include "toon_grammar_gen.h"
 

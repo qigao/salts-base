@@ -1,12 +1,12 @@
 #include <tinytest.h>
-#include "frame.h"
-#include "parser_error.h"
-#include "parser_stats.h"
-#include "memory_pool.h"
-#include "stream_parser.h"
-#include "parser_context.h"
-#include "crc32.h"
-#include "endian.h"
+#include <frame.h>
+#include <parser_error.h>
+#include <parser_stats.h>
+#include <memory/memory_pool.h>
+#include <stream_parser.h>
+#include <parser_context.h>
+#include <crc32.h>
+#include <endian.h>
 #include <string.h>
 #include <stdlib.h>
 

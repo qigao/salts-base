@@ -2,7 +2,7 @@ set(TARGET_NAME datetime_parser)
 
 cmake_add_grammar(DATETIME
   RE2C_EXECUTABLE "${RE2C_EXECUTABLE}"
-  LEMON_TARGET lemon
+  LEMON_TARGET Lemon::Lemon
   LEMON_TEMPLATE "${LEMPAR}"
   LEXER_RE ${CMAKE_CURRENT_SOURCE_DIR}/parser/datetime_lexer.re
   GRAMMAR_Y ${CMAKE_CURRENT_SOURCE_DIR}/parser/datetime_grammar.y

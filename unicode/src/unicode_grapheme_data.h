@@ -12,11 +12,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct salts_unicode_grapheme_range {
+typedef struct unicode_grapheme_range {
   uint32_t first;
   uint32_t last;
   uint8_t value;
-} salts_unicode_grapheme_range;
+} unicode_grapheme_range;
 
 enum {
   SALTS_UNICODE_INCB_NONE = 0,
@@ -25,7 +25,7 @@ enum {
   SALTS_UNICODE_INCB_LINKER = 3
 };
 
-static const salts_unicode_grapheme_range salts_unicode_gcb_ranges[] = {
+static const unicode_grapheme_range unicode_gcb_ranges[] = {
   {0x000000u, 0x000009u, SALTS_UNICODE_GRAPHEME_CONTROL},
   {0x00000Au, 0x00000Au, SALTS_UNICODE_GRAPHEME_LF},
   {0x00000Bu, 0x00000Cu, SALTS_UNICODE_GRAPHEME_CONTROL},
@@ -1413,9 +1413,9 @@ static const salts_unicode_grapheme_range salts_unicode_gcb_ranges[] = {
   {0x0E0100u, 0x0E01EFu, SALTS_UNICODE_GRAPHEME_EXTEND},
   {0x0E01F0u, 0x0E0FFFu, SALTS_UNICODE_GRAPHEME_CONTROL},
 };
-#define SALTS_UNICODE_GCB_RANGES_COUNT (sizeof(salts_unicode_gcb_ranges) / sizeof(salts_unicode_gcb_ranges[0]))
+#define SALTS_UNICODE_GCB_RANGES_COUNT (sizeof(unicode_gcb_ranges) / sizeof(unicode_gcb_ranges[0]))
 
-static const salts_unicode_grapheme_range salts_unicode_extended_pictographic_ranges[] = {
+static const unicode_grapheme_range unicode_extended_pictographic_ranges[] = {
   {0x0000A9u, 0x0000A9u, 1},
   {0x0000AEu, 0x0000AEu, 1},
   {0x00203Cu, 0x00203Cu, 1},
@@ -1573,9 +1573,9 @@ static const salts_unicode_grapheme_range salts_unicode_extended_pictographic_ra
   {0x01FA6Eu, 0x01FAFFu, 1},
   {0x01FC00u, 0x01FFFDu, 1},
 };
-#define SALTS_UNICODE_EXTENDED_PICTOGRAPHIC_RANGES_COUNT (sizeof(salts_unicode_extended_pictographic_ranges) / sizeof(salts_unicode_extended_pictographic_ranges[0]))
+#define SALTS_UNICODE_EXTENDED_PICTOGRAPHIC_RANGES_COUNT (sizeof(unicode_extended_pictographic_ranges) / sizeof(unicode_extended_pictographic_ranges[0]))
 
-static const salts_unicode_grapheme_range salts_unicode_incb_ranges[] = {
+static const unicode_grapheme_range unicode_incb_ranges[] = {
   {0x000300u, 0x00036Fu, SALTS_UNICODE_INCB_EXTEND},
   {0x000483u, 0x000489u, SALTS_UNICODE_INCB_EXTEND},
   {0x000591u, 0x0005BDu, SALTS_UNICODE_INCB_EXTEND},
@@ -2050,6 +2050,6 @@ static const salts_unicode_grapheme_range salts_unicode_incb_ranges[] = {
   {0x0E0020u, 0x0E007Fu, SALTS_UNICODE_INCB_EXTEND},
   {0x0E0100u, 0x0E01EFu, SALTS_UNICODE_INCB_EXTEND},
 };
-#define SALTS_UNICODE_INCB_RANGES_COUNT (sizeof(salts_unicode_incb_ranges) / sizeof(salts_unicode_incb_ranges[0]))
+#define SALTS_UNICODE_INCB_RANGES_COUNT (sizeof(unicode_incb_ranges) / sizeof(unicode_incb_ranges[0]))
 
 #endif

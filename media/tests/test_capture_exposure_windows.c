@@ -3,7 +3,7 @@
 #include <tinytest.h>
 #include <playback.h>
 
-static const salts_camera_control_t auto_exposure = SALTS_CAMERA_CONTROL_AUTO_EXPOSURE;
+static const camera_control_t auto_exposure = SALTS_CAMERA_CONTROL_AUTO_EXPOSURE;
 
 typedef struct {
     IAMCameraControl iface;
@@ -53,7 +53,7 @@ static IAMCameraControlVtbl device_vtable = {
 suite("Windows automatic exposure") {
     static exposure_device_t device;
     static mf_video_capture_ctx_t context;
-    static salts_capture_t camera;
+    static capture_t camera;
 
     before_each() {
         memset(&device, 0, sizeof(device));
@@ -70,64 +70,64 @@ suite("Windows automatic exposure") {
 
     it("switches both modes while retaining current exposure") {
         int mode = -1;
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_OK);
+        check_equal(video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_OK);
         check_equal(device.flags, (long)CameraControl_Flags_Auto);
         check_equal(device.exposure, -7L);
-        check_equal(salts_video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_OK);
+        check_equal(video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_OK);
         check_equal(mode, 1);
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, 0), SALTS_CAPTURE_OK);
+        check_equal(video_capture_set_control(&camera, auto_exposure, 0), SALTS_CAPTURE_OK);
         check_equal(device.flags, (long)CameraControl_Flags_Manual);
         check_equal(device.exposure, -7L);
-        check_equal(salts_video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_OK);
+        check_equal(video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_OK);
         check_equal(mode, 0);
     }
 
     it("reports mode bounds from capabilities and current mode from the driver") {
-        salts_camera_control_range_t range;
+        camera_control_range_t range;
         device.flags = CameraControl_Flags_Auto;
-        check_equal(salts_video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_OK);
+        check_equal(video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_OK);
         check_equal(range.min_value, 0);
         check_equal(range.max_value, 1);
         check_equal(range.step, 1);
         check_equal(range.default_value, -1);
         check_equal(range.current_value, 1);
         device.caps = CameraControl_Flags_Auto;
-        check_equal(salts_video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_OK);
+        check_equal(video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_OK);
         check_equal(range.min_value, 1);
         check_equal(range.max_value, 1);
     }
 
     it("rejects nonboolean values without writing the driver") {
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, -1), SALTS_CAPTURE_ERR_FORMAT);
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, 2), SALTS_CAPTURE_ERR_FORMAT);
+        check_equal(video_capture_set_control(&camera, auto_exposure, -1), SALTS_CAPTURE_ERR_FORMAT);
+        check_equal(video_capture_set_control(&camera, auto_exposure, 2), SALTS_CAPTURE_ERR_FORMAT);
         check_equal(device.sets, 0);
     }
 
     it("does not silently substitute a mode unsupported by the device") {
         device.caps = CameraControl_Flags_Manual;
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_UNSUPPORTED);
+        check_equal(video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_UNSUPPORTED);
         check_equal(device.sets, 0);
         context.camera_control = NULL;
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, 0), SALTS_CAPTURE_ERR_UNSUPPORTED);
+        check_equal(video_capture_set_control(&camera, auto_exposure, 0), SALTS_CAPTURE_ERR_UNSUPPORTED);
     }
 
     it("propagates driver read and write failures without reporting success") {
         int mode = 99;
-        salts_camera_control_range_t range;
+        camera_control_range_t range;
         device.get_result = E_FAIL;
-        check_equal(salts_video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_ERR_DEVICE);
         check_equal(mode, 99);
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, 0), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_set_control(&camera, auto_exposure, 0), SALTS_CAPTURE_ERR_DEVICE);
         check_equal(device.sets, 0);
-        check_equal(salts_video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_ERR_DEVICE);
         device.get_result = S_OK;
         device.set_result = E_FAIL;
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_DEVICE);
     }
 
     it("preserves the existing manual exposure value control") {
         device.flags = CameraControl_Flags_Auto;
-        check_equal(salts_video_capture_set_control(&camera, SALTS_CAMERA_CONTROL_EXPOSURE, -5), SALTS_CAPTURE_OK);
+        check_equal(video_capture_set_control(&camera, SALTS_CAMERA_CONTROL_EXPOSURE, -5), SALTS_CAPTURE_OK);
         check_equal(device.flags, (long)CameraControl_Flags_Manual);
         check_equal(device.exposure, -5L);
     }
@@ -137,66 +137,66 @@ suite("Windows automatic exposure") {
             E_NOTIMPL, E_NOINTERFACE, HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED)};
         for (size_t index = 0; index < sizeof(unsupported) / sizeof(unsupported[0]); ++index) {
             int mode = 99;
-            salts_camera_control_range_t range;
+            camera_control_range_t range;
             device.range_result = unsupported[index];
-            check_equal(salts_video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_ERR_UNSUPPORTED);
-            check_equal(salts_video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_UNSUPPORTED);
+            check_equal(video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_ERR_UNSUPPORTED);
+            check_equal(video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_UNSUPPORTED);
             device.range_result = S_OK;
             device.get_result = unsupported[index];
-            check_equal(salts_video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_ERR_UNSUPPORTED);
+            check_equal(video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_ERR_UNSUPPORTED);
             check_equal(mode, 99);
             device.get_result = S_OK;
             device.set_result = unsupported[index];
-            check_equal(salts_video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_UNSUPPORTED);
+            check_equal(video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_UNSUPPORTED);
         }
     }
 
     it("reports a manual-only mode range and rejects an empty capability set") {
-        salts_camera_control_range_t range;
+        camera_control_range_t range;
         device.caps = CameraControl_Flags_Manual;
-        check_equal(salts_video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_OK);
+        check_equal(video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_OK);
         check_equal(range.min_value, 0);
         check_equal(range.max_value, 0);
         check_equal(range.current_value, 0);
         device.caps = 0;
-        check_equal(salts_video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_ERR_UNSUPPORTED);
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, 0), SALTS_CAPTURE_ERR_UNSUPPORTED);
+        check_equal(video_capture_get_control_range(&camera, auto_exposure, &range), SALTS_CAPTURE_ERR_UNSUPPORTED);
+        check_equal(video_capture_set_control(&camera, auto_exposure, 0), SALTS_CAPTURE_ERR_UNSUPPORTED);
         check_equal(device.sets, 0);
     }
 
     it("rejects invalid handles and output pointers") {
         int mode = 99;
-        check_equal(salts_video_capture_set_control(NULL, auto_exposure, 1), SALTS_CAPTURE_ERR_DEVICE);
-        check_equal(salts_video_capture_get_control(&camera, auto_exposure, NULL), SALTS_CAPTURE_ERR_DEVICE);
-        check_equal(salts_video_capture_get_control_range(&camera, auto_exposure, NULL), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_set_control(NULL, auto_exposure, 1), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_get_control(&camera, auto_exposure, NULL), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_get_control_range(&camera, auto_exposure, NULL), SALTS_CAPTURE_ERR_DEVICE);
         camera.type = SALTS_CAPTURE_TYPE_AUDIO;
-        check_equal(salts_video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_ERR_DEVICE);
         check_equal(mode, 99);
         camera.type = SALTS_CAPTURE_TYPE_VIDEO;
         camera.platform_ctx = NULL;
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_DEVICE);
     }
 
     it("rejects malformed driver state without modifying the mode output or device") {
         int mode = 99;
         device.flags = CameraControl_Flags_Auto | CameraControl_Flags_Manual;
-        check_equal(salts_video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_get_control(&camera, auto_exposure, &mode), SALTS_CAPTURE_ERR_DEVICE);
         check_equal(mode, 99);
         device.flags = CameraControl_Flags_Manual;
         device.exposure = 0;
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_set_control(&camera, auto_exposure, 1), SALTS_CAPTURE_ERR_DEVICE);
         check_equal(device.sets, 0);
         device.range_result = E_FAIL;
-        check_equal(salts_video_capture_set_control(&camera, auto_exposure, 0), SALTS_CAPTURE_ERR_DEVICE);
+        check_equal(video_capture_set_control(&camera, auto_exposure, 0), SALTS_CAPTURE_ERR_DEVICE);
         check_equal(device.sets, 0);
     }
 
     it("verifies both static Media API owners without opening devices") {
         /* Pull the actual Win32 Capture dispatcher and the PCM Playback owner
          * from the same static archive; do not just inspect target metadata. */
-        check_equal(salts_capture_get_state(NULL), SALTS_CAPTURE_STATE_STOPPED);
-        check_equal(salts_capture_start(NULL), -1);
-        check_equal(salts_playback_get_state(NULL), SALTS_PLAYBACK_STATE_ERROR);
-        check_equal(salts_playback_start(NULL), SALTS_PLAYBACK_ERR_FORMAT);
+        check_equal(capture_get_state(NULL), SALTS_CAPTURE_STATE_STOPPED);
+        check_equal(capture_start(NULL), -1);
+        check_equal(playback_get_state(NULL), SALTS_PLAYBACK_STATE_ERROR);
+        check_equal(playback_start(NULL), SALTS_PLAYBACK_ERR_FORMAT);
     }
 }

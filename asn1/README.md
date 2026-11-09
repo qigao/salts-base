@@ -6,7 +6,7 @@ or Crypto. The SaltsCore package resolves the external dependencies needed
 by the other static targets that it exports.
 
 `Salts::ASN1` is one **static** C11 library, exporting
-`<asn1.h>` and `<asn1_value.h>` with `salts_asn1_*` APIs:
+`<asn1.h>` and `<asn1_value.h>` with `asn1_*` APIs:
 bounded BER/DER Reader, Validator, Encoder, borrowed TLV views, OID and
 opaque owned Value Tree. On successful child admission, the parent owns
 the child; on error it remains with the caller.

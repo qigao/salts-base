@@ -39,9 +39,9 @@ def verify_module(root: Path = ROOT) -> None:
             raise ValueError("Zstd original input missing: " + destination)
         data = tracked_bytes(path)
         if original.endswith(".h"):
-            if data.count(b'#include "cmeta_api.h"') != 1:
+            if data.count(b'#include "salts_api.h"') != 1:
                 raise ValueError("Zstd native public linkage header changed")
-            data = data.replace(b'#include "cmeta_api.h"', b"#include <platform.h>", 1)
+            data = data.replace(b'#include "salts_api.h"', b"#include <platform.h>", 1)
         if len(data) != records[original]["size"] or git_blob(data) != records[original]["git_blob"]:
             raise ValueError("Zstd original bytes changed: " + destination)
     api = json.loads((root / "tools/migration/original-public-functions.json").read_text())

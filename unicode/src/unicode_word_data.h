@@ -11,13 +11,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct salts_unicode_word_range {
+typedef struct unicode_word_range {
   uint32_t first;
   uint32_t last;
   uint8_t value;
-} salts_unicode_word_range;
+} unicode_word_range;
 
-static const salts_unicode_word_range salts_unicode_word_break_ranges[] = {
+static const unicode_word_range unicode_word_break_ranges[] = {
   {0x00000Au, 0x00000Au, SALTS_UNICODE_WORD_LF},
   {0x00000Bu, 0x00000Cu, SALTS_UNICODE_WORD_NEWLINE},
   {0x00000Du, 0x00000Du, SALTS_UNICODE_WORD_CR},
@@ -1119,9 +1119,9 @@ static const salts_unicode_word_range salts_unicode_word_break_ranges[] = {
   {0x0E0020u, 0x0E007Fu, SALTS_UNICODE_WORD_EXTEND},
   {0x0E0100u, 0x0E01EFu, SALTS_UNICODE_WORD_EXTEND},
 };
-#define SALTS_UNICODE_WORD_BREAK_RANGES_COUNT (sizeof(salts_unicode_word_break_ranges) / sizeof(salts_unicode_word_break_ranges[0]))
+#define SALTS_UNICODE_WORD_BREAK_RANGES_COUNT (sizeof(unicode_word_break_ranges) / sizeof(unicode_word_break_ranges[0]))
 
-static const salts_unicode_word_range salts_unicode_word_extended_pictographic_ranges[] = {
+static const unicode_word_range unicode_word_extended_pictographic_ranges[] = {
   {0x0000A9u, 0x0000A9u, 1},
   {0x0000AEu, 0x0000AEu, 1},
   {0x00203Cu, 0x00203Cu, 1},
@@ -1279,6 +1279,6 @@ static const salts_unicode_word_range salts_unicode_word_extended_pictographic_r
   {0x01FA6Eu, 0x01FAFFu, 1},
   {0x01FC00u, 0x01FFFDu, 1},
 };
-#define SALTS_UNICODE_WORD_EXTENDED_PICTOGRAPHIC_RANGES_COUNT (sizeof(salts_unicode_word_extended_pictographic_ranges) / sizeof(salts_unicode_word_extended_pictographic_ranges[0]))
+#define SALTS_UNICODE_WORD_EXTENDED_PICTOGRAPHIC_RANGES_COUNT (sizeof(unicode_word_extended_pictographic_ranges) / sizeof(unicode_word_extended_pictographic_ranges[0]))
 
 #endif

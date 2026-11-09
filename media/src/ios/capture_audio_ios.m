@@ -7,11 +7,11 @@
 #import <AVFoundation/AVFoundation.h>
 #import <Foundation/Foundation.h>
 #import "capture_ios_guard.h"
-#include "capture.h"
+#include <capture.h>
 #include <stdlib.h>
 
 typedef struct {
-    salts_capture_t base;
+    capture_t base;
     AVAudioEngine *engine;
     AVAudioInputNode *input_node;
     AVAudioFormat *format;
@@ -32,7 +32,7 @@ static void ios_audio_finalize(void *capture) {
     free(cap);
 }
 
-int ios_audio_start(salts_capture_t *capture) {
+int ios_audio_start(capture_t *capture) {
     ios_audio_capture_t *cap = (ios_audio_capture_t *)capture;
 
     @autoreleasepool {
@@ -45,7 +45,7 @@ int ios_audio_start(salts_capture_t *capture) {
     }
 }
 
-void ios_audio_stop(salts_capture_t *capture) {
+void ios_audio_stop(capture_t *capture) {
     ios_audio_capture_t *cap = (ios_audio_capture_t *)capture;
 
     @autoreleasepool {
@@ -53,7 +53,7 @@ void ios_audio_stop(salts_capture_t *capture) {
     }
 }
 
-void ios_audio_destroy(salts_capture_t *capture) {
+void ios_audio_destroy(capture_t *capture) {
     ios_audio_capture_t *cap = (ios_audio_capture_t *)capture;
 
     @autoreleasepool {
@@ -71,8 +71,8 @@ void ios_audio_destroy(salts_capture_t *capture) {
     }
 }
 
-salts_capture_t *salts_audio_capture_create(const char *device_id,
-                                            const salts_audio_capture_config_t *config) {
+capture_t *audio_capture_create(const char *device_id,
+                                            const audio_capture_config_t *config) {
     if (config &&
         ((config->sample_rate != 8000 && config->sample_rate != 16000 &&
           config->sample_rate != 24000 && config->sample_rate != 48000) ||
@@ -111,7 +111,7 @@ salts_capture_t *salts_audio_capture_create(const char *device_id,
             NSString *requested_uid =
                 [NSString stringWithUTF8String:device_id];
             if (!requested_uid) {
-                ios_audio_destroy((salts_capture_t *)cap);
+                ios_audio_destroy((capture_t *)cap);
                 return NULL;
             }
             for (AVAudioSessionPortDescription *input in session.availableInputs) {
@@ -121,7 +121,7 @@ salts_capture_t *salts_audio_capture_create(const char *device_id,
                 }
             }
             if (!selected_input) {
-                ios_audio_destroy((salts_capture_t *)cap);
+                ios_audio_destroy((capture_t *)cap);
                 return NULL;
             }
         }
@@ -138,7 +138,7 @@ salts_capture_t *salts_audio_capture_create(const char *device_id,
                  (NSTimeInterval)cap->frame_size_ms / 1000.0
                                                error:&error] ||
             ![session setActive:YES error:&error]) {
-            ios_audio_destroy((salts_capture_t *)cap);
+            ios_audio_destroy((capture_t *)cap);
             return NULL;
         }
 
@@ -148,7 +148,7 @@ salts_capture_t *salts_audio_capture_create(const char *device_id,
         if (!input_format ||
             (int)input_format.sampleRate != cap->sample_rate ||
             (int)input_format.channelCount != cap->channels) {
-            ios_audio_destroy((salts_capture_t *)cap);
+            ios_audio_destroy((capture_t *)cap);
             return NULL;
         }
 
@@ -162,7 +162,7 @@ salts_capture_t *salts_audio_capture_create(const char *device_id,
                          channels:(AVAudioChannelCount)cap->channels
                       interleaved:YES];
         if (!cap->format) {
-            ios_audio_destroy((salts_capture_t *)cap);
+            ios_audio_destroy((capture_t *)cap);
             return NULL;
         }
 
@@ -170,7 +170,7 @@ salts_capture_t *salts_audio_capture_create(const char *device_id,
             ((uint64_t)cap->sample_rate * (uint64_t)cap->frame_size_ms) /
             1000u);
         if (tap_frames == 0) {
-            ios_audio_destroy((salts_capture_t *)cap);
+            ios_audio_destroy((capture_t *)cap);
             return NULL;
         }
 
@@ -208,11 +208,11 @@ salts_capture_t *salts_audio_capture_create(const char *device_id,
                          (size_t)buffer.format.channelCount *
                          bytes_per_sample;
 
-            strong_cap->base.audio_cb((salts_capture_t *)strong_cap, samples, len,
+            strong_cap->base.audio_cb((capture_t *)strong_cap, samples, len,
                                       now_us(), strong_cap->base.user_data);
             [guard releaseCapture];
         }];
 
-        return (salts_capture_t *)cap;
+        return (capture_t *)cap;
     }
 }

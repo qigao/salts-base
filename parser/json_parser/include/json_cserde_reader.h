@@ -6,7 +6,7 @@
 #ifndef JSON_CSERDE_READER_H
 #define JSON_CSERDE_READER_H
 
-#include "json_parser.h"
+#include <json_parser.h>
 
 #include <cserde/reader.h>
 

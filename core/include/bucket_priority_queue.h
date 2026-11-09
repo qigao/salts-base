@@ -1,7 +1,7 @@
 #ifndef SALTS_BUCKET_PRIORITY_QUEUE_H
 #define SALTS_BUCKET_PRIORITY_QUEUE_H
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 #include "ring_buffer.h"
 
 #include <stdbool.h>

@@ -3,12 +3,12 @@
 
 #import <Foundation/Foundation.h>
 
-typedef void (*salts_ios_capture_finalizer)(void *capture);
+typedef void (*ios_capture_finalizer)(void *capture);
 
 @interface SaltsCaptureGuard : NSObject
 
 - (instancetype)initWithCapture:(void *)capture
-                       finalizer:(salts_ios_capture_finalizer)finalizer;
+                       finalizer:(ios_capture_finalizer)finalizer;
 - (void *)acquireCapture;
 - (void)releaseCapture;
 - (void)detachOwner;

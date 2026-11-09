@@ -3,23 +3,20 @@ set(TARGET_NAME json_parser)
 # Generated files
 cmake_add_grammar(JSON
   RE2C_EXECUTABLE "${RE2C_EXECUTABLE}"
-  LEMON_TARGET lemon
+  LEMON_TARGET Lemon::Lemon
   LEMON_TEMPLATE "${LEMPAR}"
   LEXER_RE ${CMAKE_CURRENT_SOURCE_DIR}/parser/json_lexer.re
   GRAMMAR_Y ${CMAKE_CURRENT_SOURCE_DIR}/parser/json_grammar.y
   FOLDER "parser/${TARGET_NAME}/grammar")
 
 cmake_add_grammar(JSONPATH
-  LEMON_TARGET lemon
+  LEMON_TARGET Lemon::Lemon
   LEMON_TEMPLATE "${LEMPAR}"
   GRAMMAR_Y ${CMAKE_CURRENT_SOURCE_DIR}/parser/jsonpath_grammar.y
   FOLDER "parser/${TARGET_NAME}/grammar")
 
 # Library
-cmake_add_source(SOURCE_FILES DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src)
-list(REMOVE_ITEM SOURCE_FILES
-     "${CMAKE_CURRENT_SOURCE_DIR}/src/json_cserde_reader.c"
-     "${CMAKE_CURRENT_SOURCE_DIR}/src/json_cserde_writer.c")
+cmake_add_source(SOURCE_FILES DIRS src EXCLUDES src/json_cserde_*.c)
 
 add_library(${TARGET_NAME} STATIC ${SOURCE_FILES} ${JSON_LEXER_GEN}
                                   ${JSON_GRAMMAR_GEN} ${JSONPATH_GRAMMAR_GEN})
@@ -43,9 +40,8 @@ target_include_directories(${TARGET_NAME} PRIVATE ${SIMDE_INCLUDE_DIRS})
 target_link_libraries(${TARGET_NAME}
   PUBLIC Salts::Core Salts::QueryVM)
 
-add_library(json_cserde_adapter STATIC
-  src/json_cserde_reader.c
-  src/json_cserde_writer.c)
+cmake_add_source(json_cserde_sources DIRS src PATTERNS "json_cserde_*.c")
+add_library(json_cserde_adapter STATIC ${json_cserde_sources})
 cmake_config_target(json_cserde_adapter
   ALIAS Salts::JsonCSerdeAdapter
   FOLDER "parser/${TARGET_NAME}"

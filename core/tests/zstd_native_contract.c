@@ -1,6 +1,6 @@
 #include <tinytest.h>
-#include <cmeta_error.h>
-#include <cmeta_zstd.h>
+#include <salts/error.h>
+#include <salts/zstd.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -32,30 +32,30 @@ static int saltscore_legacy_zstd_native_contract_c(void) {
   unsigned char concatenated[sizeof(known_size) * 2u];
   size_t result = 91u;
 
-  REQUIRE(cmeta_zstd_frame_content_size(unknown_size, sizeof(unknown_size),
+  REQUIRE(zstd_frame_content_size(unknown_size, sizeof(unknown_size),
                                         &result) == SALTS_ENOTSUP);
   REQUIRE(result == 91u);
   memset(destination, 0xa5, sizeof(destination));
-  REQUIRE(cmeta_zstd_decompress(destination + 1u, sizeof(payload), &result,
+  REQUIRE(zstd_decompress(destination + 1u, sizeof(payload), &result,
                                 unknown_size, sizeof(unknown_size)) == SALTS_OK);
   REQUIRE(result == sizeof(payload));
   REQUIRE(memcmp(destination + 1u, payload, sizeof(payload)) == 0);
   REQUIRE(destination[0] == 0xa5 && destination[4] == 0xa5);
 
   result = 92u;
-  REQUIRE(cmeta_zstd_decompress(destination, sizeof(destination), &result,
+  REQUIRE(zstd_decompress(destination, sizeof(destination), &result,
                                 unknown_size, sizeof(unknown_size) - 1u) == SALTS_EPROTO);
   REQUIRE(result == 92u);
-  REQUIRE(cmeta_zstd_decompress(destination, 2u, &result,
+  REQUIRE(zstd_decompress(destination, 2u, &result,
                                 unknown_size, sizeof(unknown_size)) == SALTS_ENOSPC);
   REQUIRE(result == 92u);
 
   /* This original API reads the frame header; it does not validate the body.
    * Keep that distinction from the decompressor's complete-frame requirement. */
-  REQUIRE(cmeta_zstd_frame_content_size(known_size, 6u, &result) == SALTS_OK);
+  REQUIRE(zstd_frame_content_size(known_size, 6u, &result) == SALTS_OK);
   REQUIRE(result == sizeof(payload));
   result = 93u;
-  REQUIRE(cmeta_zstd_decompress(destination, sizeof(destination), &result,
+  REQUIRE(zstd_decompress(destination, sizeof(destination), &result,
                                 known_size, 6u) == SALTS_EPROTO);
   REQUIRE(result == 93u);
 
@@ -63,11 +63,11 @@ static int saltscore_legacy_zstd_native_contract_c(void) {
    * The content-size query still reports only the first frame's declaration. */
   memcpy(concatenated, known_size, sizeof(known_size));
   memcpy(concatenated + sizeof(known_size), known_size, sizeof(known_size));
-  REQUIRE(cmeta_zstd_frame_content_size(concatenated, sizeof(concatenated),
+  REQUIRE(zstd_frame_content_size(concatenated, sizeof(concatenated),
                                         &result) == SALTS_OK);
   REQUIRE(result == sizeof(payload));
   memset(destination, 0xa5, sizeof(destination));
-  REQUIRE(cmeta_zstd_decompress(destination + 1u, sizeof(payload) * 2u, &result,
+  REQUIRE(zstd_decompress(destination + 1u, sizeof(payload) * 2u, &result,
                                 concatenated, sizeof(concatenated)) == SALTS_OK);
   REQUIRE(result == sizeof(payload) * 2u);
   REQUIRE(memcmp(destination + 1u, payload, sizeof(payload)) == 0);
@@ -76,11 +76,11 @@ static int saltscore_legacy_zstd_native_contract_c(void) {
 
   result = 94u;
 #if SIZE_MAX < UINT64_C(4294967296)
-  REQUIRE(cmeta_zstd_frame_content_size(wide_header, sizeof(wide_header),
+  REQUIRE(zstd_frame_content_size(wide_header, sizeof(wide_header),
                                         &result) == SALTS_ERANGE);
   REQUIRE(result == 94u);
 #else
-  REQUIRE(cmeta_zstd_frame_content_size(wide_header, sizeof(wide_header),
+  REQUIRE(zstd_frame_content_size(wide_header, sizeof(wide_header),
                                         &result) == SALTS_OK);
   REQUIRE(result == (size_t)UINT64_C(4294967296));
 #endif

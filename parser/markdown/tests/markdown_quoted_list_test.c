@@ -1,6 +1,6 @@
 /* #181: quote/list ownership and byte-exact CommonMark HTML. */
-#include <salts/markdown.h>
-#include <salts/markdown_html.h>
+#include <markdown.h>
+#include <markdown_html.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,21 +27,21 @@ static const fixture cases[]={
 };
 _Static_assert(sizeof(cases)/sizeof(cases[0])==11u,"fixture denominator");
 static int check(const fixture *f){
- salts_md_document *d=NULL;size_t n=strlen(f->input);
- if(salts_md_parse(f->input,n,256u,n+1u,&d)!=SALTS_MD_OK||!d)return 1;
- const salts_md_rich_document_view v=salts_md_get_document_view(d);
- int failed=salts_md_rich_document_validate(&v,256u)!=SALTS_MD_OK ||
+ md_document *d=NULL;size_t n=strlen(f->input);
+ if(md_parse(f->input,n,256u,n+1u,&d)!=SALTS_MD_OK||!d)return 1;
+ const md_rich_document_view v=md_get_document_view(d);
+ int failed=md_rich_document_validate(&v,256u)!=SALTS_MD_OK ||
             v.raw_markdown_bytes!=n || memcmp(v.raw_markdown,f->input,n)!=0;
  unsigned quotes=0,lists=0,fences=0;
  const bool direct_fence=strncmp(f->id,"quoted-direct-fence",19u)==0;
  for(size_t i=1;i<v.document.block_count && !failed;++i){
-  const salts_md_block *node=&v.document.blocks[i];
+  const md_block *node=&v.document.blocks[i];
   if(node->kind==SALTS_MD_BLOCK_QUOTE){++quotes; if(node->parent_index!=0)failed=1;}
   if(node->kind==SALTS_MD_BLOCK_LIST||node->kind==SALTS_MD_BLOCK_ORDERED_LIST){
    ++lists;
    if(node->parent_index>=i)failed=1;
    else if(strcmp(f->id,"cm235")==0){
-    const salts_md_block_kind expected=lists==1?
+    const md_block_kind expected=lists==1?
        SALTS_MD_BLOCK_QUOTE:SALTS_MD_BLOCK_DOCUMENT;
     if(v.document.blocks[node->parent_index].kind!=expected)failed=1;
    }else if(v.document.blocks[node->parent_index].kind!=SALTS_MD_BLOCK_QUOTE)
@@ -67,23 +67,23 @@ static int check(const fixture *f){
  if(quotes!=f->quotes||lists!=f->lists||
     fences!=(direct_fence?1u:0u))failed=1;
  size_t needed=0,actual=0;
- if(!failed && salts_md_render_html(&v,256u,NULL,0u,&needed)!=SALTS_MD_OK)failed=1;
+ if(!failed && md_render_html(&v,256u,NULL,0u,&needed)!=SALTS_MD_OK)failed=1;
  if(!failed && needed!=strlen(f->html))failed=1;
  if(!failed){
   char *out=(char*)malloc(needed+2u);
   if(!out)failed=1;
   else{
    memset(out,0xa5,needed+2u);
-   if(salts_md_render_html(&v,256u,out,needed,&actual)!=SALTS_MD_CAPACITY_EXCEEDED
+   if(md_render_html(&v,256u,out,needed,&actual)!=SALTS_MD_CAPACITY_EXCEEDED
       ||actual!=needed)failed=1;
    for(size_t i=0;i<needed+2u;++i)if((unsigned char)out[i]!=0xa5u)failed=1;
-   if(!failed && (salts_md_render_html(&v,256u,out,needed+1u,&actual)!=SALTS_MD_OK
+   if(!failed && (md_render_html(&v,256u,out,needed+1u,&actual)!=SALTS_MD_OK
         ||actual!=needed||memcmp(out,f->html,needed+1u)!=0
         ||(unsigned char)out[needed+1u]!=0xa5u))failed=1;
    free(out);
   }
  }
- salts_md_document_destroy(d);
+ md_document_destroy(d);
  if(failed)fprintf(stderr,"Quote/list fixture failed: %s\n",f->id);
  return failed;
 }

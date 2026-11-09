@@ -160,7 +160,7 @@ def git_blob_sha(text: str) -> str:
 
 
 def emit_bool_array(name, entries):
-    lines = [f"static const salts_unicode_line_break_bool_range {name}[] = {{"]
+    lines = [f"static const unicode_line_break_bool_range {name}[] = {{"]
     for first, last in entries:
         lines.append(f"  {{0x{first:06X}u, 0x{last:06X}u}},")
     lines += [
@@ -206,33 +206,33 @@ def main() -> None:
         "#include <stddef.h>",
         "#include <stdint.h>",
         "",
-        "typedef struct salts_unicode_line_break_range {",
+        "typedef struct unicode_line_break_range {",
         "  uint32_t first;",
         "  uint32_t last;",
         "  uint8_t value;",
-        "} salts_unicode_line_break_range;",
+        "} unicode_line_break_range;",
         "",
-        "typedef struct salts_unicode_line_break_bool_range {",
+        "typedef struct unicode_line_break_bool_range {",
         "  uint32_t first;",
         "  uint32_t last;",
-        "} salts_unicode_line_break_bool_range;",
+        "} unicode_line_break_bool_range;",
         "",
-        "static const salts_unicode_line_break_range salts_unicode_line_break_ranges[] = {",
+        "static const unicode_line_break_range unicode_line_break_ranges[] = {",
     ]
     for first, last, value in lb:
         lines.append(f"  {{0x{first:06X}u, 0x{last:06X}u, {value}}},")
     lines += [
         "};",
         "#define SALTS_UNICODE_LINE_BREAK_RANGES_COUNT \\",
-        "  (sizeof(salts_unicode_line_break_ranges) / sizeof(salts_unicode_line_break_ranges[0]))",
+        "  (sizeof(unicode_line_break_ranges) / sizeof(unicode_line_break_ranges[0]))",
         "",
     ]
     for name, entries in (
-        ("salts_unicode_line_break_pi_ranges", pi),
-        ("salts_unicode_line_break_pf_ranges", pf),
-        ("salts_unicode_line_break_mn_mc_ranges", mn_mc),
-        ("salts_unicode_line_break_east_asian_ranges", east_asian),
-        ("salts_unicode_line_break_potential_emoji_ranges", potential_emoji),
+        ("unicode_line_break_pi_ranges", pi),
+        ("unicode_line_break_pf_ranges", pf),
+        ("unicode_line_break_mn_mc_ranges", mn_mc),
+        ("unicode_line_break_east_asian_ranges", east_asian),
+        ("unicode_line_break_potential_emoji_ranges", potential_emoji),
     ):
         lines += emit_bool_array(name, entries)
         lines.append("")

@@ -14,17 +14,18 @@ class View(ctypes.Structure):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("library", type=Path)
+    parser.add_argument("--data-dir", type=Path, default=ROOT.parent / "build/unicode-data/17.0.0")
     parser.add_argument("--dll-directory", action="append", default=[])
     args = parser.parse_args()
     directories = [args.library.resolve().parent, *map(Path, args.dll_directory)]
     handles = [os.add_dll_directory(str(path.resolve())) for path in directories] if os.name == "nt" else []
     library = ctypes.CDLL(str(args.library.resolve()))
-    lookup = library.salts_unicode_name_lookup
+    lookup = library.unicode_name_lookup
     lookup.argtypes = [View, ctypes.POINTER(ctypes.c_uint32)]
     lookup.restype = ctypes.c_int
     checked = 0
     for filename in ("DerivedName.txt", "NameAliases.txt"):
-        for line in (ROOT / "data" / "17.0.0" / filename).read_text(encoding="utf-8").splitlines():
+        for line in (args.data_dir / filename).read_text(encoding="utf-8").splitlines():
             line = line.partition("#")[0].strip()
             if not line:
                 continue

@@ -2,13 +2,13 @@
  * iOS Video Capture Implementation
  *
  * Uses AVCaptureSession and emits contiguous NV12 frames through
- * salts_video_capture_cb.
+ * video_capture_cb.
  */
 
 #import <AVFoundation/AVFoundation.h>
 #import <Foundation/Foundation.h>
 #import "capture_ios_guard.h"
-#include "capture.h"
+#include <capture.h>
 #include "capture_video_ios_backend.h"
 #include <limits.h>
 #include <stdlib.h>
@@ -35,7 +35,7 @@
 @end
 
 typedef struct {
-    salts_capture_t base;
+    capture_t base;
     AVCaptureSession *session;
     AVCaptureDevice *device;
     AVCaptureDeviceInput *input;
@@ -112,7 +112,7 @@ static uint8_t *copy_nv12_frame(ios_video_capture_t *cap,
     return cap->frame_buffer;
 }
 
-int ios_video_start(salts_capture_t *capture) {
+int ios_video_start(capture_t *capture) {
     ios_video_capture_t *cap = (ios_video_capture_t *)capture;
 
     @autoreleasepool {
@@ -121,7 +121,7 @@ int ios_video_start(salts_capture_t *capture) {
     }
 }
 
-void ios_video_stop(salts_capture_t *capture) {
+void ios_video_stop(capture_t *capture) {
     ios_video_capture_t *cap = (ios_video_capture_t *)capture;
 
     @autoreleasepool {
@@ -129,7 +129,7 @@ void ios_video_stop(salts_capture_t *capture) {
     }
 }
 
-void ios_video_destroy(salts_capture_t *capture) {
+void ios_video_destroy(capture_t *capture) {
     ios_video_capture_t *cap = (ios_video_capture_t *)capture;
 
     @autoreleasepool {
@@ -150,14 +150,14 @@ void ios_video_destroy(salts_capture_t *capture) {
 }
 
 static int ios_video_create_fail(ios_video_capture_t *cap) {
-    ios_video_destroy((salts_capture_t *)cap);
+    ios_video_destroy((capture_t *)cap);
     return SALTS_CAPTURE_ERR_DEVICE;
 }
 
 int ios_video_device_create_capture(
     void *backend_ctx,
-    const salts_video_native_mode_t *mode,
-    salts_capture_t **out_capture) {
+    const video_native_mode_t *mode,
+    capture_t **out_capture) {
     ios_video_device_ctx_t *device_ctx =
         (ios_video_device_ctx_t *)backend_ctx;
     uint32_t format_index = (uint32_t)(mode->mode_id >> 32);
@@ -170,7 +170,7 @@ int ios_video_device_create_capture(
 
     @autoreleasepool {
         AVCaptureDevice *device = ios_video_find_device(device_ctx->device_id);
-        salts_video_native_mode_t actual_mode;
+        video_native_mode_t actual_mode;
         AVCaptureDeviceFormat *selected_format = nil;
         CMTime duration = kCMTimeInvalid;
         NSError *error = nil;
@@ -251,7 +251,7 @@ int ios_video_device_create_capture(
             uint8_t *frame = copy_nv12_frame(
                 cap_ref, pixel_buffer, &width, &height, &len);
             if (frame) {
-                cap_ref->base.video_cb((salts_capture_t *)cap_ref, frame, len,
+                cap_ref->base.video_cb((capture_t *)cap_ref, frame, len,
                                        width, height, now_us(),
                                        cap_ref->base.user_data);
             }
@@ -260,7 +260,7 @@ int ios_video_device_create_capture(
             [guard releaseCapture];
         };
 
-        *out_capture = (salts_capture_t *)cap;
+        *out_capture = (capture_t *)cap;
         return SALTS_CAPTURE_OK;
 
     }

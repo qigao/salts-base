@@ -6,8 +6,8 @@
  */
 
 #include "capture_video_backend.h"
-#include "capture.h"
-#include "capture_android.h"
+#include <capture.h>
+#include <capture_android.h>
 
 #include <android/api-level.h>
 #if __ANDROID_API__ < 26
@@ -98,7 +98,7 @@ static uint64_t now_us(void) {
 }
 
 static void android_audio_callback(void *user_data, const int16_t *data, size_t frames) {
-    salts_capture_t *capture = (salts_capture_t *)user_data;
+    capture_t *capture = (capture_t *)user_data;
     if (!capture || !capture->audio_cb || !capture->platform_ctx) return;
 
     android_audio_platform_t *platform = (android_audio_platform_t *)capture->platform_ctx;
@@ -112,13 +112,13 @@ static void android_video_callback(void *user_data,
                                    int width,
                                    int height,
                                    int64_t timestamp_us) {
-    salts_capture_t *capture = (salts_capture_t *)user_data;
+    capture_t *capture = (capture_t *)user_data;
     if (!capture || !capture->video_cb) return;
     capture->video_cb(capture, data, len, width, height,
                       (uint64_t)timestamp_us, capture->user_data);
 }
 
-int salts_capture_list_audio_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_audio_devices(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     memset(&devices[0], 0, sizeof(devices[0]));
@@ -130,7 +130,7 @@ int salts_capture_list_audio_devices(salts_capture_device_t *devices, int max_co
     return 1;
 }
 
-int salts_capture_list_video_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_video_devices(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     memset(&devices[0], 0, sizeof(devices[0]));
@@ -154,7 +154,7 @@ int salts_capture_list_video_devices(salts_capture_device_t *devices, int max_co
 static int android_video_mode_from_metadata(
     const ACameraMetadata *metadata,
     uint64_t mode_id,
-    salts_video_native_mode_t *mode,
+    video_native_mode_t *mode,
     int *out_min_framerate,
     int *out_max_framerate) {
     ACameraMetadata_const_entry configurations;
@@ -309,7 +309,7 @@ static void android_video_device_close(void *backend_ctx) {
 
 static int android_video_device_list_modes(
     void *backend_ctx,
-    salts_video_native_mode_t *modes,
+    video_native_mode_t *modes,
     size_t capacity,
     size_t *out_count) {
     android_video_device_ctx_t *ctx =
@@ -352,7 +352,7 @@ done:
     return SALTS_CAPTURE_OK;
 }
 
-int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
+int capture_list_screens(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     memset(&devices[0], 0, sizeof(devices[0]));
@@ -364,13 +364,13 @@ int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
     return 1;
 }
 
-int salts_capture_list_gpu_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_gpu_devices(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return SALTS_CAPTURE_ERR_NOMEM;
     return 0;
 }
 
-salts_capture_t *salts_audio_capture_create(const char *device_id,
-                                            const salts_audio_capture_config_t *config) {
+capture_t *audio_capture_create(const char *device_id,
+                                            const audio_capture_config_t *config) {
     if ((device_id && device_id[0] && strcmp(device_id, "default") != 0) ||
         (config &&
          ((config->sample_rate != 8000 && config->sample_rate != 16000 &&
@@ -381,7 +381,7 @@ salts_capture_t *salts_audio_capture_create(const char *device_id,
         return NULL;
     }
 
-    salts_capture_t *capture = (salts_capture_t *)calloc(1, sizeof(*capture));
+    capture_t *capture = (capture_t *)calloc(1, sizeof(*capture));
     android_audio_platform_t *platform =
         (android_audio_platform_t *)calloc(1, sizeof(*platform));
     if (!capture || !platform) {
@@ -409,13 +409,13 @@ salts_capture_t *salts_audio_capture_create(const char *device_id,
 
 static int android_video_device_create_capture(
     void *backend_ctx,
-    const salts_video_native_mode_t *mode,
-    salts_capture_t **out_capture) {
+    const video_native_mode_t *mode,
+    capture_t **out_capture) {
     android_video_device_ctx_t *device =
         (android_video_device_ctx_t *)backend_ctx;
     ACameraMetadata *metadata = NULL;
-    salts_video_native_mode_t actual_mode;
-    salts_capture_t *capture;
+    video_native_mode_t actual_mode;
+    capture_t *capture;
     android_video_platform_t *platform;
     int min_framerate = 0;
     int max_framerate = 0;
@@ -441,7 +441,7 @@ static int android_video_device_create_capture(
     }
     ACameraMetadata_free(metadata);
 
-    capture = (salts_capture_t *)calloc(1, sizeof(*capture));
+    capture = (capture_t *)calloc(1, sizeof(*capture));
     platform = (android_video_platform_t *)calloc(1, sizeof(*platform));
     if (!capture || !platform) {
         free(capture);
@@ -466,8 +466,8 @@ static int android_video_device_create_capture(
     return SALTS_CAPTURE_OK;
 }
 
-const salts_video_backend_ops_t *salts_video_platform_backend(void) {
-    static const salts_video_backend_ops_t ops = {
+const video_backend_ops_t *video_platform_backend(void) {
+    static const video_backend_ops_t ops = {
         android_video_device_open,
         android_video_device_close,
         android_video_device_list_modes,
@@ -476,15 +476,15 @@ const salts_video_backend_ops_t *salts_video_platform_backend(void) {
     return &ops;
 }
 
-static int android_screen_capture_create(int width, int height, int framerate,
-                                         salts_capture_t **out_capture) {
+static int android_screen_capture_create_impl(int width, int height, int framerate,
+                                         capture_t **out_capture) {
     if (!out_capture) return SALTS_CAPTURE_ERR_FORMAT;
     *out_capture = NULL;
     if (width <= 0 || height <= 0 || framerate <= 0) {
         return SALTS_CAPTURE_ERR_FORMAT;
     }
 
-    salts_capture_t *capture = (salts_capture_t *)calloc(1, sizeof(*capture));
+    capture_t *capture = (capture_t *)calloc(1, sizeof(*capture));
     android_screen_platform_t *platform =
         (android_screen_platform_t *)calloc(1, sizeof(*platform));
     if (!capture || !platform) {
@@ -509,28 +509,28 @@ static int android_screen_capture_create(int width, int height, int framerate,
     return SALTS_CAPTURE_OK;
 }
 
-salts_capture_t *salts_screen_capture_create(const salts_screen_capture_config_t *config) {
-    salts_capture_t *capture = NULL;
+capture_t *screen_capture_create(const screen_capture_config_t *config) {
+    capture_t *capture = NULL;
     int framerate = (config && config->framerate > 0) ? config->framerate : 30;
-    if (android_screen_capture_create(1280, 720, framerate, &capture) !=
+    if (android_screen_capture_create_impl(1280, 720, framerate, &capture) !=
         SALTS_CAPTURE_OK) {
         return NULL;
     }
     return capture;
 }
 
-int salts_android_screen_capture_create(
-    const salts_android_screen_capture_config_t *config,
-    salts_capture_t **out_capture) {
+int android_screen_capture_create(
+    const android_screen_capture_config_t *config,
+    capture_t **out_capture) {
     if (!out_capture) return SALTS_CAPTURE_ERR_FORMAT;
     *out_capture = NULL;
     if (!config) return SALTS_CAPTURE_ERR_FORMAT;
-    return android_screen_capture_create(config->width, config->height,
+    return android_screen_capture_create_impl(config->width, config->height,
                                          config->framerate, out_capture);
 }
 
-int salts_android_screen_capture_get_surface(JNIEnv *env,
-                                             salts_capture_t *capture,
+int android_screen_capture_get_surface(JNIEnv *env,
+                                             capture_t *capture,
                                              jobject *out_surface) {
     android_screen_platform_t *platform;
     ANativeWindow *window;
@@ -551,8 +551,8 @@ int salts_android_screen_capture_get_surface(JNIEnv *env,
     return *out_surface ? SALTS_CAPTURE_OK : SALTS_CAPTURE_ERR_DEVICE;
 }
 
-int salts_android_screen_capture_get_frame_count(
-    const salts_capture_t *capture, uint64_t *out_frame_count) {
+int android_screen_capture_get_frame_count(
+    const capture_t *capture, uint64_t *out_frame_count) {
     const android_screen_platform_t *platform;
 
     if (!out_frame_count) return SALTS_CAPTURE_ERR_FORMAT;
@@ -568,33 +568,33 @@ int salts_android_screen_capture_get_frame_count(
     return SALTS_CAPTURE_OK;
 }
 
-void salts_audio_capture_set_callback(salts_capture_t *capture,
-                                      salts_audio_capture_cb cb,
+void audio_capture_set_callback(capture_t *capture,
+                                      audio_capture_cb cb,
                                       void *user_data) {
     if (!capture || capture->type != SALTS_CAPTURE_TYPE_AUDIO) return;
     capture->audio_cb = cb;
     capture->user_data = user_data;
 }
 
-void salts_video_capture_set_callback(salts_capture_t *capture,
-                                      salts_video_capture_cb cb,
+void video_capture_set_callback(capture_t *capture,
+                                      video_capture_cb cb,
                                       void *user_data) {
     if (!capture || capture->type != SALTS_CAPTURE_TYPE_VIDEO) return;
     capture->video_cb = cb;
     capture->user_data = user_data;
 }
 
-void salts_screen_capture_set_callback(salts_capture_t *capture,
-                                       salts_video_capture_cb cb,
+void screen_capture_set_callback(capture_t *capture,
+                                       video_capture_cb cb,
                                        void *user_data) {
     if (!capture || capture->type != SALTS_CAPTURE_TYPE_SCREEN) return;
     capture->video_cb = cb;
     capture->user_data = user_data;
 }
 
-int salts_video_capture_get_control_range(salts_capture_t *capture,
-                                          salts_camera_control_t control,
-                                          salts_camera_control_range_t *range) {
+int video_capture_get_control_range(capture_t *capture,
+                                          camera_control_t control,
+                                          camera_control_range_t *range) {
     (void)capture;
     (void)control;
     if (!range) return SALTS_CAPTURE_ERR_DEVICE;
@@ -602,8 +602,8 @@ int salts_video_capture_get_control_range(salts_capture_t *capture,
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_set_control(salts_capture_t *capture,
-                                    salts_camera_control_t control,
+int video_capture_set_control(capture_t *capture,
+                                    camera_control_t control,
                                     int value) {
     (void)capture;
     (void)control;
@@ -611,8 +611,8 @@ int salts_video_capture_set_control(salts_capture_t *capture,
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_get_control(salts_capture_t *capture,
-                                    salts_camera_control_t control,
+int video_capture_get_control(capture_t *capture,
+                                    camera_control_t control,
                                     int *value) {
     (void)capture;
     (void)control;
@@ -620,22 +620,22 @@ int salts_video_capture_get_control(salts_capture_t *capture,
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_set_crop(salts_capture_t *capture,
-                                 const salts_video_crop_t *crop) {
+int video_capture_set_crop(capture_t *capture,
+                                 const video_crop_t *crop) {
     (void)capture;
     (void)crop;
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_get_crop(salts_capture_t *capture,
-                                 salts_video_crop_t *crop) {
+int video_capture_get_crop(capture_t *capture,
+                                 video_crop_t *crop) {
     (void)capture;
     if (!crop) return SALTS_CAPTURE_ERR_DEVICE;
     memset(crop, 0, sizeof(*crop));
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_capture_start(salts_capture_t *capture) {
+int capture_start(capture_t *capture) {
     if (!capture) return -1;
     if (capture->state == SALTS_CAPTURE_STATE_RUNNING) return 0;
 
@@ -681,7 +681,7 @@ int salts_capture_start(salts_capture_t *capture) {
     return result;
 }
 
-void salts_capture_stop(salts_capture_t *capture) {
+void capture_stop(capture_t *capture) {
     if (!capture || capture->state == SALTS_CAPTURE_STATE_STOPPED) return;
 
     capture->state = SALTS_CAPTURE_STATE_STOPPING;
@@ -715,7 +715,7 @@ void salts_capture_stop(salts_capture_t *capture) {
     }
 }
 
-void salts_capture_destroy(salts_capture_t *capture) {
+void capture_destroy(capture_t *capture) {
     if (!capture) return;
 
     switch (capture->type) {
@@ -753,10 +753,10 @@ void salts_capture_destroy(salts_capture_t *capture) {
     free(capture);
 }
 
-salts_capture_state_t salts_capture_get_state(salts_capture_t *capture) {
+capture_state_t capture_get_state(capture_t *capture) {
     return capture ? capture->state : SALTS_CAPTURE_STATE_STOPPED;
 }
 
-void salts_capture_on_state(salts_capture_t *capture, salts_capture_state_cb cb) {
+void capture_on_state(capture_t *capture, capture_state_cb cb) {
     if (capture) capture->state_cb = cb;
 }

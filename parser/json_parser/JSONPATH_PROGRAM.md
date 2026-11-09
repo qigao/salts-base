@@ -52,7 +52,7 @@ draft 或 Goessner 语法完全一致。
   支持负数（相对数组尾部），step 为 0 时结果为空列表；step > 0 升序、step < 0
   降序取元素；只作用于数组，对对象返回空；
 - 比较 `== != < <= > >=`，逻辑 `&& || !`，字面量：布尔、数字、字符串、`/.../ `；
-- `~` 为有界字节级正则匹配（内置 `re` 引擎，`utils/include/re.h`）：支持
+- `~` 为有界字节级正则匹配（内置 `re` 引擎，`utils/include/salts/re.h`）：支持
   `.` `^` `$` `*` `+` `?`、区间量词 `{m}` `{m,}` `{m,n}`、惰性量词 `*?` `+?` `??`、
   字符类 `[...]`、取反类 `[^...]`、范围 `[a-z]`、分支 `|`、分组 `()`、
   非捕获组 `(?:...)`、词边界 `\b \B`、正/负 lookahead `(?=...)` `(?!...)`、
@@ -145,7 +145,7 @@ program GET_KEY -> json_object_get_hashed_v()
 
 ## SIMD 使用
 
-SIMD 统一走 vcpkg 的 SIMDe 头（`simde/x86/sse2.h`），不写平台 intrinsic；
+SIMD 统一走 vcpkg-cache 安装的 SIMDe 头（`simde/x86/sse2.h`），不写平台 intrinsic；
 默认 fail fast，SIMDe 函数在非 x86 构建下降为可移植 C，尾部未对齐字节回退到
 同语义标量函数，两者都有等价性测试。
 

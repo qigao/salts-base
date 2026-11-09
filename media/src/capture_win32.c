@@ -20,27 +20,27 @@
 
 
 #endif /* _WIN32 */
-#include "capture.h"
+#include <capture.h>
 
 #ifdef _WIN32
 
 /* Internal hooks from specific implementations */
 /* Audio: uses miniaudio (cross-platform) */
-extern int miniaudio_audio_start(salts_capture_t *capture);
-extern void miniaudio_audio_stop(salts_capture_t *capture);
-extern void miniaudio_audio_destroy(salts_capture_t *capture);
+extern int miniaudio_audio_start(capture_t *capture);
+extern void miniaudio_audio_stop(capture_t *capture);
+extern void miniaudio_audio_destroy(capture_t *capture);
 
 /* Video: uses Media Foundation */
-extern int mf_video_start(salts_capture_t *capture);
-extern void mf_video_stop(salts_capture_t *capture);
-extern void mf_video_destroy(salts_capture_t *capture);
+extern int mf_video_start(capture_t *capture);
+extern void mf_video_stop(capture_t *capture);
+extern void mf_video_destroy(capture_t *capture);
 
 /* Screen: uses DXGI Desktop Duplication */
-extern int dxgi_screen_start(salts_capture_t *capture);
-extern void dxgi_screen_stop(salts_capture_t *capture);
-extern void dxgi_screen_destroy(salts_capture_t *capture);
+extern int dxgi_screen_start(capture_t *capture);
+extern void dxgi_screen_stop(capture_t *capture);
+extern void dxgi_screen_destroy(capture_t *capture);
 
-int salts_capture_start(salts_capture_t *capture) {
+int capture_start(capture_t *capture) {
   if (!capture) return -1;
   if (capture->state == SALTS_CAPTURE_STATE_RUNNING) return 0;
 
@@ -73,7 +73,7 @@ int salts_capture_start(salts_capture_t *capture) {
   return res;
 }
 
-void salts_capture_stop(salts_capture_t *capture) {
+void capture_stop(capture_t *capture) {
   if (!capture || capture->state == SALTS_CAPTURE_STATE_STOPPED) return;
 
   capture->state = SALTS_CAPTURE_STATE_STOPPING;
@@ -96,7 +96,7 @@ void salts_capture_stop(salts_capture_t *capture) {
   }
 }
 
-void salts_capture_destroy(salts_capture_t *capture) {
+void capture_destroy(capture_t *capture) {
   if (!capture) return;
 
   switch (capture->type) {
@@ -112,11 +112,11 @@ void salts_capture_destroy(salts_capture_t *capture) {
   }
 }
 
-salts_capture_state_t salts_capture_get_state(salts_capture_t *capture) {
+capture_state_t capture_get_state(capture_t *capture) {
   return capture ? capture->state : SALTS_CAPTURE_STATE_STOPPED;
 }
 
-void salts_capture_on_state(salts_capture_t *capture, salts_capture_state_cb cb) {
+void capture_on_state(capture_t *capture, capture_state_cb cb) {
   if (capture) capture->state_cb = cb;
 }
 

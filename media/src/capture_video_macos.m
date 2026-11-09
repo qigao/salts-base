@@ -32,7 +32,7 @@ static uint64_t get_timestamp_us(void) {
  * ============================================================================= */
 
 @interface SaltsVideoCaptureDelegate : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
-@property (nonatomic, assign) salts_capture_t *capture;
+@property (nonatomic, assign) capture_t *capture;
 @property (nonatomic, assign) int width;
 @property (nonatomic, assign) int height;
 @property (nonatomic, assign) uint8_t *convertBuffer;
@@ -122,7 +122,7 @@ typedef struct {
     char device_id[128];
 } avf_video_device_ctx_t;
 
-void avfoundation_video_destroy(salts_capture_t *capture);
+void avfoundation_video_destroy(capture_t *capture);
 
 static AVCaptureDevice *avf_find_video_device(const char *device_id) {
     if (device_id && device_id[0]) {
@@ -144,7 +144,7 @@ static int avf_make_mode(AVCaptureDevice *device,
                          uint32_t format_index,
                          uint32_t range_index,
                          uint32_t endpoint,
-                         salts_video_native_mode_t *mode,
+                         video_native_mode_t *mode,
                          AVCaptureDeviceFormat **out_format,
                          CMTime *out_duration) {
     if (!device || !mode || endpoint > 1 ||
@@ -180,8 +180,8 @@ static int avf_make_mode(AVCaptureDevice *device,
     return SALTS_CAPTURE_OK;
 }
 
-static int avf_modes_equal(const salts_video_native_mode_t *lhs,
-                           const salts_video_native_mode_t *rhs) {
+static int avf_modes_equal(const video_native_mode_t *lhs,
+                           const video_native_mode_t *rhs) {
     return lhs->width == rhs->width && lhs->height == rhs->height &&
            lhs->framerate_numerator == rhs->framerate_numerator &&
            lhs->framerate_denominator == rhs->framerate_denominator &&
@@ -192,7 +192,7 @@ static int avf_modes_equal(const salts_video_native_mode_t *lhs,
  * Device Enumeration
  * ============================================================================= */
 
-int salts_capture_list_video_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_video_devices(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     @autoreleasepool {
@@ -210,7 +210,7 @@ int salts_capture_list_video_devices(salts_capture_device_t *devices, int max_co
         for (AVCaptureDevice *device in videoDevices) {
             if (count >= max_count) break;
 
-            salts_capture_device_t *dev = &devices[count];
+            capture_device_t *dev = &devices[count];
             memset(dev, 0, sizeof(*dev));
 
             dev->index = count;
@@ -262,7 +262,7 @@ static void avf_video_device_close(void *backend_ctx) {
 
 static int avf_video_device_list_modes(
     void *backend_ctx,
-    salts_video_native_mode_t *modes,
+    video_native_mode_t *modes,
     size_t capacity,
     size_t *out_count) {
     avf_video_device_ctx_t *ctx = (avf_video_device_ctx_t *)backend_ctx;
@@ -313,8 +313,8 @@ done:
 
 static int avf_video_device_create_capture(
     void *backend_ctx,
-    const salts_video_native_mode_t *mode,
-    salts_capture_t **out_capture) {
+    const video_native_mode_t *mode,
+    capture_t **out_capture) {
     avf_video_device_ctx_t *device_ctx =
         (avf_video_device_ctx_t *)backend_ctx;
     uint32_t format_index = (uint32_t)(mode->mode_id >> 32);
@@ -327,11 +327,11 @@ static int avf_video_device_create_capture(
 
     @autoreleasepool {
         AVCaptureDevice *device = avf_find_video_device(device_ctx->device_id);
-        salts_video_native_mode_t actual_mode;
+        video_native_mode_t actual_mode;
         AVCaptureDeviceFormat *selected_format = nil;
         CMTime duration = kCMTimeInvalid;
         NSError *error = nil;
-        salts_capture_t *capture;
+        capture_t *capture;
         avf_video_ctx_t *ctx;
 
         if (!device ||
@@ -342,7 +342,7 @@ static int avf_video_device_create_capture(
             return SALTS_CAPTURE_ERR_FORMAT;
         }
 
-        capture = (salts_capture_t *)calloc(1, sizeof(*capture));
+        capture = (capture_t *)calloc(1, sizeof(*capture));
         ctx = (avf_video_ctx_t *)calloc(1, sizeof(*ctx));
         if (!capture || !ctx) {
             free(capture);
@@ -398,8 +398,8 @@ error:
     }
 }
 
-const salts_video_backend_ops_t *salts_video_platform_backend(void) {
-    static const salts_video_backend_ops_t ops = {
+const video_backend_ops_t *video_platform_backend(void) {
+    static const video_backend_ops_t ops = {
         avf_video_device_open,
         avf_video_device_close,
         avf_video_device_list_modes,
@@ -408,8 +408,8 @@ const salts_video_backend_ops_t *salts_video_platform_backend(void) {
     return &ops;
 }
 
-void salts_video_capture_set_callback(salts_capture_t *capture,
-                                       salts_video_capture_cb cb,
+void video_capture_set_callback(capture_t *capture,
+                                       video_capture_cb cb,
                                        void *user_data) {
     if (!capture) return;
     capture->video_cb = cb;
@@ -420,7 +420,7 @@ void salts_video_capture_set_callback(salts_capture_t *capture,
  * Platform Hooks
  * ============================================================================= */
 
-int avfoundation_video_start(salts_capture_t *capture) {
+int avfoundation_video_start(capture_t *capture) {
     if (!capture || !capture->platform_ctx) return -1;
     avf_video_ctx_t *ctx = (avf_video_ctx_t *)capture->platform_ctx;
 
@@ -432,7 +432,7 @@ int avfoundation_video_start(salts_capture_t *capture) {
     }
 }
 
-void avfoundation_video_stop(salts_capture_t *capture) {
+void avfoundation_video_stop(capture_t *capture) {
     if (!capture || !capture->platform_ctx) return;
     avf_video_ctx_t *ctx = (avf_video_ctx_t *)capture->platform_ctx;
 
@@ -443,7 +443,7 @@ void avfoundation_video_stop(salts_capture_t *capture) {
     }
 }
 
-void avfoundation_video_destroy(salts_capture_t *capture) {
+void avfoundation_video_destroy(capture_t *capture) {
     if (!capture) return;
 
     avfoundation_video_stop(capture);
@@ -467,9 +467,9 @@ void avfoundation_video_destroy(salts_capture_t *capture) {
     free(capture);
 }
 
-int salts_video_capture_get_control_range(salts_capture_t *capture,
-                                           salts_camera_control_t control,
-                                           salts_camera_control_range_t *range) {
+int video_capture_get_control_range(capture_t *capture,
+                                           camera_control_t control,
+                                           camera_control_range_t *range) {
     (void)capture;
     (void)control;
     if (!range) return SALTS_CAPTURE_ERR_DEVICE;
@@ -477,8 +477,8 @@ int salts_video_capture_get_control_range(salts_capture_t *capture,
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_set_control(salts_capture_t *capture,
-                                     salts_camera_control_t control,
+int video_capture_set_control(capture_t *capture,
+                                     camera_control_t control,
                                      int value) {
     (void)capture;
     (void)control;
@@ -486,8 +486,8 @@ int salts_video_capture_set_control(salts_capture_t *capture,
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_get_control(salts_capture_t *capture,
-                                     salts_camera_control_t control,
+int video_capture_get_control(capture_t *capture,
+                                     camera_control_t control,
                                      int *value) {
     (void)capture;
     (void)control;
@@ -495,15 +495,15 @@ int salts_video_capture_get_control(salts_capture_t *capture,
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_set_crop(salts_capture_t *capture,
-                                  const salts_video_crop_t *crop) {
+int video_capture_set_crop(capture_t *capture,
+                                  const video_crop_t *crop) {
     (void)capture;
     (void)crop;
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_get_crop(salts_capture_t *capture,
-                                  salts_video_crop_t *crop) {
+int video_capture_get_crop(capture_t *capture,
+                                  video_crop_t *crop) {
     (void)capture;
     if (!crop) return SALTS_CAPTURE_ERR_DEVICE;
     memset(crop, 0, sizeof(*crop));

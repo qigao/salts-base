@@ -351,6 +351,6 @@ int main(void) {
   CHECK(test_same_device_restart(id) == 0);
   CHECK(test_held_native_callback_stop_barrier(id) == 0);
   CHECK(test_held_native_callback_destroy_barrier(id) == 0);
-  puts("PASS self-contained SaltsUtils source-Tsan native callback regression");
+  puts("PASS self-contained SaltsBase source-Tsan native callback regression");
   return 0;
 }

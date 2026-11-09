@@ -4,35 +4,31 @@
 
 #include <string.h>
 
-static simde_v128_t cmeta_simd_load_value(const cmeta_v128 *value) {
+static simde_v128_t simd_load_value(const v128 *value) {
     return simde_wasm_v128_load(value->bytes);
 }
 
-static void cmeta_simd_store_value(cmeta_v128 *out, simde_v128_t value) {
+static void simd_store_value(v128 *out, simde_v128_t value) {
     simde_wasm_v128_store(out->bytes, value);
 }
 
-static bool cmeta_simd_desc_valid(const salts_simd_desc *desc) {
-    return desc != NULL && salts_simd_desc_valid(desc);
-}
-
-void cmeta_simd_v128_load(cmeta_v128 *out, const void *source) {
+void simd_v128_load(v128 *out, const void *source) {
     if (out == NULL || source == NULL) return;
-    cmeta_simd_store_value(out, simde_wasm_v128_load(source));
+    simd_store_value(out, simde_wasm_v128_load(source));
 }
 
-void cmeta_simd_v128_store(void *destination, const cmeta_v128 *value) {
+void simd_v128_store(void *destination, const v128 *value) {
     if (destination == NULL || value == NULL) return;
-    simde_wasm_v128_store(destination, cmeta_simd_load_value(value));
+    simde_wasm_v128_store(destination, simd_load_value(value));
 }
 
 
-bool cmeta_simd_load_splat(const salts_simd_desc *desc,
-                           cmeta_v128 *out,
+bool simd_load_splat(const simd_desc *desc,
+                           v128 *out,
                            const void *source) {
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(desc) || desc->is_mask ||
+    if (!simd_desc_valid(desc) || desc->is_mask ||
         out == NULL || source == NULL)
         return false;
 
@@ -53,17 +49,17 @@ bool cmeta_simd_load_splat(const salts_simd_desc *desc,
             return false;
     }
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
-bool cmeta_simd_load_extend(const salts_simd_desc *desc,
-                            cmeta_v128 *out,
+bool simd_load_extend(const simd_desc *desc,
+                            v128 *out,
                             const void *source) {
     simde_v128_t low;
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(desc) || desc->is_mask ||
+    if (!simd_desc_valid(desc) || desc->is_mask ||
         out == NULL || source == NULL)
         return false;
 
@@ -92,12 +88,12 @@ bool cmeta_simd_load_extend(const salts_simd_desc *desc,
             return false;
     }
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
-bool cmeta_simd_load_zero(uint16_t loaded_bits,
-                          cmeta_v128 *out,
+bool simd_load_zero(uint16_t loaded_bits,
+                          v128 *out,
                           const void *source) {
     simde_v128_t result;
 
@@ -111,23 +107,23 @@ bool cmeta_simd_load_zero(uint16_t loaded_bits,
     else
         return false;
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
-bool cmeta_simd_extract_lane(const salts_simd_desc *desc,
-                             const cmeta_v128 *value,
+bool simd_extract_lane(const simd_desc *desc,
+                             const v128 *value,
                              uint16_t lane,
-                             cmeta_simd_scalar *out) {
+                             simd_scalar *out) {
     simde_v128_private private_value;
 
-    if (!cmeta_simd_desc_valid(desc) || desc->is_mask ||
+    if (!simd_desc_valid(desc) || desc->is_mask ||
         value == NULL || out == NULL ||
         lane >= desc->lane_count)
         return false;
 
     private_value = simde_v128_to_private(
-        cmeta_simd_load_value(value));
+        simd_load_value(value));
 
     switch (desc->lane_kind) {
         case SALTS_SIMD_LANE_I8:
@@ -166,20 +162,20 @@ bool cmeta_simd_extract_lane(const salts_simd_desc *desc,
     }
 }
 
-bool cmeta_simd_replace_lane(const salts_simd_desc *desc,
-                             cmeta_v128 *out,
-                             const cmeta_v128 *value,
+bool simd_replace_lane(const simd_desc *desc,
+                             v128 *out,
+                             const v128 *value,
                              uint16_t lane,
-                             cmeta_simd_scalar scalar) {
+                             simd_scalar scalar) {
     simde_v128_private private_value;
 
-    if (!cmeta_simd_desc_valid(desc) || desc->is_mask ||
+    if (!simd_desc_valid(desc) || desc->is_mask ||
         out == NULL || value == NULL ||
         lane >= desc->lane_count)
         return false;
 
     private_value = simde_v128_to_private(
-        cmeta_simd_load_value(value));
+        simd_load_value(value));
 
     switch (desc->lane_kind) {
         case SALTS_SIMD_LANE_I8:
@@ -217,14 +213,14 @@ bool cmeta_simd_replace_lane(const salts_simd_desc *desc,
             return false;
     }
 
-    cmeta_simd_store_value(
+    simd_store_value(
         out, simde_v128_from_private(private_value));
     return true;
 }
 
-bool cmeta_simd_shuffle_bytes(cmeta_v128 *out,
-                              const cmeta_v128 *left,
-                              const cmeta_v128 *right,
+bool simd_shuffle_bytes(v128 *out,
+                              const v128 *left,
+                              const v128 *right,
                               const uint8_t lanes[16]) {
     simde_v128_private left_private;
     simde_v128_private right_private;
@@ -236,9 +232,9 @@ bool cmeta_simd_shuffle_bytes(cmeta_v128 *out,
         return false;
 
     left_private = simde_v128_to_private(
-        cmeta_simd_load_value(left));
+        simd_load_value(left));
     right_private = simde_v128_to_private(
-        cmeta_simd_load_value(right));
+        simd_load_value(right));
 
     for (index = 0u; index < 16u; ++index) {
         uint8_t lane = lanes[index];
@@ -250,14 +246,14 @@ bool cmeta_simd_shuffle_bytes(cmeta_v128 *out,
                 : right_private.u8[lane - 16u];
     }
 
-    cmeta_simd_store_value(
+    simd_store_value(
         out, simde_v128_from_private(result_private));
     return true;
 }
 
-bool cmeta_simd_swizzle_bytes(cmeta_v128 *out,
-                              const cmeta_v128 *value,
-                              const cmeta_v128 *indices) {
+bool simd_swizzle_bytes(v128 *out,
+                              const v128 *value,
+                              const v128 *indices) {
     simde_v128_private value_private;
     simde_v128_private index_private;
     simde_v128_private result_private;
@@ -267,9 +263,9 @@ bool cmeta_simd_swizzle_bytes(cmeta_v128 *out,
         return false;
 
     value_private = simde_v128_to_private(
-        cmeta_simd_load_value(value));
+        simd_load_value(value));
     index_private = simde_v128_to_private(
-        cmeta_simd_load_value(indices));
+        simd_load_value(indices));
 
     for (index = 0u; index < 16u; ++index) {
         uint8_t lane = index_private.u8[index];
@@ -277,17 +273,17 @@ bool cmeta_simd_swizzle_bytes(cmeta_v128 *out,
             lane < 16u ? value_private.u8[lane] : 0u;
     }
 
-    cmeta_simd_store_value(
+    simd_store_value(
         out, simde_v128_from_private(result_private));
     return true;
 }
 
-bool cmeta_simd_splat(const salts_simd_desc *desc,
-                      cmeta_v128 *out,
-                      cmeta_simd_scalar scalar) {
+bool simd_splat(const simd_desc *desc,
+                      v128 *out,
+                      simd_scalar scalar) {
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(desc) || desc->is_mask || out == NULL)
+    if (!simd_desc_valid(desc) || desc->is_mask || out == NULL)
         return false;
 
     switch (desc->lane_kind) {
@@ -338,24 +334,24 @@ bool cmeta_simd_splat(const salts_simd_desc *desc,
             return false;
     }
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
-bool cmeta_simd_unary(const salts_simd_desc *desc,
-                      cmeta_simd_unary_op op,
-                      cmeta_v128 *out,
-                      const cmeta_v128 *value) {
+bool simd_unary(const simd_desc *desc,
+                      simd_unary_op op,
+                      v128 *out,
+                      const v128 *value) {
     simde_v128_t input;
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(desc) || out == NULL || value == NULL)
+    if (!simd_desc_valid(desc) || out == NULL || value == NULL)
         return false;
 
-    input = cmeta_simd_load_value(value);
+    input = simd_load_value(value);
 
     if (op == SALTS_SIMD_UNARY_NOT) {
-        cmeta_simd_store_value(out, simde_wasm_v128_not(input));
+        simd_store_value(out, simde_wasm_v128_not(input));
         return true;
     }
     if (desc->is_mask)
@@ -446,38 +442,38 @@ bool cmeta_simd_unary(const salts_simd_desc *desc,
             return false;
     }
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
-bool cmeta_simd_binary(const salts_simd_desc *desc,
-                       cmeta_simd_binary_op op,
-                       cmeta_v128 *out,
-                       const cmeta_v128 *left,
-                       const cmeta_v128 *right) {
+bool simd_binary(const simd_desc *desc,
+                       simd_binary_op op,
+                       v128 *out,
+                       const v128 *left,
+                       const v128 *right) {
     simde_v128_t a;
     simde_v128_t b;
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(desc) ||
+    if (!simd_desc_valid(desc) ||
         out == NULL || left == NULL || right == NULL)
         return false;
 
-    a = cmeta_simd_load_value(left);
-    b = cmeta_simd_load_value(right);
+    a = simd_load_value(left);
+    b = simd_load_value(right);
 
     switch (op) {
         case SALTS_SIMD_BINARY_AND:
-            cmeta_simd_store_value(out, simde_wasm_v128_and(a, b));
+            simd_store_value(out, simde_wasm_v128_and(a, b));
             return true;
         case SALTS_SIMD_BINARY_AND_NOT:
-            cmeta_simd_store_value(out, simde_wasm_v128_andnot(a, b));
+            simd_store_value(out, simde_wasm_v128_andnot(a, b));
             return true;
         case SALTS_SIMD_BINARY_OR:
-            cmeta_simd_store_value(out, simde_wasm_v128_or(a, b));
+            simd_store_value(out, simde_wasm_v128_or(a, b));
             return true;
         case SALTS_SIMD_BINARY_XOR:
-            cmeta_simd_store_value(out, simde_wasm_v128_xor(a, b));
+            simd_store_value(out, simde_wasm_v128_xor(a, b));
             return true;
         default:
             break;
@@ -610,12 +606,12 @@ bool cmeta_simd_binary(const salts_simd_desc *desc,
             return false;
     }
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
-static bool cmeta_simd_compare_i8(salts_simd_lane_kind lane_kind,
-                                  cmeta_simd_compare_op op,
+static bool simd_compare_i8(simd_lane_kind lane_kind,
+                                  simd_compare_op op,
                                   simde_v128_t a,
                                   simde_v128_t b,
                                   simde_v128_t *out) {
@@ -645,8 +641,8 @@ static bool cmeta_simd_compare_i8(salts_simd_lane_kind lane_kind,
     }
 }
 
-static bool cmeta_simd_compare_i16(salts_simd_lane_kind lane_kind,
-                                   cmeta_simd_compare_op op,
+static bool simd_compare_i16(simd_lane_kind lane_kind,
+                                   simd_compare_op op,
                                    simde_v128_t a,
                                    simde_v128_t b,
                                    simde_v128_t *out) {
@@ -676,8 +672,8 @@ static bool cmeta_simd_compare_i16(salts_simd_lane_kind lane_kind,
     }
 }
 
-static bool cmeta_simd_compare_i32(salts_simd_lane_kind lane_kind,
-                                   cmeta_simd_compare_op op,
+static bool simd_compare_i32(simd_lane_kind lane_kind,
+                                   simd_compare_op op,
                                    simde_v128_t a,
                                    simde_v128_t b,
                                    simde_v128_t *out) {
@@ -707,8 +703,8 @@ static bool cmeta_simd_compare_i32(salts_simd_lane_kind lane_kind,
     }
 }
 
-static bool cmeta_simd_compare_i64(salts_simd_lane_kind lane_kind,
-                                   cmeta_simd_compare_op op,
+static bool simd_compare_i64(simd_lane_kind lane_kind,
+                                   simd_compare_op op,
                                    simde_v128_t a,
                                    simde_v128_t b,
                                    simde_v128_t *out) {
@@ -731,7 +727,7 @@ static bool cmeta_simd_compare_i64(salts_simd_lane_kind lane_kind,
     }
 }
 
-static bool cmeta_simd_compare_f32(cmeta_simd_compare_op op,
+static bool simd_compare_f32(simd_compare_op op,
                                    simde_v128_t a,
                                    simde_v128_t b,
                                    simde_v128_t *out) {
@@ -746,7 +742,7 @@ static bool cmeta_simd_compare_f32(cmeta_simd_compare_op op,
     }
 }
 
-static bool cmeta_simd_compare_f64(cmeta_simd_compare_op op,
+static bool simd_compare_f64(simd_compare_op op,
                                    simde_v128_t a,
                                    simde_v128_t b,
                                    simde_v128_t *out) {
@@ -761,45 +757,45 @@ static bool cmeta_simd_compare_f64(cmeta_simd_compare_op op,
     }
 }
 
-bool cmeta_simd_compare(const salts_simd_desc *desc,
-                        cmeta_simd_compare_op op,
-                        cmeta_v128 *out_mask,
-                        const cmeta_v128 *left,
-                        const cmeta_v128 *right) {
+bool simd_compare(const simd_desc *desc,
+                        simd_compare_op op,
+                        v128 *out_mask,
+                        const v128 *left,
+                        const v128 *right) {
     simde_v128_t a;
     simde_v128_t b;
     simde_v128_t result;
     bool supported;
 
-    if (!cmeta_simd_desc_valid(desc) || desc->is_mask ||
+    if (!simd_desc_valid(desc) || desc->is_mask ||
         out_mask == NULL || left == NULL || right == NULL)
         return false;
 
-    a = cmeta_simd_load_value(left);
-    b = cmeta_simd_load_value(right);
+    a = simd_load_value(left);
+    b = simd_load_value(right);
 
     switch (desc->lane_kind) {
         case SALTS_SIMD_LANE_I8:
         case SALTS_SIMD_LANE_U8:
-            supported = cmeta_simd_compare_i8(desc->lane_kind, op, a, b, &result);
+            supported = simd_compare_i8(desc->lane_kind, op, a, b, &result);
             break;
         case SALTS_SIMD_LANE_I16:
         case SALTS_SIMD_LANE_U16:
-            supported = cmeta_simd_compare_i16(desc->lane_kind, op, a, b, &result);
+            supported = simd_compare_i16(desc->lane_kind, op, a, b, &result);
             break;
         case SALTS_SIMD_LANE_I32:
         case SALTS_SIMD_LANE_U32:
-            supported = cmeta_simd_compare_i32(desc->lane_kind, op, a, b, &result);
+            supported = simd_compare_i32(desc->lane_kind, op, a, b, &result);
             break;
         case SALTS_SIMD_LANE_I64:
         case SALTS_SIMD_LANE_U64:
-            supported = cmeta_simd_compare_i64(desc->lane_kind, op, a, b, &result);
+            supported = simd_compare_i64(desc->lane_kind, op, a, b, &result);
             break;
         case SALTS_SIMD_LANE_F32:
-            supported = cmeta_simd_compare_f32(op, a, b, &result);
+            supported = simd_compare_f32(op, a, b, &result);
             break;
         case SALTS_SIMD_LANE_F64:
-            supported = cmeta_simd_compare_f64(op, a, b, &result);
+            supported = simd_compare_f64(op, a, b, &result);
             break;
         case SALTS_SIMD_LANE_BOOL:
         default:
@@ -810,29 +806,29 @@ bool cmeta_simd_compare(const salts_simd_desc *desc,
     if (!supported)
         return false;
 
-    cmeta_simd_store_value(out_mask, result);
+    simd_store_value(out_mask, result);
     return true;
 }
 
-bool cmeta_simd_saturating_binary(
-    const salts_simd_desc *desc,
-    cmeta_simd_saturating_op op,
-    cmeta_v128 *out,
-    const cmeta_v128 *left,
-    const cmeta_v128 *right) {
+bool simd_saturating_binary(
+    const simd_desc *desc,
+    simd_saturating_op op,
+    v128 *out,
+    const v128 *left,
+    const v128 *right) {
     simde_v128_t a;
     simde_v128_t b;
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(desc) || desc->is_mask ||
+    if (!simd_desc_valid(desc) || desc->is_mask ||
         out == NULL || left == NULL || right == NULL)
         return false;
     if (op != SALTS_SIMD_SATURATING_ADD &&
         op != SALTS_SIMD_SATURATING_SUB)
         return false;
 
-    a = cmeta_simd_load_value(left);
-    b = cmeta_simd_load_value(right);
+    a = simd_load_value(left);
+    b = simd_load_value(right);
 
     switch (desc->lane_kind) {
         case SALTS_SIMD_LANE_I8:
@@ -859,20 +855,20 @@ bool cmeta_simd_saturating_binary(
             return false;
     }
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
-bool cmeta_simd_reduce(const salts_simd_desc *desc,
-                       cmeta_simd_reduce_op op,
-                       const cmeta_v128 *value,
+bool simd_reduce(const simd_desc *desc,
+                       simd_reduce_op op,
+                       const v128 *value,
                        uint32_t *out) {
     simde_v128_t input;
 
-    if (!cmeta_simd_desc_valid(desc) || value == NULL || out == NULL)
+    if (!simd_desc_valid(desc) || value == NULL || out == NULL)
         return false;
 
-    input = cmeta_simd_load_value(value);
+    input = simd_load_value(value);
 
     if (op == SALTS_SIMD_REDUCE_ANY_TRUE) {
         *out = simde_wasm_v128_any_true(input) ? 1u : 0u;
@@ -911,20 +907,20 @@ bool cmeta_simd_reduce(const salts_simd_desc *desc,
 }
 
 
-bool cmeta_simd_narrow(const salts_simd_desc *dst_desc,
-                       cmeta_v128 *out,
-                       const cmeta_v128 *low,
-                       const cmeta_v128 *high) {
+bool simd_narrow(const simd_desc *dst_desc,
+                       v128 *out,
+                       const v128 *low,
+                       const v128 *high) {
     simde_v128_t a;
     simde_v128_t b;
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(dst_desc) || dst_desc->is_mask ||
+    if (!simd_desc_valid(dst_desc) || dst_desc->is_mask ||
         out == NULL || low == NULL || high == NULL)
         return false;
 
-    a = cmeta_simd_load_value(low);
-    b = cmeta_simd_load_value(high);
+    a = simd_load_value(low);
+    b = simd_load_value(high);
 
     switch (dst_desc->lane_kind) {
         case SALTS_SIMD_LANE_I8:
@@ -943,23 +939,23 @@ bool cmeta_simd_narrow(const salts_simd_desc *dst_desc,
             return false;
     }
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
-bool cmeta_simd_extend_half(const salts_simd_desc *dst_desc,
-                            cmeta_simd_half half,
-                            cmeta_v128 *out,
-                            const cmeta_v128 *value) {
+bool simd_extend_half(const simd_desc *dst_desc,
+                            simd_half half,
+                            v128 *out,
+                            const v128 *value) {
     simde_v128_t input;
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(dst_desc) || dst_desc->is_mask ||
+    if (!simd_desc_valid(dst_desc) || dst_desc->is_mask ||
         out == NULL || value == NULL ||
         (half != SALTS_SIMD_HALF_LOW && half != SALTS_SIMD_HALF_HIGH))
         return false;
 
-    input = cmeta_simd_load_value(value);
+    input = simd_load_value(value);
 
     switch (dst_desc->lane_kind) {
         case SALTS_SIMD_LANE_I16:
@@ -996,26 +992,26 @@ bool cmeta_simd_extend_half(const salts_simd_desc *dst_desc,
             return false;
     }
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
-bool cmeta_simd_extmul_half(const salts_simd_desc *dst_desc,
-                            cmeta_simd_half half,
-                            cmeta_v128 *out,
-                            const cmeta_v128 *left,
-                            const cmeta_v128 *right) {
+bool simd_extmul_half(const simd_desc *dst_desc,
+                            simd_half half,
+                            v128 *out,
+                            const v128 *left,
+                            const v128 *right) {
     simde_v128_t a;
     simde_v128_t b;
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(dst_desc) || dst_desc->is_mask ||
+    if (!simd_desc_valid(dst_desc) || dst_desc->is_mask ||
         out == NULL || left == NULL || right == NULL ||
         (half != SALTS_SIMD_HALF_LOW && half != SALTS_SIMD_HALF_HIGH))
         return false;
 
-    a = cmeta_simd_load_value(left);
-    b = cmeta_simd_load_value(right);
+    a = simd_load_value(left);
+    b = simd_load_value(right);
 
     switch (dst_desc->lane_kind) {
         case SALTS_SIMD_LANE_I16:
@@ -1052,21 +1048,21 @@ bool cmeta_simd_extmul_half(const salts_simd_desc *dst_desc,
             return false;
     }
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
-bool cmeta_simd_extadd_pairwise(const salts_simd_desc *dst_desc,
-                                cmeta_v128 *out,
-                                const cmeta_v128 *value) {
+bool simd_extadd_pairwise(const simd_desc *dst_desc,
+                                v128 *out,
+                                const v128 *value) {
     simde_v128_t input;
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(dst_desc) || dst_desc->is_mask ||
+    if (!simd_desc_valid(dst_desc) || dst_desc->is_mask ||
         out == NULL || value == NULL)
         return false;
 
-    input = cmeta_simd_load_value(value);
+    input = simd_load_value(value);
 
     switch (dst_desc->lane_kind) {
         case SALTS_SIMD_LANE_I16:
@@ -1085,63 +1081,63 @@ bool cmeta_simd_extadd_pairwise(const salts_simd_desc *dst_desc,
             return false;
     }
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
 
-bool cmeta_simd_q15mulr_sat(const salts_simd_desc *desc,
-                            cmeta_v128 *out,
-                            const cmeta_v128 *left,
-                            const cmeta_v128 *right) {
-    if (!cmeta_simd_desc_valid(desc) || desc->is_mask ||
+bool simd_q15mulr_sat(const simd_desc *desc,
+                            v128 *out,
+                            const v128 *left,
+                            const v128 *right) {
+    if (!simd_desc_valid(desc) || desc->is_mask ||
         desc->lane_kind != SALTS_SIMD_LANE_I16 ||
         desc->lane_count != 8u ||
         out == NULL || left == NULL || right == NULL)
         return false;
 
-    cmeta_simd_store_value(
+    simd_store_value(
         out,
         simde_wasm_i16x8_q15mulr_sat(
-            cmeta_simd_load_value(left),
-            cmeta_simd_load_value(right)));
+            simd_load_value(left),
+            simd_load_value(right)));
     return true;
 }
 
-bool cmeta_simd_dot_pairwise(const salts_simd_desc *dst_desc,
-                             cmeta_v128 *out,
-                             const cmeta_v128 *left,
-                             const cmeta_v128 *right) {
-    if (!cmeta_simd_desc_valid(dst_desc) || dst_desc->is_mask ||
+bool simd_dot_pairwise(const simd_desc *dst_desc,
+                             v128 *out,
+                             const v128 *left,
+                             const v128 *right) {
+    if (!simd_desc_valid(dst_desc) || dst_desc->is_mask ||
         dst_desc->lane_kind != SALTS_SIMD_LANE_I32 ||
         dst_desc->lane_count != 4u ||
         out == NULL || left == NULL || right == NULL)
         return false;
 
-    cmeta_simd_store_value(
+    simd_store_value(
         out,
         simde_wasm_i32x4_dot_i16x8(
-            cmeta_simd_load_value(left),
-            cmeta_simd_load_value(right)));
+            simd_load_value(left),
+            simd_load_value(right)));
     return true;
 }
 
-bool cmeta_simd_convert(const salts_simd_desc *dst_desc,
-                        const salts_simd_desc *src_desc,
-                        cmeta_simd_convert_op op,
-                        cmeta_simd_lane_policy lane_policy,
-                        cmeta_v128 *out,
-                        const cmeta_v128 *value) {
+bool simd_convert(const simd_desc *dst_desc,
+                        const simd_desc *src_desc,
+                        simd_convert_op op,
+                        simd_lane_policy lane_policy,
+                        v128 *out,
+                        const v128 *value) {
     simde_v128_t input;
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(dst_desc) ||
-        !cmeta_simd_desc_valid(src_desc) ||
+    if (!simd_desc_valid(dst_desc) ||
+        !simd_desc_valid(src_desc) ||
         dst_desc->is_mask || src_desc->is_mask ||
         out == NULL || value == NULL)
         return false;
 
-    input = cmeta_simd_load_value(value);
+    input = simd_load_value(value);
 
     if (op == SALTS_SIMD_CONVERT_TRUNC_SAT &&
         src_desc->lane_kind == SALTS_SIMD_LANE_F32 &&
@@ -1155,7 +1151,7 @@ bool cmeta_simd_convert(const salts_simd_desc *dst_desc,
             result = simde_wasm_u32x4_trunc_sat_f32x4(input);
         else
             return false;
-        cmeta_simd_store_value(out, result);
+        simd_store_value(out, result);
         return true;
     }
 
@@ -1171,7 +1167,7 @@ bool cmeta_simd_convert(const salts_simd_desc *dst_desc,
             result = simde_wasm_u32x4_trunc_sat_f64x2_zero(input);
         else
             return false;
-        cmeta_simd_store_value(out, result);
+        simd_store_value(out, result);
         return true;
     }
 
@@ -1187,7 +1183,7 @@ bool cmeta_simd_convert(const salts_simd_desc *dst_desc,
             result = simde_wasm_f32x4_convert_u32x4(input);
         else
             return false;
-        cmeta_simd_store_value(out, result);
+        simd_store_value(out, result);
         return true;
     }
 
@@ -1203,7 +1199,7 @@ bool cmeta_simd_convert(const salts_simd_desc *dst_desc,
             result = simde_wasm_f64x2_convert_low_u32x4(input);
         else
             return false;
-        cmeta_simd_store_value(out, result);
+        simd_store_value(out, result);
         return true;
     }
 
@@ -1213,7 +1209,7 @@ bool cmeta_simd_convert(const salts_simd_desc *dst_desc,
         src_desc->lane_kind == SALTS_SIMD_LANE_F64 &&
         src_desc->lane_count == 2u &&
         lane_policy == SALTS_SIMD_LANES_LOW_ZERO) {
-        cmeta_simd_store_value(
+        simd_store_value(
             out, simde_wasm_f32x4_demote_f64x2_zero(input));
         return true;
     }
@@ -1224,7 +1220,7 @@ bool cmeta_simd_convert(const salts_simd_desc *dst_desc,
         src_desc->lane_kind == SALTS_SIMD_LANE_F32 &&
         src_desc->lane_count == 4u &&
         lane_policy == SALTS_SIMD_LANES_LOW) {
-        cmeta_simd_store_value(
+        simd_store_value(
             out, simde_wasm_f64x2_promote_low_f32x4(input));
         return true;
     }
@@ -1232,19 +1228,19 @@ bool cmeta_simd_convert(const salts_simd_desc *dst_desc,
     return false;
 }
 
-bool cmeta_simd_shift(const salts_simd_desc *desc,
-                      cmeta_simd_shift_op op,
-                      cmeta_v128 *out,
-                      const cmeta_v128 *value,
+bool simd_shift(const simd_desc *desc,
+                      simd_shift_op op,
+                      v128 *out,
+                      const v128 *value,
                       uint32_t count) {
     simde_v128_t input;
     simde_v128_t result;
 
-    if (!cmeta_simd_desc_valid(desc) || desc->is_mask ||
+    if (!simd_desc_valid(desc) || desc->is_mask ||
         out == NULL || value == NULL)
         return false;
 
-    input = cmeta_simd_load_value(value);
+    input = simd_load_value(value);
 
     switch (desc->lane_kind) {
         case SALTS_SIMD_LANE_I8:
@@ -1294,88 +1290,88 @@ bool cmeta_simd_shift(const salts_simd_desc *desc,
             return false;
     }
 
-    cmeta_simd_store_value(out, result);
+    simd_store_value(out, result);
     return true;
 }
 
-bool cmeta_simd_select(const salts_simd_desc *desc,
-                       cmeta_v128 *out,
-                       const cmeta_v128 *when_set,
-                       const cmeta_v128 *when_unset,
-                       const cmeta_v128 *mask) {
-    if (!cmeta_simd_desc_valid(desc) ||
+bool simd_select(const simd_desc *desc,
+                       v128 *out,
+                       const v128 *when_set,
+                       const v128 *when_unset,
+                       const v128 *mask) {
+    if (!simd_desc_valid(desc) ||
         out == NULL || when_set == NULL ||
         when_unset == NULL || mask == NULL)
         return false;
 
-    cmeta_simd_store_value(
+    simd_store_value(
         out,
         simde_wasm_v128_bitselect(
-            cmeta_simd_load_value(when_set),
-            cmeta_simd_load_value(when_unset),
-            cmeta_simd_load_value(mask)));
+            simd_load_value(when_set),
+            simd_load_value(when_unset),
+            simd_load_value(mask)));
     return true;
 }
 
-void cmeta_simd_i32x4_splat(cmeta_v128 *out, int32_t value) {
-    cmeta_simd_scalar scalar;
+void simd_i32x4_splat(v128 *out, int32_t value) {
+    simd_scalar scalar;
     scalar.i32 = value;
-    (void)cmeta_simd_splat(&salts_simd_i32x4, out, scalar);
+    (void)simd_splat(&simd_i32x4, out, scalar);
 }
 
-void cmeta_simd_i32x4_add(cmeta_v128 *out,
-                          const cmeta_v128 *left,
-                          const cmeta_v128 *right) {
-    (void)cmeta_simd_binary(
-        &salts_simd_i32x4, SALTS_SIMD_BINARY_ADD,
+void simd_i32x4_add(v128 *out,
+                          const v128 *left,
+                          const v128 *right) {
+    (void)simd_binary(
+        &simd_i32x4, SALTS_SIMD_BINARY_ADD,
         out, left, right);
 }
 
-void cmeta_simd_i32x4_sub(cmeta_v128 *out,
-                          const cmeta_v128 *left,
-                          const cmeta_v128 *right) {
-    (void)cmeta_simd_binary(
-        &salts_simd_i32x4, SALTS_SIMD_BINARY_SUB,
+void simd_i32x4_sub(v128 *out,
+                          const v128 *left,
+                          const v128 *right) {
+    (void)simd_binary(
+        &simd_i32x4, SALTS_SIMD_BINARY_SUB,
         out, left, right);
 }
 
-void cmeta_simd_i32x4_mul(cmeta_v128 *out,
-                          const cmeta_v128 *left,
-                          const cmeta_v128 *right) {
-    (void)cmeta_simd_binary(
-        &salts_simd_i32x4, SALTS_SIMD_BINARY_MUL,
+void simd_i32x4_mul(v128 *out,
+                          const v128 *left,
+                          const v128 *right) {
+    (void)simd_binary(
+        &simd_i32x4, SALTS_SIMD_BINARY_MUL,
         out, left, right);
 }
 
-void cmeta_simd_i32x4_eq(cmeta_v128 *out_mask,
-                         const cmeta_v128 *left,
-                         const cmeta_v128 *right) {
-    (void)cmeta_simd_compare(
-        &salts_simd_i32x4, SALTS_SIMD_COMPARE_EQ,
+void simd_i32x4_eq(v128 *out_mask,
+                         const v128 *left,
+                         const v128 *right) {
+    (void)simd_compare(
+        &simd_i32x4, SALTS_SIMD_COMPARE_EQ,
         out_mask, left, right);
 }
 
-void cmeta_simd_f32x4_add(cmeta_v128 *out,
-                          const cmeta_v128 *left,
-                          const cmeta_v128 *right) {
-    (void)cmeta_simd_binary(
-        &salts_simd_f32x4, SALTS_SIMD_BINARY_ADD,
+void simd_f32x4_add(v128 *out,
+                          const v128 *left,
+                          const v128 *right) {
+    (void)simd_binary(
+        &simd_f32x4, SALTS_SIMD_BINARY_ADD,
         out, left, right);
 }
 
-void cmeta_simd_f32x4_mul(cmeta_v128 *out,
-                          const cmeta_v128 *left,
-                          const cmeta_v128 *right) {
-    (void)cmeta_simd_binary(
-        &salts_simd_f32x4, SALTS_SIMD_BINARY_MUL,
+void simd_f32x4_mul(v128 *out,
+                          const v128 *left,
+                          const v128 *right) {
+    (void)simd_binary(
+        &simd_f32x4, SALTS_SIMD_BINARY_MUL,
         out, left, right);
 }
 
-void cmeta_simd_v128_bitselect(cmeta_v128 *out,
-                               const cmeta_v128 *when_set,
-                               const cmeta_v128 *when_unset,
-                               const cmeta_v128 *mask) {
-    (void)cmeta_simd_select(
-        &salts_simd_i8x16,
+void simd_v128_bitselect(v128 *out,
+                               const v128 *when_set,
+                               const v128 *when_unset,
+                               const v128 *mask) {
+    (void)simd_select(
+        &simd_i8x16,
         out, when_set, when_unset, mask);
 }

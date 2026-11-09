@@ -6,7 +6,7 @@
 #include <string.h>
 
 static int selector_lexer_fail(selector_lexer_t *lexer,
-                               salts_selector_status_t status,
+                               selector_status_t status,
                                const char *cursor, const char *message) {
   lexer->status = status;
   lexer->error_offset = (size_t)(cursor - lexer->input);

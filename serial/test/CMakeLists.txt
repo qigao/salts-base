@@ -1,6 +1,6 @@
 # All original public tests run through the production shared owner. The
 # previously unregistered review-fix test is also retained and executed.
-foreach(_serial_suite IN ITEMS test_salts_serial test_salts_serial_public_abi test_fixes)
+foreach(_serial_suite IN ITEMS test_serial test_serial_public_abi test_fixes)
   cmake_add_executable(saltscore_${_serial_suite} SOURCES ${_serial_suite}.c
     FOLDER "serial/test")
   target_compile_features(saltscore_${_serial_suite} PRIVATE c_std_11)
@@ -8,13 +8,13 @@ foreach(_serial_suite IN ITEMS test_salts_serial test_salts_serial_public_abi te
     C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
   target_link_libraries(saltscore_${_serial_suite} PRIVATE Salts::Serial Salts::TinyTest)
 endforeach()
-add_test(NAME saltscore.serial_original_c11 COMMAND saltscore_test_salts_serial)
-add_test(NAME saltscore.serial_public_abi COMMAND saltscore_test_salts_serial_public_abi)
+add_test(NAME saltscore.serial_original_c11 COMMAND saltscore_test_serial)
+add_test(NAME saltscore.serial_public_abi COMMAND saltscore_test_serial_public_abi)
 add_test(NAME saltscore.serial_original_fixes COMMAND saltscore_test_fixes)
 
 # The same source/backend is compiled with only its original test-owned
 # injection hooks enabled. This is never installed or linked to production.
-get_target_property(_serial_test_sources saltscore_serial SOURCES)
+get_target_property(_serial_test_sources Salts::Serial SOURCES)
 add_library(saltscore_serial_test_impl STATIC ${_serial_test_sources})
 target_compile_features(saltscore_serial_test_impl PRIVATE c_std_11)
 set_target_properties(saltscore_serial_test_impl PROPERTIES
@@ -25,7 +25,7 @@ target_include_directories(saltscore_serial_test_impl
   PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src" "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(saltscore_serial_test_impl PRIVATE
-  Salts::Core Salts::Platform Salts::Concurrency)
+  Salts::Core)
 if(WIN32)
   target_link_libraries(saltscore_serial_test_impl PRIVATE setupapi cfgmgr32)
 endif()
@@ -35,7 +35,7 @@ if(UNIX)
     $<$<BOOL:${APPLE}>:_DARWIN_C_SOURCE=1>)
 endif()
 
-foreach(_serial_suite IN ITEMS test_salts_serial_mock test_serial_storage)
+foreach(_serial_suite IN ITEMS test_serial_mock test_serial_storage)
   cmake_add_executable(saltscore_${_serial_suite} SOURCES ${_serial_suite}.c
     FOLDER "serial/test")
   target_compile_features(saltscore_${_serial_suite} PRIVATE c_std_11)
@@ -46,9 +46,9 @@ foreach(_serial_suite IN ITEMS test_salts_serial_mock test_serial_storage)
   target_include_directories(saltscore_${_serial_suite} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../src")
   target_link_libraries(saltscore_${_serial_suite} PRIVATE
-    saltscore_serial_test_impl Salts::Core Salts::Platform Salts::TinyTest)
+    saltscore_serial_test_impl Salts::Core Salts::TinyTest)
 endforeach()
-add_test(NAME saltscore.serial_backend_contract COMMAND saltscore_test_salts_serial_mock)
+add_test(NAME saltscore.serial_backend_contract COMMAND saltscore_test_serial_mock)
 add_test(NAME saltscore.serial_storage_ownership COMMAND saltscore_test_serial_storage)
 
 if(UNIX)

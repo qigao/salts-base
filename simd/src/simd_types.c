@@ -3,7 +3,7 @@
 /* These immutable execution descriptors are the only native shape objects;
  * reflection/type identity remains in the upper-layer CMeta owner. */
 #define SALTS_DEFINE_SIMD_DESC(symbol, lane, bits, count, mask_value) \
-    const salts_simd_desc salts_simd_##symbol = { \
+    const simd_desc simd_##symbol = { \
         lane, bits, count, mask_value \
     }
 
@@ -24,7 +24,7 @@ SALTS_DEFINE_SIMD_DESC(b64x2, SALTS_SIMD_LANE_BOOL, 64u, 2u, true);
 
 #undef SALTS_DEFINE_SIMD_DESC
 
-bool salts_simd_desc_valid(const salts_simd_desc *desc) {
+bool simd_desc_valid(const simd_desc *desc) {
     if (desc == NULL || desc->lane_bits == 0u || desc->lane_count == 0u ||
         (size_t)desc->lane_bits * (size_t)desc->lane_count != 128u)
         return false;

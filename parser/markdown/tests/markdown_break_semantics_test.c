@@ -1,5 +1,5 @@
-#include <salts/markdown.h>
-#include <salts/markdown_html.h>
+#include <markdown.h>
+#include <markdown_html.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -23,17 +23,17 @@ typedef struct break_case {
 
 static int verify(const break_case *c) {
     const size_t n=strlen(c->markdown);
-    salts_md_document *owned=NULL;
-    CHECK(salts_md_parse(c->markdown,n,128u,n+1u,&owned)==SALTS_MD_OK);
+    md_document *owned=NULL;
+    CHECK(md_parse(c->markdown,n,128u,n+1u,&owned)==SALTS_MD_OK);
     CHECK(owned!=NULL);
-    salts_md_rich_document_view v=salts_md_get_document_view(owned);
-    CHECK(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+    md_rich_document_view v=md_get_document_view(owned);
+    CHECK(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
     CHECK(v.raw_markdown_bytes==n);
     CHECK(memcmp(v.raw_markdown,c->markdown,n)==0);
     size_t hard_count=0u,soft_count=0u,first=0u,second=0u;
     size_t break_index=SIZE_MAX;
     for(size_t i=1u;i<v.document.block_count;++i) {
-        const salts_md_block *node=&v.document.blocks[i];
+        const md_block *node=&v.document.blocks[i];
         CHECK(node->parent_index<i);
         if(node->kind==SALTS_MD_BLOCK_HARD_LINE_BREAK ||
            node->kind==SALTS_MD_BLOCK_LINE_BREAK) {
@@ -45,11 +45,11 @@ static int verify(const break_case *c) {
                   SALTS_MD_BLOCK_PARAGRAPH);
             const char *meta=NULL;
             size_t meta_size=SIZE_MAX;
-            CHECK(salts_md_rich_document_metadata(&v,i,&meta,&meta_size)==
+            CHECK(md_rich_document_metadata(&v,i,&meta,&meta_size)==
                   SALTS_MD_OK);
             if(c->origin) {
-                CHECK(meta_size==sizeof(salts_md_line_break_semantics));
-                salts_md_line_break_semantics info={0};
+                CHECK(meta_size==sizeof(md_line_break_semantics));
+                md_line_break_semantics info={0};
                 memcpy(&info,meta,sizeof(info));
                 CHECK(info.origin==c->origin);
                 CHECK(info.reserved[0]==0u && info.reserved[1]==0u &&
@@ -72,20 +72,20 @@ static int verify(const break_case *c) {
     if(c->first_text) CHECK(first>=1u);
     if(c->second_text) CHECK(second>=1u);
     size_t needed=SIZE_MAX;
-    CHECK(salts_md_render_html(&v,128u,NULL,0u,&needed)==SALTS_MD_OK);
+    CHECK(md_render_html(&v,128u,NULL,0u,&needed)==SALTS_MD_OK);
     CHECK(needed==strlen(c->html));
     char output[256];
     CHECK(needed+2u<=sizeof(output));
     memset(output,0xa7,sizeof(output));
     size_t reported=SIZE_MAX;
     if(needed) {
-        CHECK(salts_md_render_html(&v,128u,output,needed,&reported)==
+        CHECK(md_render_html(&v,128u,output,needed,&reported)==
               SALTS_MD_CAPACITY_EXCEEDED);
         CHECK(reported==needed);
         for(size_t i=0u;i<sizeof(output);++i)
             CHECK((unsigned char)output[i]==0xa7);
     }
-    CHECK(salts_md_render_html(&v,128u,output,needed+1u,&reported)==
+    CHECK(md_render_html(&v,128u,output,needed+1u,&reported)==
           SALTS_MD_OK);
     CHECK(reported==needed);
     CHECK(memcmp(output,c->html,needed+1u)==0);
@@ -99,10 +99,10 @@ static int verify(const break_case *c) {
         char *metadata=(char*)malloc(v.metadata_bytes);
         CHECK(metadata!=NULL);
         memcpy(metadata,v.metadata,v.metadata_bytes);
-        const salts_md_block_metadata span=v.block_metadata[break_index];
+        const md_block_metadata span=v.block_metadata[break_index];
         CHECK(span.byte_end-span.byte_begin==
-              sizeof(salts_md_line_break_semantics));
-        const salts_md_rich_document_view bad={
+              sizeof(md_line_break_semantics));
+        const md_rich_document_view bad={
             .document=v.document,
             .metadata=metadata,
             .metadata_bytes=v.metadata_bytes,
@@ -113,17 +113,17 @@ static int verify(const break_case *c) {
         };
         metadata[span.byte_begin]=(char)0xff;
         memset(output,0xa7,sizeof(output));
-        CHECK(salts_md_render_html(&bad,128u,output,sizeof(output),
+        CHECK(md_render_html(&bad,128u,output,sizeof(output),
                                   &reported)==SALTS_MD_INVALID_ARGUMENT);
         for(size_t i=0u;i<sizeof(output);++i)
             CHECK((unsigned char)output[i]==0xa7);
         memcpy(metadata,v.metadata,v.metadata_bytes);
         metadata[span.byte_begin+1u]=1;
-        CHECK(salts_md_render_html(&bad,128u,NULL,0u,&reported)==
+        CHECK(md_render_html(&bad,128u,NULL,0u,&reported)==
               SALTS_MD_INVALID_ARGUMENT);
         free(metadata);
     }
-    salts_md_document_destroy(owned);
+    md_document_destroy(owned);
     return 0;
 }
 
@@ -152,8 +152,8 @@ int main(void) {
             return 1;
         }
     const char limited[]="foo  \nbaz\n";
-    salts_md_document *rejected=(salts_md_document*)(uintptr_t)1u;
-    CHECK(salts_md_parse(limited,sizeof(limited)-1u,4u,
+    md_document *rejected=(md_document*)(uintptr_t)1u;
+    CHECK(md_parse(limited,sizeof(limited)-1u,4u,
                         sizeof(limited),&rejected)==SALTS_MD_CAPACITY_EXCEEDED);
     CHECK(rejected==NULL);
     puts("C11 Markdown typed break semantics: 9/9 fixtures, metadata "

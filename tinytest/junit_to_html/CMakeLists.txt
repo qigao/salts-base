@@ -1,5 +1,6 @@
+cmake_add_source(junit_sources DIRS . PATTERNS "*.c" "*.h")
 cmake_add_executable(junit_to_html
-  SOURCES junit_to_html.c
+  SOURCES ${junit_sources}
   LIBS Salts::Core Salts::CmdParser Salts::XmlParser
   FOLDER "tools/junit_to_html")
 

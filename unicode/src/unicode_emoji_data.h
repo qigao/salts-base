@@ -9,13 +9,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct salts_unicode_emoji_range {
+typedef struct unicode_emoji_range {
   uint32_t first;
   uint32_t last;
   uint32_t flags;
-} salts_unicode_emoji_range;
+} unicode_emoji_range;
 
-static const salts_unicode_emoji_range salts_unicode_emoji_ranges[] = {
+static const unicode_emoji_range unicode_emoji_ranges[] = {
   {0x000023u, 0x000023u, SALTS_UNICODE_PROPERTY_EMOJI | SALTS_UNICODE_PROPERTY_EMOJI_COMPONENT},
   {0x00002Au, 0x00002Au, SALTS_UNICODE_PROPERTY_EMOJI | SALTS_UNICODE_PROPERTY_EMOJI_COMPONENT},
   {0x000030u, 0x000039u, SALTS_UNICODE_PROPERTY_EMOJI | SALTS_UNICODE_PROPERTY_EMOJI_COMPONENT},
@@ -323,6 +323,6 @@ static const salts_unicode_emoji_range salts_unicode_emoji_ranges[] = {
   {0x01FC00u, 0x01FFFDu, SALTS_UNICODE_PROPERTY_EXTENDED_PICTOGRAPHIC},
   {0x0E0020u, 0x0E007Fu, SALTS_UNICODE_PROPERTY_EMOJI_COMPONENT},
 };
-#define SALTS_UNICODE_EMOJI_RANGES_COUNT (sizeof(salts_unicode_emoji_ranges) / sizeof(salts_unicode_emoji_ranges[0]))
+#define SALTS_UNICODE_EMOJI_RANGES_COUNT (sizeof(unicode_emoji_ranges) / sizeof(unicode_emoji_ranges[0]))
 
 #endif

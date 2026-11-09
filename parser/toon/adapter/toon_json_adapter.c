@@ -1,41 +1,57 @@
-#include "toon_json_adapter.h"
+#include <toon_json_adapter.h>
 
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <cmeta_buffer.h>
-#include <vstr.h>
-#include <cstl/hash_set.h>
+#include <memory/buffer.h>
+#include <salts/vstr.h>
 
 #define TOON_JSON_ARENA_INITIAL_SIZE (32U * 1024U)
 #define TOON_JSON_MAX_EXACT_INTEGER_TEXT "9007199254740992"
 
+/* Conversion-local pointer identity table. Nodes remain borrowed; an existing
+ * pointer rejects shared nodes and cycles. Growth commits before insertion. */
 typedef struct {
-    hash_set_t seen;
+    const toonObject **slots;
+    size_t count, capacity;
 } toon_json_to_context_t;
-
-static int toon_json_stl_error(stl_status status)
-{
-    switch (status) {
-    case STL_OK:
-        return SALTS_OK;
-    case STL_OUT_OF_MEMORY:
-        return SALTS_ENOMEM;
-    case STL_CAPACITY_EXCEEDED:
-        return SALTS_ERANGE;
-    default:
-        return SALTS_EINVAL;
-    }
+static size_t toon_json_pointer_slot(const toonObject *node, size_t capacity) {
+    uintptr_t hash = (uintptr_t)node;
+    hash ^= hash >> 4;
+    hash *= (uintptr_t)UINT64_C(11400714819323198485);
+    return (size_t)hash & (capacity - 1);
 }
-
-static int toon_json_mark_seen(toon_json_to_context_t *ctx,
-    const toonObject *node)
-{
-    if (hash_set_contains(&ctx->seen, &node))
-        return SALTS_EPROTO;
-    return toon_json_stl_error(hash_set_add(&ctx->seen, &node));
+static int toon_json_mark_seen(toon_json_to_context_t *ctx, const toonObject *node) {
+    if (ctx->capacity) {
+        size_t slot = toon_json_pointer_slot(node, ctx->capacity);
+        while (ctx->slots[slot]) {
+            if (ctx->slots[slot] == node) return SALTS_EPROTO;
+            slot = (slot + 1) & (ctx->capacity - 1);
+        }
+    }
+    if (ctx->count >= ctx->capacity / 2) {
+        enum { INITIAL_SEEN_CAPACITY = 64 };
+        if (ctx->capacity > SIZE_MAX / sizeof(*ctx->slots) / 2) return SALTS_ERANGE;
+        size_t capacity = ctx->capacity ? ctx->capacity * 2 : INITIAL_SEEN_CAPACITY;
+        const toonObject **slots = calloc(capacity, sizeof(*slots));
+        if (!slots) return SALTS_ENOMEM;
+        for (size_t i = 0; i < ctx->capacity; ++i) {
+            if (!ctx->slots[i]) continue;
+            size_t slot = toon_json_pointer_slot(ctx->slots[i], capacity);
+            while (slots[slot]) slot = (slot + 1) & (capacity - 1);
+            slots[slot] = ctx->slots[i];
+        }
+        free(ctx->slots);
+        ctx->slots = slots;
+        ctx->capacity = capacity;
+    }
+    size_t slot = toon_json_pointer_slot(node, ctx->capacity);
+    while (ctx->slots[slot]) slot = (slot + 1) & (ctx->capacity - 1);
+    ctx->slots[slot] = node;
+    ++ctx->count;
+    return SALTS_OK;
 }
 
 static int toon_json_validate_text(const char *text, size_t len)
@@ -184,13 +200,8 @@ int toon_json_to_value(const toonObject *root, json_value_t **out_value)
     if (root->key || root->next)
         return SALTS_EPROTO;
 
-    rc = toon_json_stl_error(hash_set_init_bytes(
-        &ctx.seen, sizeof(const toonObject *), _Alignof(const toonObject *),
-        SIZE_MAX, hash_bytes, hash_key_equal, NULL));
-    if (rc != SALTS_OK)
-        return rc;
     rc = toon_json_to_node(&ctx, root, 0U, out_value);
-    hash_set_destroy(&ctx.seen);
+    free(ctx.slots);
     return rc;
 }
 

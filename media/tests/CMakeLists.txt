@@ -1,4 +1,4 @@
-function(salts_capture_original_test target source)
+function(capture_original_test target source)
   cmake_add_test(${target} SOURCES ${source}
     FOLDER "media/tests")
   target_compile_features(${target} PRIVATE c_std_11)
@@ -21,13 +21,8 @@ if(WIN32)
     Salts::Media Salts::TinyTest yuv
     mfplat mf mfuuid mfreadwrite strmiids ole32 oleaut32)
   set_target_properties(capture_exposure_windows_test PROPERTIES FOLDER "media/tests")
-  # The test links the native vcpkg libyuv/JPEG import libraries.
-  # Admit their exact binary-cache runtime DLLs without staging a package or
-  # depending on any installed consumer project.
   set_tests_properties(capture_exposure_windows_test PROPERTIES
-    TIMEOUT 15
-    ENVIRONMENT_MODIFICATION
-      "PATH=path_list_prepend:${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
+    TIMEOUT 15)
   # This executable enumerates physical audio/video/screen/GPU devices and may
   # open camera modes. Build it on Windows to protect the API/ABI, but do not
   # register it in generic hosted-runner CTest. Device-backed qualification
@@ -41,26 +36,24 @@ if(WIN32)
 endif()
 
 if(ANDROID)
-  salts_capture_original_test(capture_android_test test_capture_android.c)
+  capture_original_test(capture_android_test test_capture_android.c)
 endif()
 
 if(UNIX AND NOT ANDROID AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
-  salts_capture_original_test(capture_posix_test test_capture_posix.c)
+  capture_original_test(capture_posix_test test_capture_posix.c)
 endif()
 
 cmake_add_executable(playback_buffer_test
   SOURCES test_playback_buffer.c ../src/playback_buffer.c
   FOLDER "media/tests")
 target_compile_features(playback_buffer_test PRIVATE c_std_11)
-target_link_libraries(playback_buffer_test PRIVATE Salts::Concurrency Salts::TinyTest)
+target_link_libraries(playback_buffer_test PRIVATE Salts::Core Salts::TinyTest)
 target_include_directories(playback_buffer_test PRIVATE ../src)
 add_test(NAME saltscore.playback_original_buffer COMMAND playback_buffer_test)
 
-add_library(
-  playback_null_test_impl STATIC
-  ../src/miniaudio_impl.c
-  ../src/playback_buffer.c
-  ../src/playback.c)
+cmake_add_source(playback_test_sources DIRS ../src
+  PATTERNS "playback*.c" "miniaudio*.c")
+add_library(playback_null_test_impl STATIC ${playback_test_sources})
 # This is the original deterministic test device. It is never installed or
 # linked into the production Playback owner and does not replace its backend.
 set_target_properties(playback_null_test_impl PROPERTIES
@@ -83,7 +76,7 @@ target_include_directories(
   PUBLIC ../include
   PRIVATE ../src ${SALTS_MEDIA_MINIAUDIO_INCLUDE_DIR})
 target_link_libraries(
-  playback_null_test_impl PRIVATE Salts::Concurrency Salts::Platform)
+  playback_null_test_impl PRIVATE Salts::Core)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(playback_null_test_impl PRIVATE m)
 endif()

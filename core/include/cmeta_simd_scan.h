@@ -1,7 +1,7 @@
 #ifndef SALTS_SIMD_SCAN_H
 #define SALTS_SIMD_SCAN_H
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 #include <stddef.h>
 
 #ifdef __cplusplus

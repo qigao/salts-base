@@ -1,4 +1,4 @@
-#include "str.h"
+#include <salts/tstr.h>
 #include "tinytest.h"
 
 spec("tstr/vstr v2 contract") {

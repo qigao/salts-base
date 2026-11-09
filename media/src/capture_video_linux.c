@@ -3,7 +3,7 @@
  *
  * Exact native camera modes through V4L2.
  */
-#include "capture.h"
+#include <capture.h>
 #include "capture_video_backend.h"
 
 #if defined(__linux__) && !defined(__ANDROID__)
@@ -73,7 +73,7 @@ typedef struct {
     size_t convert_buf_size;
 
     /* Parent capture */
-    salts_capture_t *capture;
+    capture_t *capture;
 } v4l2_ctx_t;
 
 static int xioctl(int fd, unsigned long request, void *arg) {
@@ -84,7 +84,7 @@ static int xioctl(int fd, unsigned long request, void *arg) {
     return r;
 }
 
-static int v4l2_pixfmt_to_salts_format(uint32_t pixfmt) {
+static int v4l2_pixfmt_to_format(uint32_t pixfmt) {
     switch (pixfmt) {
         case V4L2_PIX_FMT_YUV420:
         case V4L2_PIX_FMT_YUYV:
@@ -113,7 +113,7 @@ static uint64_t v4l2_mode_id(uint32_t format_index,
 
 static int v4l2_read_mode(int fd,
                           uint64_t mode_id,
-                          salts_video_native_mode_t *mode,
+                          video_native_mode_t *mode,
                           uint32_t *out_pixfmt) {
     uint32_t format_index = (uint32_t)(mode_id >> 32);
     uint32_t size_index = (uint32_t)((mode_id >> 16) & 0xffffu);
@@ -130,7 +130,7 @@ static int v4l2_read_mode(int fd,
     if (xioctl(fd, VIDIOC_ENUM_FMT, &format_desc) == -1) {
         return SALTS_CAPTURE_ERR_DEVICE;
     }
-    format = v4l2_pixfmt_to_salts_format(format_desc.pixelformat);
+    format = v4l2_pixfmt_to_format(format_desc.pixelformat);
     if (format < 0) return SALTS_CAPTURE_ERR_UNSUPPORTED;
 
     frame_size.index = size_index;
@@ -161,8 +161,8 @@ static int v4l2_read_mode(int fd,
     return SALTS_CAPTURE_OK;
 }
 
-static int video_native_modes_equal(const salts_video_native_mode_t *lhs,
-                                    const salts_video_native_mode_t *rhs) {
+static int video_native_modes_equal(const video_native_mode_t *lhs,
+                                    const video_native_mode_t *rhs) {
     return lhs->width == rhs->width && lhs->height == rhs->height &&
            lhs->framerate_numerator == rhs->framerate_numerator &&
            lhs->framerate_denominator == rhs->framerate_denominator &&
@@ -249,7 +249,7 @@ static void v4l2_cleanup_mmap(v4l2_ctx_t *ctx) {
 
 static void *v4l2_capture_thread(void *arg) {
     v4l2_ctx_t *ctx = (v4l2_ctx_t *)arg;
-    salts_capture_t *capture = ctx->capture;
+    capture_t *capture = ctx->capture;
 
     struct pollfd pfd = {
         .fd = ctx->fd,
@@ -310,10 +310,10 @@ static void *v4l2_capture_thread(void *arg) {
 }
 
 static int v4l2_backend_init_exact(
-    salts_capture_t *capture,
+    capture_t *capture,
     const char *device,
-    const salts_video_native_mode_t *mode) {
-    salts_video_native_mode_t actual_mode;
+    const video_native_mode_t *mode) {
+    video_native_mode_t actual_mode;
     uint32_t pixfmt = 0;
 
     int fd = open(device, O_RDWR | O_NONBLOCK);
@@ -431,7 +431,7 @@ error:
     return -1;
 }
 
-static int v4l2_backend_start(salts_capture_t *capture) {
+static int v4l2_backend_start(capture_t *capture) {
     if (!capture || !capture->platform_ctx) return -1;
     v4l2_ctx_t *ctx = (v4l2_ctx_t *)capture->platform_ctx;
 
@@ -465,7 +465,7 @@ static int v4l2_backend_start(salts_capture_t *capture) {
     return 0;
 }
 
-static void v4l2_backend_stop(salts_capture_t *capture) {
+static void v4l2_backend_stop(capture_t *capture) {
     if (!capture || !capture->platform_ctx) return;
     v4l2_ctx_t *ctx = (v4l2_ctx_t *)capture->platform_ctx;
 
@@ -478,7 +478,7 @@ static void v4l2_backend_stop(salts_capture_t *capture) {
     }
 }
 
-static void v4l2_backend_destroy(salts_capture_t *capture) {
+static void v4l2_backend_destroy(capture_t *capture) {
     if (!capture || !capture->platform_ctx) return;
 
     v4l2_backend_stop(capture);
@@ -495,7 +495,7 @@ static void v4l2_backend_destroy(salts_capture_t *capture) {
  * Device Enumeration (V4L2-based for compatibility)
  * ============================================================================= */
 
-int salts_capture_list_video_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_video_devices(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     int count = 0;
@@ -511,7 +511,7 @@ int salts_capture_list_video_devices(salts_capture_device_t *devices, int max_co
         if (xioctl(fd, VIDIOC_QUERYCAP, &cap) == 0) {
             /* Check if it's a video capture device */
             if (cap.device_caps & V4L2_CAP_VIDEO_CAPTURE) {
-                salts_capture_device_t *dev = &devices[count];
+                capture_device_t *dev = &devices[count];
                 memset(dev, 0, sizeof(*dev));
 
                 dev->index = count;
@@ -578,7 +578,7 @@ static void linux_video_device_close(void *backend_ctx) {
 
 static int linux_video_device_list_modes(
     void *backend_ctx,
-    salts_video_native_mode_t *modes,
+    video_native_mode_t *modes,
     size_t capacity,
     size_t *out_count) {
     linux_video_device_ctx_t *ctx = (linux_video_device_ctx_t *)backend_ctx;
@@ -596,7 +596,7 @@ static int linux_video_device_list_modes(
         format_desc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         format_desc.index = format_index;
         if (xioctl(ctx->fd, VIDIOC_ENUM_FMT, &format_desc) == -1) break;
-        format = v4l2_pixfmt_to_salts_format(format_desc.pixelformat);
+        format = v4l2_pixfmt_to_format(format_desc.pixelformat);
         if (format < 0) continue;
 
         for (uint32_t size_index = 0; size_index < 0x10000u; ++size_index) {
@@ -611,7 +611,7 @@ static int linux_video_device_list_modes(
                  interval_index < 0x10000u;
                  ++interval_index) {
                 struct v4l2_frmivalenum interval = {0};
-                salts_video_native_mode_t *mode;
+                video_native_mode_t *mode;
 
                 interval.index = interval_index;
                 interval.pixel_format = format_desc.pixelformat;
@@ -648,15 +648,15 @@ static int linux_video_device_list_modes(
 
 static int linux_video_device_create_capture(
     void *backend_ctx,
-    const salts_video_native_mode_t *mode,
-    salts_capture_t **out_capture) {
+    const video_native_mode_t *mode,
+    capture_t **out_capture) {
     linux_video_device_ctx_t *device =
         (linux_video_device_ctx_t *)backend_ctx;
-    salts_capture_t *capture;
+    capture_t *capture;
 
     if (!device || !mode || !out_capture) return SALTS_CAPTURE_ERR_FORMAT;
     *out_capture = NULL;
-    capture = (salts_capture_t *)calloc(1, sizeof(*capture));
+    capture = (capture_t *)calloc(1, sizeof(*capture));
     if (!capture) return SALTS_CAPTURE_ERR_NOMEM;
     capture->type = SALTS_CAPTURE_TYPE_VIDEO;
     capture->state = SALTS_CAPTURE_STATE_STOPPED;
@@ -669,8 +669,8 @@ static int linux_video_device_create_capture(
     return SALTS_CAPTURE_OK;
 }
 
-const salts_video_backend_ops_t *salts_video_platform_backend(void) {
-    static const salts_video_backend_ops_t ops = {
+const video_backend_ops_t *video_platform_backend(void) {
+    static const video_backend_ops_t ops = {
         linux_video_device_open,
         linux_video_device_close,
         linux_video_device_list_modes,
@@ -679,17 +679,17 @@ const salts_video_backend_ops_t *salts_video_platform_backend(void) {
     return &ops;
 }
 
-void salts_video_capture_set_callback(salts_capture_t *capture,
-                                       salts_video_capture_cb cb,
+void video_capture_set_callback(capture_t *capture,
+                                       video_capture_cb cb,
                                        void *user_data) {
     if (!capture) return;
     capture->video_cb = cb;
     capture->user_data = user_data;
 }
 
-int salts_video_capture_get_control_range(salts_capture_t *capture,
-                                           salts_camera_control_t control,
-                                           salts_camera_control_range_t *range) {
+int video_capture_get_control_range(capture_t *capture,
+                                           camera_control_t control,
+                                           camera_control_range_t *range) {
     (void)capture;
     (void)control;
     if (!range) return SALTS_CAPTURE_ERR_DEVICE;
@@ -697,8 +697,8 @@ int salts_video_capture_get_control_range(salts_capture_t *capture,
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_set_control(salts_capture_t *capture,
-                                     salts_camera_control_t control,
+int video_capture_set_control(capture_t *capture,
+                                     camera_control_t control,
                                      int value) {
     (void)capture;
     (void)control;
@@ -706,8 +706,8 @@ int salts_video_capture_set_control(salts_capture_t *capture,
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_get_control(salts_capture_t *capture,
-                                     salts_camera_control_t control,
+int video_capture_get_control(capture_t *capture,
+                                     camera_control_t control,
                                      int *value) {
     (void)capture;
     (void)control;
@@ -715,15 +715,15 @@ int salts_video_capture_get_control(salts_capture_t *capture,
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_set_crop(salts_capture_t *capture,
-                                  const salts_video_crop_t *crop) {
+int video_capture_set_crop(capture_t *capture,
+                                  const video_crop_t *crop) {
     (void)capture;
     (void)crop;
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_get_crop(salts_capture_t *capture,
-                                  salts_video_crop_t *crop) {
+int video_capture_get_crop(capture_t *capture,
+                                  video_crop_t *crop) {
     (void)capture;
     if (!crop) return SALTS_CAPTURE_ERR_DEVICE;
     memset(crop, 0, sizeof(*crop));
@@ -734,15 +734,15 @@ int salts_video_capture_get_crop(salts_capture_t *capture,
  * Platform Hooks - Dispatcher
  * ============================================================================= */
 
-int v4l2_video_start(salts_capture_t *capture) {
+int v4l2_video_start(capture_t *capture) {
     return v4l2_backend_start(capture);
 }
 
-void v4l2_video_stop(salts_capture_t *capture) {
+void v4l2_video_stop(capture_t *capture) {
     v4l2_backend_stop(capture);
 }
 
-void v4l2_video_destroy(salts_capture_t *capture) {
+void v4l2_video_destroy(capture_t *capture) {
     if (!capture) return;
 
     if (!capture->platform_ctx) {

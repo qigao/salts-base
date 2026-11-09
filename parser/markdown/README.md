@@ -1,7 +1,7 @@
 # Canonical C11 Markdown grammar migration
 
 **Status:** Draft implementation candidate. Upstream migration tracker:
-[SaltsUtils #722](https://github.com/qigao/salts-utils/issues/722);
+[SaltsBase #722](https://github.com/qigao/salts-utils/issues/722);
 Stun downstream cutover: [Stun #368](https://github.com/qigao/stun/issues/368).
 
 This module originates from qigao/stun `shared/markdown`, source master
@@ -44,7 +44,7 @@ indexed semantic text for FTS5 with explicit provenance.
 - `Salts::Unicode` remains imported from the canonical Salts SDK. No local
   Unicode provider, dummy header, test-only parser replacement or missing
   dependency fallback.
-- Keep SDK packaging and headers in existing SaltsUtils build graph; do not
+- Keep SDK packaging and headers in existing SaltsBase build graph; do not
   create standalone installer/consumer projects or new probe CI workflows.
 - Only **after upstream exact-head qualification** migrate Stun actual runtime
   and remove the old parser source and parser-generic test sources. Keep the

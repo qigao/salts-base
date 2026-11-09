@@ -30,7 +30,7 @@
  * USAGE:
  * Everywhere you need to use this library, put this at the top of the file:
  * @code{.c}
- * #include "cmd_arger.h"
+ * #include <cmd_arger.h>
  * @endcode
  *
  * EXAMPLE PROGRAM:

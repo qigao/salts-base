@@ -9,14 +9,14 @@
  * 5. Thread-safe parsing with context
  */
 
-#include "crc32.h"
-#include "endian.h"
-#include "frame.h"
-#include "memory_pool.h"
-#include "parser_context.h"
-#include "parser_error.h"
-#include "parser_stats.h"
-#include "stream_parser.h"
+#include <crc32.h>
+#include <endian.h>
+#include <frame.h>
+#include <memory/memory_pool.h>
+#include <parser_context.h>
+#include <parser_error.h>
+#include <parser_stats.h>
+#include <stream_parser.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -1,13 +1,13 @@
 #ifndef SALTS_PLAYBACK_BUFFER_H
 #define SALTS_PLAYBACK_BUFFER_H
 
-#include <spsc_ring.h>
+#include <queue/spsc_ring.h>
 
 #include <stddef.h>
 #include <stdint.h>
 
 typedef struct playback_buffer {
-  cmeta_spsc_ring ring;
+  spsc_ring ring;
   uint8_t *storage;
   size_t storage_capacity;
   size_t usable_capacity;

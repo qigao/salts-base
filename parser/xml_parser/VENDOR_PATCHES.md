@@ -35,7 +35,7 @@ Reproduced by the DataBind XML format-provider regression at exact head `16d4655
 
 `vendor/cxml/src/query/cxqapi.c`, `cxml_set_name`: skip clearing the old local-name buffer when its length is zero. A newly allocated node has a null `qname` buffer; even a zero-length `memset` must not evaluate null-pointer arithmetic or pass null to an annotated nonnull parameter.
 
-Reproduced in Native XML SAX run 34597251013 at head f30fb55a9588b0d7212e80449cac841953314ae3. The existing `xml_parser_test` case "builds and serializes a document through opaque handles" reaches `salts_xml_document_create` and reports UBSan at cxqapi.c:1547. This change keeps the existing rename path and removes only the undefined operation on a new name. No sanitizer suppression is used.
+Reproduced in Native XML SAX run 34597251013 at head f30fb55a9588b0d7212e80449cac841953314ae3. The existing `xml_parser_test` case "builds and serializes a document through opaque handles" reaches `xml_document_create` and reports UBSan at cxqapi.c:1547. This change keeps the existing rename path and removes only the undefined operation on a new name. No sanitizer suppression is used.
 
 ## Incremental SAX ownership
 

@@ -13,18 +13,18 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct salts_unicode_line_break_range {
+typedef struct unicode_line_break_range {
   uint32_t first;
   uint32_t last;
   uint8_t value;
-} salts_unicode_line_break_range;
+} unicode_line_break_range;
 
-typedef struct salts_unicode_line_break_bool_range {
+typedef struct unicode_line_break_bool_range {
   uint32_t first;
   uint32_t last;
-} salts_unicode_line_break_bool_range;
+} unicode_line_break_bool_range;
 
-static const salts_unicode_line_break_range salts_unicode_line_break_ranges[] = {
+static const unicode_line_break_range unicode_line_break_ranges[] = {
   {0x000000u, 0x000008u, SALTS_UNICODE_LINE_BREAK_CM},
   {0x000009u, 0x000009u, SALTS_UNICODE_LINE_BREAK_BA},
   {0x00000Au, 0x00000Au, SALTS_UNICODE_LINE_BREAK_LF},
@@ -2947,9 +2947,9 @@ static const salts_unicode_line_break_range salts_unicode_line_break_ranges[] = 
   {0x100000u, 0x10FFFDu, SALTS_UNICODE_LINE_BREAK_XX},
 };
 #define SALTS_UNICODE_LINE_BREAK_RANGES_COUNT \
-  (sizeof(salts_unicode_line_break_ranges) / sizeof(salts_unicode_line_break_ranges[0]))
+  (sizeof(unicode_line_break_ranges) / sizeof(unicode_line_break_ranges[0]))
 
-static const salts_unicode_line_break_bool_range salts_unicode_line_break_pi_ranges[] = {
+static const unicode_line_break_bool_range unicode_line_break_pi_ranges[] = {
   {0x0000ABu, 0x0000ABu},
   {0x002018u, 0x002018u},
   {0x00201Bu, 0x00201Cu},
@@ -2962,9 +2962,9 @@ static const salts_unicode_line_break_bool_range salts_unicode_line_break_pi_ran
   {0x002E1Cu, 0x002E1Cu},
   {0x002E20u, 0x002E20u},
 };
-#define SALTS_UNICODE_LINE_BREAK_PI_RANGES_COUNT (sizeof(salts_unicode_line_break_pi_ranges) / sizeof(salts_unicode_line_break_pi_ranges[0]))
+#define SALTS_UNICODE_LINE_BREAK_PI_RANGES_COUNT (sizeof(unicode_line_break_pi_ranges) / sizeof(unicode_line_break_pi_ranges[0]))
 
-static const salts_unicode_line_break_bool_range salts_unicode_line_break_pf_ranges[] = {
+static const unicode_line_break_bool_range unicode_line_break_pf_ranges[] = {
   {0x0000BBu, 0x0000BBu},
   {0x002019u, 0x002019u},
   {0x00201Du, 0x00201Du},
@@ -2976,9 +2976,9 @@ static const salts_unicode_line_break_bool_range salts_unicode_line_break_pf_ran
   {0x002E1Du, 0x002E1Du},
   {0x002E21u, 0x002E21u},
 };
-#define SALTS_UNICODE_LINE_BREAK_PF_RANGES_COUNT (sizeof(salts_unicode_line_break_pf_ranges) / sizeof(salts_unicode_line_break_pf_ranges[0]))
+#define SALTS_UNICODE_LINE_BREAK_PF_RANGES_COUNT (sizeof(unicode_line_break_pf_ranges) / sizeof(unicode_line_break_pf_ranges[0]))
 
-static const salts_unicode_line_break_bool_range salts_unicode_line_break_mn_mc_ranges[] = {
+static const unicode_line_break_bool_range unicode_line_break_mn_mc_ranges[] = {
   {0x000300u, 0x00036Fu},
   {0x000483u, 0x000487u},
   {0x000591u, 0x0005BDu},
@@ -3310,9 +3310,9 @@ static const salts_unicode_line_break_bool_range salts_unicode_line_break_mn_mc_
   {0x01E944u, 0x01E94Au},
   {0x0E0100u, 0x0E01EFu},
 };
-#define SALTS_UNICODE_LINE_BREAK_MN_MC_RANGES_COUNT (sizeof(salts_unicode_line_break_mn_mc_ranges) / sizeof(salts_unicode_line_break_mn_mc_ranges[0]))
+#define SALTS_UNICODE_LINE_BREAK_MN_MC_RANGES_COUNT (sizeof(unicode_line_break_mn_mc_ranges) / sizeof(unicode_line_break_mn_mc_ranges[0]))
 
-static const salts_unicode_line_break_bool_range salts_unicode_line_break_east_asian_ranges[] = {
+static const unicode_line_break_bool_range unicode_line_break_east_asian_ranges[] = {
   {0x001100u, 0x00115Fu},
   {0x0020A9u, 0x0020A9u},
   {0x00231Au, 0x00231Bu},
@@ -3443,9 +3443,9 @@ static const salts_unicode_line_break_bool_range salts_unicode_line_break_east_a
   {0x020000u, 0x02FFFDu},
   {0x030000u, 0x03FFFDu},
 };
-#define SALTS_UNICODE_LINE_BREAK_EAST_ASIAN_RANGES_COUNT (sizeof(salts_unicode_line_break_east_asian_ranges) / sizeof(salts_unicode_line_break_east_asian_ranges[0]))
+#define SALTS_UNICODE_LINE_BREAK_EAST_ASIAN_RANGES_COUNT (sizeof(unicode_line_break_east_asian_ranges) / sizeof(unicode_line_break_east_asian_ranges[0]))
 
-static const salts_unicode_line_break_bool_range salts_unicode_line_break_potential_emoji_ranges[] = {
+static const unicode_line_break_bool_range unicode_line_break_potential_emoji_ranges[] = {
   {0x01F02Cu, 0x01F02Fu},
   {0x01F094u, 0x01F09Fu},
   {0x01F0AFu, 0x01F0B0u},
@@ -3483,6 +3483,6 @@ static const salts_unicode_line_break_bool_range salts_unicode_line_break_potent
   {0x01FAF9u, 0x01FAFFu},
   {0x01FC00u, 0x01FFFDu},
 };
-#define SALTS_UNICODE_LINE_BREAK_POTENTIAL_EMOJI_RANGES_COUNT (sizeof(salts_unicode_line_break_potential_emoji_ranges) / sizeof(salts_unicode_line_break_potential_emoji_ranges[0]))
+#define SALTS_UNICODE_LINE_BREAK_POTENTIAL_EMOJI_RANGES_COUNT (sizeof(unicode_line_break_potential_emoji_ranges) / sizeof(unicode_line_break_potential_emoji_ranges[0]))
 
 #endif

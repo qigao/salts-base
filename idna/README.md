@@ -2,7 +2,7 @@
 
 `Salts::IDNA` 在应用边界把 UTF-8 域名转换成经过校验的 ASCII 连接身份。
 它只依赖 `Salts::Unicode`（及其 `Salts::Core` 依赖），不包含 DNS 客户端、TLS、
-URL 解析、缓存或后台线程，不依赖 ICU 或 SaltsUtils。开发事项：Salts #1091。
+URL 解析、缓存或后台线程，不依赖 ICU 或 SaltsBase。开发事项：Salts #1091。
 
 ## 契约与使用
 
@@ -119,7 +119,7 @@ CTest 中的正式覆盖：
 
 消费端应从同一 SDK 获取 Unicode/IDNA，先完成显式转换再接入连接流程；不存在
 新头文件搭配旧库的兼容路径。回滚时一并撤回新调用点与 IDNA/NFC 导出，保留旧 CNet
-行为。Unicode 所有权从 SaltsUtils 迁移的配对发布要求仍见
+行为。Unicode 所有权从 SaltsBase 迁移的配对发布要求仍见
 [`unicode/README.md`](../unicode/README.md)；本模块不是既有 2.3 RC 发布的前置条件。
 
 标准依据：[UTS #46 rev 35](https://www.unicode.org/reports/tr46/tr46-35.html)、

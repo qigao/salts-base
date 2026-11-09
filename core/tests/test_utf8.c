@@ -1,4 +1,4 @@
-#include <utf8.h>
+#include <salts/utf8.h>
 #include <tinytest.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -6,7 +6,7 @@
 
 
 static int valid_bytes(const unsigned char *p, size_t n) {
-  return salts_core_utf8_valid((const char *)p, n);
+  return core_utf8_valid((const char *)p, n);
 }
 
 spec("Core strict UTF-8") {
@@ -37,9 +37,9 @@ spec("Core strict UTF-8") {
   size_t i;
   unsigned b;
 
-  check(salts_core_utf8_valid(NULL, 0u) == 1);
-  check(salts_core_utf8_valid(NULL, 1u) == 0);
-  check(salts_core_utf8_valid("", 0u) == 1);
+  check(core_utf8_valid(NULL, 0u) == 1);
+  check(core_utf8_valid(NULL, 1u) == 0);
+  check(core_utf8_valid("", 0u) == 1);
   check(valid_bytes(ascii, sizeof(ascii)) == 1);
   check(valid_bytes(two, sizeof(two)) == 1);
   check(valid_bytes(three, sizeof(three)) == 1);

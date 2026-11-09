@@ -10,13 +10,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct salts_unicode_bidi_range {
+typedef struct unicode_bidi_range {
   uint32_t first;
   uint32_t last;
   uint8_t value;
-} salts_unicode_bidi_range;
+} unicode_bidi_range;
 
-static const salts_unicode_bidi_range salts_unicode_bidi_ranges[] = {
+static const unicode_bidi_range unicode_bidi_ranges[] = {
   {0x000000u, 0x000008u, SALTS_UNICODE_BIDI_BN},
   {0x000009u, 0x000009u, SALTS_UNICODE_BIDI_S},
   {0x00000Au, 0x00000Au, SALTS_UNICODE_BIDI_B},
@@ -1285,6 +1285,6 @@ static const salts_unicode_bidi_range salts_unicode_bidi_ranges[] = {
   {0x100000u, 0x10FFFDu, SALTS_UNICODE_BIDI_L},
   {0x10FFFEu, 0x10FFFFu, SALTS_UNICODE_BIDI_BN},
 };
-#define SALTS_UNICODE_BIDI_RANGES_COUNT (sizeof(salts_unicode_bidi_ranges) / sizeof(salts_unicode_bidi_ranges[0]))
+#define SALTS_UNICODE_BIDI_RANGES_COUNT (sizeof(unicode_bidi_ranges) / sizeof(unicode_bidi_ranges[0]))
 
 #endif

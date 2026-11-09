@@ -1,5 +1,5 @@
-#include "json_parser.h"
-#include "toon_json_adapter.h"
+#include <json_parser.h>
+#include <toon_json_adapter.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -24,7 +24,7 @@ int main(void)
     json_free(json);
     if (rc != SALTS_OK) {
         fprintf(stderr, "JSON to TOON conversion failed: %s\n",
-            cmeta_strerror(rc));
+            error_code_string(rc));
         return 1;
     }
 
@@ -35,7 +35,7 @@ int main(void)
     TOONc_free(toon);
     if (rc != SALTS_OK) {
         fprintf(stderr, "TOON to JSON conversion failed: %s\n",
-            cmeta_strerror(rc));
+            error_code_string(rc));
         return 1;
     }
 

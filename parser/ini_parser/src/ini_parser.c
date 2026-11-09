@@ -3,11 +3,11 @@
  * @brief INI Parser Implementation using re2c/lemon
  */
 
-#include "ini_parser.h"
+#include <ini_parser.h>
 #include "ini_lexer.h"
 #include "ini_types.h"
 #include "ini_grammar_gen.h"
-#include "tstr.h"
+#include <salts/tstr.h>
 
 #include <stdlib.h>
 #include <string.h>

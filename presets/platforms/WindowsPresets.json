@@ -12,7 +12,10 @@
         "base",
         "toolkit-msvc",
         "flags-msvc"
-      ]
+      ],
+      "environment": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      }
     },
     {
       "name": "windows-llvm-mingw",
@@ -26,7 +29,10 @@
     {
       "name": "target-llvm-mingw-x64",
       "hidden": true,
-      "inherits": "windows-llvm-mingw",
+      "inherits": [
+        "toolkit-llvm-mingw-x64",
+        "windows-llvm-mingw"
+      ],
       "environment": {
         "VCPKG_TARGET_TRIPLET": "qigao-x64-windows-llvm-mingw"
       }
@@ -34,7 +40,10 @@
     {
       "name": "target-llvm-mingw-arm64",
       "hidden": true,
-      "inherits": "windows-llvm-mingw",
+      "inherits": [
+        "toolkit-llvm-mingw-arm64",
+        "windows-llvm-mingw"
+      ],
       "environment": {
         "VCPKG_TARGET_TRIPLET": "qigao-arm64-windows-llvm-mingw"
       }

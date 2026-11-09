@@ -15,7 +15,7 @@
  * @endcode
  */
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 #include <error_codes.h>
 #include <stddef.h>
 

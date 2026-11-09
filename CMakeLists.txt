@@ -1,18 +1,9 @@
 cmake_minimum_required(VERSION 3.27)
-if(POLICY CMP0144)
-  cmake_policy(SET CMP0144 OLD)
-endif()
-if(POLICY CMP0167)
-  cmake_policy(SET CMP0167 OLD)
-endif()
 
-project(
-  SaltsParsers
-  VERSION 0.1.0
-  DESCRIPTION "Higher-level utilities built on Salts"
-  HOMEPAGE_URL "https://github.com/qigao/salts-parsers"
-  LANGUAGES ${_salts_utils_languages})
-unset(_salts_utils_languages)
+project(SaltsBase VERSION 0.1.0 DESCRIPTION
+        "Higher-level utilities for cross-platform purpose and c11 developments"
+        HOMEPAGE_URL "https://github.com/qigao/salts-base" LANGUAGES
+        C CXX)
 
 # Project configuration - output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -47,14 +38,12 @@ include(CmakeUtils)
 include(GNUInstallDirs)
 
 find_package(Threads REQUIRED)
-find_package(SaltsCore 0.1 CONFIG REQUIRED PATHS "${SALTSCORE_ROOT_PATH}"
-             NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
 
 include(FindTools)
+add_subdirectory(vendor)
 add_subdirectory(tinytest)
-add_subdirectory(platform)
-add_subdirectory(concurrency)
-add_subdirectory(fs)
+add_subdirectory(asn1)
+add_subdirectory(coroutine) 
 add_subdirectory(core)
 add_subdirectory(cron)
 add_subdirectory(parser)
@@ -63,34 +52,32 @@ add_subdirectory(media)
 add_subdirectory(serial)
 add_subdirectory(unicode)
 add_subdirectory(idna)
-
-add_subdirectory(coroutine)
-add_subdirectory(vendor)
+ 
 #Package Configuration
 include(CMakePackageConfigHelpers)
 
 # Generate the version file
 write_basic_package_version_file(
-  "${CMAKE_BINARY_DIR}/SaltsUtilsConfigVersion.cmake"
+  "${CMAKE_BINARY_DIR}/SaltsBaseConfigVersion.cmake"
   VERSION ${PROJECT_VERSION}
   COMPATIBILITY SameMajorVersion)
 
 # Install the config files
 install(
-  FILES "${CMAKE_BINARY_DIR}/SaltsUtilsConfig.cmake"
-        "${CMAKE_BINARY_DIR}/SaltsUtilsConfigVersion.cmake"
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/SaltsUtils"
+  FILES "${CMAKE_BINARY_DIR}/SaltsBaseConfig.cmake"
+        "${CMAKE_BINARY_DIR}/SaltsBaseConfigVersion.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/SaltsBase"
   COMPONENT Development)
 
 # Install the export set
 export(
-  EXPORT SaltsUtilsTargets
-  FILE "${CMAKE_BINARY_DIR}/SaltsUtilsTargets.cmake"
+  EXPORT SaltsBaseTargets
+  FILE "${CMAKE_BINARY_DIR}/SaltsBaseTargets.cmake"
   NAMESPACE Salts::)
 
 install(
-  EXPORT SaltsUtilsTargets
-  FILE SaltsUtilsTargets.cmake
+  EXPORT SaltsBaseTargets
+  FILE SaltsBaseTargets.cmake
   NAMESPACE Salts::
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/SaltsUtils"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/SaltsBase"
   COMPONENT Development)

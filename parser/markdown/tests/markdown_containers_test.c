@@ -1,6 +1,6 @@
 /* #181: real C11 RichDoc block-container semantics and exact HTML output. */
-#include <salts/markdown.h>
-#include <salts/markdown_html.h>
+#include <markdown.h>
+#include <markdown_html.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -193,26 +193,26 @@ _Static_assert(sizeof(cases)/sizeof(cases[0])==78u,
 
 static bool check_case(const fixture *f) {
     const size_t source_length=strlen(f->markdown);
-    salts_md_document *owner=NULL;
-    REQUIRE(salts_md_parse(f->markdown,source_length,512u,
+    md_document *owner=NULL;
+    REQUIRE(md_parse(f->markdown,source_length,512u,
                           source_length+1u,&owner)==SALTS_MD_OK);
     REQUIRE(owner!=NULL);
-    const salts_md_rich_document_view view=salts_md_get_document_view(owner);
-    REQUIRE(salts_md_rich_document_validate(&view,512u)==SALTS_MD_OK);
+    const md_rich_document_view view=md_get_document_view(owner);
+    REQUIRE(md_rich_document_validate(&view,512u)==SALTS_MD_OK);
     REQUIRE(view.raw_markdown_bytes==source_length);
     REQUIRE(memcmp(view.raw_markdown,f->markdown,source_length)==0);
 
     unsigned lists=0;
     int loose=-1;
     for(size_t i=0;i<view.document.block_count;++i) {
-        const salts_md_block *node=&view.document.blocks[i];
+        const md_block *node=&view.document.blocks[i];
         REQUIRE(node->stable_id==i+1u);
         if(node->kind==SALTS_MD_BLOCK_LIST||
            node->kind==SALTS_MD_BLOCK_ORDERED_LIST) {
             const char *meta=NULL;size_t bytes=0;
-            REQUIRE(salts_md_rich_document_metadata(&view,i,&meta,&bytes)==SALTS_MD_OK);
-            REQUIRE(bytes==sizeof(salts_md_list_semantics));
-            salts_md_list_semantics info;
+            REQUIRE(md_rich_document_metadata(&view,i,&meta,&bytes)==SALTS_MD_OK);
+            REQUIRE(bytes==sizeof(md_list_semantics));
+            md_list_semantics info;
             memcpy(&info,meta,sizeof(info));
             REQUIRE(info.loose<=1u);
             REQUIRE(info.reserved[0]==0u&&info.reserved[1]==0u);
@@ -226,17 +226,17 @@ static bool check_case(const fixture *f) {
     REQUIRE(lists==f->list_count);
     if(f->loose!=-1) REQUIRE(loose==f->loose);
     size_t required=0;
-    REQUIRE(salts_md_render_html(&view,512u,NULL,0,&required)==SALTS_MD_OK);
+    REQUIRE(md_render_html(&view,512u,NULL,0,&required)==SALTS_MD_OK);
     REQUIRE(required==strlen(f->expected));
     char *out=(char*)malloc(required+2u);
     REQUIRE(out!=NULL);
     memset(out,0x7d,required+2u);
     size_t checked=0;
-    REQUIRE(salts_md_render_html(&view,512u,out,required,&checked)==
+    REQUIRE(md_render_html(&view,512u,out,required,&checked)==
             SALTS_MD_CAPACITY_EXCEEDED);
     REQUIRE(checked==required);
     for(size_t i=0;i<required+2u;++i) REQUIRE(out[i]==0x7d);
-    REQUIRE(salts_md_render_html(&view,512u,out,required+1u,&checked)==SALTS_MD_OK);
+    REQUIRE(md_render_html(&view,512u,out,required+1u,&checked)==SALTS_MD_OK);
     REQUIRE(checked==required);
     if(strcmp(out,f->expected)!=0)
         fprintf(stderr,"fixture %s\nactual: %s\nexpected: %s\n",
@@ -244,7 +244,7 @@ static bool check_case(const fixture *f) {
     REQUIRE(strcmp(out,f->expected)==0);
     REQUIRE((unsigned char)out[required+1u]==0x7d);
     free(out);
-    salts_md_document_destroy(owner);
+    md_document_destroy(owner);
     return true;
 }
 
@@ -255,7 +255,7 @@ static bool check_case(const fixture *f) {
 static bool test_partial_tab_code_ownership(void) {
     static const struct {
         const char *markdown,*code;
-        salts_md_block_kind expected_parent;
+        md_block_kind expected_parent;
     } samples[]={
         {"- foo\n\n\t\tbar\n","  bar\n",SALTS_MD_BLOCK_LIST_ITEM},
         {">\t\tfoo\n","  foo\n",SALTS_MD_BLOCK_QUOTE},
@@ -264,12 +264,12 @@ static bool test_partial_tab_code_ownership(void) {
     _Static_assert(sizeof(samples)/sizeof(samples[0])==3u,
                    "official tab overhang native owner cases");
     for(size_t k=0u;k<sizeof(samples)/sizeof(samples[0]);++k) {
-        salts_md_document *doc=NULL;
+        md_document *doc=NULL;
         const size_t bytes=strlen(samples[k].markdown);
-        if(salts_md_parse(samples[k].markdown,bytes,128u,bytes+1u,&doc)!=
+        if(md_parse(samples[k].markdown,bytes,128u,bytes+1u,&doc)!=
            SALTS_MD_OK || !doc) return false;
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        bool success=salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK &&
+        const md_rich_document_view v=md_get_document_view(doc);
+        bool success=md_rich_document_validate(&v,128u)==SALTS_MD_OK &&
             v.raw_markdown_bytes==bytes &&
             !memcmp(v.raw_markdown,samples[k].markdown,bytes);
         size_t code=SIZE_MAX;
@@ -286,7 +286,7 @@ static bool test_partial_tab_code_ownership(void) {
         }
         char payload[64]={0};size_t used=0u;
         for(size_t i=code+1u;success && i<v.document.block_count;++i) {
-            const salts_md_block *node=&v.document.blocks[i];
+            const md_block *node=&v.document.blocks[i];
             if(node->parent_index!=code)continue;
             if(node->kind!=SALTS_MD_BLOCK_TEXT ||
                node->byte_end<node->byte_begin ||
@@ -309,10 +309,10 @@ static bool test_partial_tab_code_ownership(void) {
         if(!success)
             fprintf(stderr,"native tab ownership failed: #%zu code '%s'\n",
                     k+5u,payload);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         if(!success)return false;
-        salts_md_document *rejected=(salts_md_document*)(uintptr_t)1u;
-        if(salts_md_parse(samples[k].markdown,bytes,code_text_limited,
+        md_document *rejected=(md_document*)(uintptr_t)1u;
+        if(md_parse(samples[k].markdown,bytes,code_text_limited,
                          bytes+1u,&rejected)!=SALTS_MD_CAPACITY_EXCEEDED ||
            rejected!=NULL) {
             fprintf(stderr,"tab code TEXT budget rollback failed #%zu\n",k+5u);
@@ -341,17 +341,17 @@ static bool test_thematic_item_ownership(void) {
     _Static_assert(sizeof(samples)/sizeof(samples[0])==10u,
                    "item rule owner denominator");
     for(size_t k=0u;k<sizeof(samples)/sizeof(samples[0]);++k) {
-        salts_md_document *owned=NULL;
+        md_document *owned=NULL;
         const size_t size=strlen(samples[k]);
-        if(salts_md_parse(samples[k],size,256u,size+1u,&owned)!=SALTS_MD_OK ||
+        if(md_parse(samples[k],size,256u,size+1u,&owned)!=SALTS_MD_OK ||
            !owned)return false;
-        const salts_md_rich_document_view v=salts_md_get_document_view(owned);
-        bool ok=salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK &&
+        const md_rich_document_view v=md_get_document_view(owned);
+        bool ok=md_rich_document_validate(&v,256u)==SALTS_MD_OK &&
             v.raw_markdown_bytes==size &&
             !memcmp(v.raw_markdown,samples[k],size);
         size_t rule_count=0u;
         for(size_t i=1u;ok && i<v.document.block_count;++i) {
-            const salts_md_block *b=&v.document.blocks[i];
+            const md_block *b=&v.document.blocks[i];
             if(b->kind!=SALTS_MD_BLOCK_RULE)continue;
             ++rule_count;
             if(b->parent_index>=i ||
@@ -360,7 +360,7 @@ static bool test_thematic_item_ownership(void) {
                 ok=false;
         }
         ok=ok && rule_count==1u;
-        salts_md_document_destroy(owned);
+        md_document_destroy(owned);
         if(!ok) {
             fprintf(stderr,"thematic rule owner mismatch case %zu\n",k);
             return false;
@@ -384,21 +384,21 @@ static bool test_item_rule_last_node_budget(void) {
                    "item RULE rollback denominator");
     for(size_t k=0u;k<sizeof(sources)/sizeof(sources[0]);++k) {
         const size_t n=strlen(sources[k]);
-        salts_md_document *doc=NULL;
-        if(salts_md_parse(sources[k],n,128u,n+1u,&doc)!=SALTS_MD_OK ||
+        md_document *doc=NULL;
+        if(md_parse(sources[k],n,128u,n+1u,&doc)!=SALTS_MD_OK ||
            !doc)return false;
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
+        const md_rich_document_view v=md_get_document_view(doc);
         const size_t count=v.document.block_count;
-        const bool valid=salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK &&
+        const bool valid=md_rich_document_validate(&v,128u)==SALTS_MD_OK &&
             count>1u &&
             v.document.blocks[count-1u].kind==SALTS_MD_BLOCK_RULE &&
             v.document.blocks[count-1u].parent_index<count-1u &&
             v.document.blocks[v.document.blocks[count-1u].parent_index].kind==
                 SALTS_MD_BLOCK_LIST_ITEM;
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         if(!valid)return false;
-        salts_md_document *rejected=(salts_md_document*)(uintptr_t)1u;
-        if(salts_md_parse(sources[k],n,count-1u,n+1u,&rejected)!=
+        md_document *rejected=(md_document*)(uintptr_t)1u;
+        if(md_parse(sources[k],n,count-1u,n+1u,&rejected)!=
            SALTS_MD_CAPACITY_EXCEEDED || rejected!=NULL) {
             fprintf(stderr,"item RULE node-budget rollback failed #%zu\n",k);
             return false;
@@ -418,8 +418,8 @@ int main(void) {
     if(!test_thematic_item_ownership())return 1;
     if(!test_item_rule_last_node_budget())return 1;
     const char *limited="- one\n\n  two\n";
-    salts_md_document *d=(salts_md_document*)(uintptr_t)1u;
-    const salts_md_status status=salts_md_parse(limited,strlen(limited),2u,
+    md_document *d=(md_document*)(uintptr_t)1u;
+    const md_status status=md_parse(limited,strlen(limited),2u,
                                              strlen(limited)+1u,&d);
     if(status!=SALTS_MD_CAPACITY_EXCEEDED||d!=NULL) {
         fprintf(stderr,"node exhaustion must roll back exactly once\n");
@@ -429,8 +429,8 @@ int main(void) {
      * atomic. Eight nodes admit the first quote text but not its next
      * LINE_BREAK, and the caller must never receive a partial RichDoc. */
     const char *quote_limit="* a\n  > b\n  > c\n";
-    d=(salts_md_document*)(uintptr_t)1u;
-    if(salts_md_parse(quote_limit,strlen(quote_limit),8u,
+    d=(md_document*)(uintptr_t)1u;
+    if(md_parse(quote_limit,strlen(quote_limit),8u,
                      strlen(quote_limit)+1u,&d)!=SALTS_MD_CAPACITY_EXCEEDED ||
        d!=NULL) {
         fprintf(stderr,"quote continuation node exhaustion must roll back\n");
@@ -439,8 +439,8 @@ int main(void) {
     /* Interior blank line publication must also fail atomically. With
      * eight nodes, the second deferred newline exceeds the node budget. */
     const char *code_blanks="- Foo\n\n      bar\n\n\n      baz\n";
-    d=(salts_md_document*)(uintptr_t)1u;
-    if(salts_md_parse(code_blanks,strlen(code_blanks),8u,
+    d=(md_document*)(uintptr_t)1u;
+    if(md_parse(code_blanks,strlen(code_blanks),8u,
                      strlen(code_blanks)+1u,&d)!=SALTS_MD_CAPACITY_EXCEEDED ||
        d!=NULL) {
         fprintf(stderr,"indented code blank-node exhaustion must roll back\n");
@@ -456,16 +456,16 @@ int main(void) {
     }
     inline_deep[inline_used++]='x';
     inline_deep[inline_used++]='\n';
-    d=(salts_md_document*)(uintptr_t)1u;
-    if(salts_md_parse(inline_deep,inline_used,512u,
+    d=(md_document*)(uintptr_t)1u;
+    if(md_parse(inline_deep,inline_used,512u,
                      inline_used+1u,&d)!=SALTS_MD_CAPACITY_EXCEEDED ||
        d!=NULL) {
         fprintf(stderr,"inline nesting overflow must roll back\n");
         return 1;
     }
     const char *inline_limited="- - foo\n";
-    d=(salts_md_document*)(uintptr_t)1u;
-    if(salts_md_parse(inline_limited,strlen(inline_limited),3u,
+    d=(md_document*)(uintptr_t)1u;
+    if(md_parse(inline_limited,strlen(inline_limited),3u,
                      strlen(inline_limited)+1u,&d)!=SALTS_MD_CAPACITY_EXCEEDED ||
        d!=NULL) {
         fprintf(stderr,"inline nesting node exhaustion must roll back\n");
@@ -474,8 +474,8 @@ int main(void) {
     /* The initial indented code must not publish a partially initialized
      * RichDoc when creating its first TEXT node exhausts the node budget. */
     const char *initial_code_limited="1.     code\n";
-    d=(salts_md_document*)(uintptr_t)1u;
-    if(salts_md_parse(initial_code_limited,strlen(initial_code_limited),4u,
+    d=(md_document*)(uintptr_t)1u;
+    if(md_parse(initial_code_limited,strlen(initial_code_limited),4u,
                      strlen(initial_code_limited)+1u,&d)!=
        SALTS_MD_CAPACITY_EXCEEDED || d!=NULL) {
         fprintf(stderr,"initial indented code must roll back on node OOM\n");
@@ -484,8 +484,8 @@ int main(void) {
     /* The inline text child of a directly admitted heading is still
      * resource-bounded and must not publish a partial RichDoc on failure. */
     const char *heading_limited="- # Foo\n";
-    d=(salts_md_document*)(uintptr_t)1u;
-    if(salts_md_parse(heading_limited,strlen(heading_limited),4u,
+    d=(md_document*)(uintptr_t)1u;
+    if(md_parse(heading_limited,strlen(heading_limited),4u,
                      strlen(heading_limited)+1u,&d)!=SALTS_MD_CAPACITY_EXCEEDED ||
        d!=NULL) {
         fprintf(stderr,"list heading node-budget failure must roll back\n");
@@ -501,8 +501,8 @@ int main(void) {
         deep[used++]='\n';
     }
     deep[used]='\0';
-    d=(salts_md_document*)(uintptr_t)1u;
-    if(salts_md_parse(deep,used,2048u,used+1u,&d)!=
+    d=(md_document*)(uintptr_t)1u;
+    if(md_parse(deep,used,2048u,used+1u,&d)!=
        SALTS_MD_CAPACITY_EXCEEDED||d!=NULL) {
         fprintf(stderr,"container depth overflow must roll back\n");
         return 1;

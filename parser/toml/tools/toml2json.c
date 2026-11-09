@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "toml.h"
+#include <toml.h>
 
 typedef const char* toml_unparsed_t;
 toml_unparsed_t     toml_table_unparsed(const toml_table_t* table, const char* key);

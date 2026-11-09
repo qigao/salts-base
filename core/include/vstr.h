@@ -12,7 +12,7 @@
 #ifndef VSTR_H
 #define VSTR_H
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 #include "memory_pool.h"
 #include "cmeta_buffer.h"
 #include <stddef.h>

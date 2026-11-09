@@ -4,7 +4,7 @@
  * SpecialCasing.txt SHA-256: efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588
  * DerivedCoreProperties.txt SHA-256: 24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08
  */
-static const uint32_t salts_unicode_upper_values[] = {
+static const uint32_t unicode_upper_values[] = {
   0x41u,
   0x42u,
   0x43u,
@@ -1704,7 +1704,7 @@ static const uint32_t salts_unicode_upper_values[] = {
   0x1e920u,
   0x1e921u,
 };
-static const salts_unicode_case_mapping salts_unicode_upper_mappings[] = {
+static const unicode_case_mapping unicode_upper_mappings[] = {
   {0x61u, 0u, 1u},
   {0x62u, 1u, 1u},
   {0x63u, 2u, 1u},
@@ -3286,7 +3286,7 @@ static const salts_unicode_case_mapping salts_unicode_upper_mappings[] = {
   {0x1e942u, 1696u, 1u},
   {0x1e943u, 1697u, 1u},
 };
-static const uint32_t salts_unicode_lower_values[] = {
+static const uint32_t unicode_lower_values[] = {
   0x61u,
   0x62u,
   0x63u,
@@ -4777,7 +4777,7 @@ static const uint32_t salts_unicode_lower_values[] = {
   0x1e942u,
   0x1e943u,
 };
-static const salts_unicode_case_mapping salts_unicode_lower_mappings[] = {
+static const unicode_case_mapping unicode_lower_mappings[] = {
   {0x41u, 0u, 1u},
   {0x42u, 1u, 1u},
   {0x43u, 2u, 1u},
@@ -6267,7 +6267,7 @@ static const salts_unicode_case_mapping salts_unicode_lower_mappings[] = {
   {0x1e920u, 1487u, 1u},
   {0x1e921u, 1488u, 1u},
 };
-static const uint32_t salts_unicode_title_values[] = {
+static const uint32_t unicode_title_values[] = {
   0x41u,
   0x42u,
   0x43u,
@@ -7840,7 +7840,7 @@ static const uint32_t salts_unicode_title_values[] = {
   0x1e920u,
   0x1e921u,
 };
-static const salts_unicode_case_mapping salts_unicode_title_mappings[] = {
+static const unicode_case_mapping unicode_title_mappings[] = {
   {0x61u, 0u, 1u},
   {0x62u, 1u, 1u},
   {0x63u, 2u, 1u},
@@ -9349,7 +9349,7 @@ static const salts_unicode_case_mapping salts_unicode_title_mappings[] = {
   {0x1e942u, 1569u, 1u},
   {0x1e943u, 1570u, 1u},
 };
-static const salts_unicode_case_property_range salts_unicode_case_properties[] = {
+static const unicode_case_property_range unicode_case_properties[] = {
   {0x27u, 0x27u, 2u},
   {0x2eu, 0x2eu, 2u},
   {0x3au, 0x3au, 2u},

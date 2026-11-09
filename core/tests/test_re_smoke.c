@@ -2,7 +2,7 @@
  * parser and limits remain the single Core-owned runtime implementation.
  * The original 25 more detailed TinyTest cases remain in test_re.c.
  */
-#include "re.h"
+#include <salts/re.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>

@@ -4,11 +4,11 @@
  */
 
 #define MINICORO_IMPL
-#include "coro.h"
+#include <salts/coro.h>
 #include "minicoro.h"
 #include <assert.h>
 #include <stdint.h>
-#include <thread.h>
+#include <threads/threads.h>
 #include <stdlib.h>
 #include <string.h>
 

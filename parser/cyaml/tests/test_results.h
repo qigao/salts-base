@@ -92,7 +92,7 @@ void tr_compute_changes(tr_results_t* curr, tr_results_t* prev);
 
 #ifdef TEST_RESULTS_IMPL
 
-#include "cyaml.h"
+#include <cyaml.h>
 
 const char* tr_result_str(tr_result_t r)
 {

@@ -22,47 +22,47 @@
 #define SALTS_XML_DEFAULT_MAX_DEPTH 256u
 #define SALTS_XML_DEFAULT_MAX_RETAINED_STRING_BYTES (32u * 1024u * 1024u)
 
-typedef struct salts_xml_document_impl {
+typedef struct xml_document_impl {
     char *input;
     size_t input_size;
     cxml_root_node *root;
-} salts_xml_document_impl;
+} xml_document_impl;
 
-typedef struct salts_xml_counts {
+typedef struct xml_counts {
     size_t nodes;
     size_t attributes;
     size_t retained_strings;
-} salts_xml_counts;
+} xml_counts;
 
-static salts_xml_string_view empty_view(void) {
-    const salts_xml_string_view view = {NULL, 0u};
+static xml_string_view empty_view(void) {
+    const xml_string_view view = {NULL, 0u};
     return view;
 }
 
-static salts_xml_string_view literal_view(const char *value) {
-    const salts_xml_string_view view = {
+static xml_string_view literal_view(const char *value) {
+    const xml_string_view view = {
         value, value != NULL ? strlen(value) : 0u};
     return view;
 }
 
-static salts_xml_location empty_location(void) {
-    const salts_xml_location location = {0u, 0u, 0u};
+static xml_location empty_location(void) {
+    const xml_location location = {0u, 0u, 0u};
     return location;
 }
 
-static salts_xml_location convert_location(cxml_source_location source) {
-    const salts_xml_location location = {
+static xml_location convert_location(cxml_source_location source) {
+    const xml_location location = {
         source.byte_offset, (uint32_t)source.line, (uint32_t)source.column};
     return location;
 }
 
-static void clear_diagnostic(salts_xml_diagnostic *diagnostic) {
+static void clear_diagnostic(xml_diagnostic *diagnostic) {
     if (diagnostic != NULL) memset(diagnostic, 0, sizeof(*diagnostic));
 }
 
-static salts_xml_status fail(salts_xml_diagnostic *diagnostic,
-                             salts_xml_status status,
-                             salts_xml_location location,
+static xml_status fail(xml_diagnostic *diagnostic,
+                             xml_status status,
+                             xml_location location,
                              const char *message) {
     if (diagnostic != NULL) {
         diagnostic->status = status;
@@ -81,8 +81,8 @@ static bool checked_add(size_t left, size_t right, size_t *out) {
     return true;
 }
 
-static salts_xml_location location_at(const char *input, const char *position) {
-    salts_xml_location location = {0u, 1u, 1u};
+static xml_location location_at(const char *input, const char *position) {
+    xml_location location = {0u, 1u, 1u};
     const char *cursor;
 
     location.byte_offset = (size_t)(position - input);
@@ -106,9 +106,9 @@ static const char *find_sequence(const char *cursor, const char *end,
     return NULL;
 }
 
-static salts_xml_status preflight_depth(const char *input, size_t input_size,
+static xml_status preflight_depth(const char *input, size_t input_size,
                                         size_t max_depth,
-                                        salts_xml_diagnostic *diagnostic) {
+                                        xml_diagnostic *diagnostic) {
     const char *cursor = input;
     const char *const end = input + input_size;
     size_t depth = 0u;
@@ -207,9 +207,9 @@ static bool count_string(size_t *total, const cxml_string *string) {
 }
 
 static bool collect_counts(const cxml_elem_node *element, size_t depth,
-                           const salts_xml_limits *limits,
-                           salts_xml_counts *counts,
-                           salts_xml_location *limit_location) {
+                           const xml_limits *limits,
+                           xml_counts *counts,
+                           xml_location *limit_location) {
     struct _cxml_list__node *cursor;
 
     if (element == NULL || depth > limits->max_depth ||
@@ -294,13 +294,13 @@ static bool collect_counts(const cxml_elem_node *element, size_t depth,
     return true;
 }
 
-static salts_xml_status check_mutation_budget(salts_xml_node node,
+static xml_status check_mutation_budget(xml_node node,
                                               size_t added_nodes,
                                               size_t added_string_bytes,
                                               bool adds_element) {
-    salts_xml_limits limits = salts_xml_default_limits();
-    salts_xml_counts counts = {0u, 0u, 0u};
-    salts_xml_location location = empty_location();
+    xml_limits limits = xml_default_limits();
+    xml_counts counts = {0u, 0u, 0u};
+    xml_location location = empty_location();
     void *cursor = (void *)node.impl;
     cxml_root_node *root;
     size_t depth = 0u;
@@ -325,8 +325,8 @@ static salts_xml_status check_mutation_budget(salts_xml_node node,
     return SALTS_XML_OK;
 }
 
-salts_xml_limits salts_xml_default_limits(void) {
-    const salts_xml_limits limits = {
+xml_limits xml_default_limits(void) {
+    const xml_limits limits = {
         SALTS_XML_DEFAULT_MAX_INPUT_BYTES,
         SALTS_XML_DEFAULT_MAX_NODES,
         SALTS_XML_DEFAULT_MAX_ATTRIBUTES,
@@ -335,18 +335,18 @@ salts_xml_limits salts_xml_default_limits(void) {
     return limits;
 }
 
-salts_xml_status salts_xml_parse(salts_xml_document *out,
+xml_status xml_parse(xml_document *out,
                                  const char *input,
                                  size_t input_size,
-                                 const salts_xml_limits *limits_or_null,
-                                 salts_xml_diagnostic *diagnostic) {
-    salts_xml_limits limits;
-    salts_xml_document_impl *impl = NULL;
-    salts_xml_counts counts = {0u, 0u, 0u};
-    salts_xml_location limit_location = {0u, 1u, 1u};
+                                 const xml_limits *limits_or_null,
+                                 xml_diagnostic *diagnostic) {
+    xml_limits limits;
+    xml_document_impl *impl = NULL;
+    xml_counts counts = {0u, 0u, 0u};
+    xml_location limit_location = {0u, 1u, 1u};
     cxml_parse_error parse_error;
     cxml_parse_limits parse_limits;
-    salts_xml_status status;
+    xml_status status;
     const char *nul;
 
     clear_diagnostic(diagnostic);
@@ -355,7 +355,7 @@ salts_xml_status salts_xml_parse(salts_xml_document *out,
                     "out must be empty and input must be nonempty");
     }
     limits = limits_or_null != NULL ? *limits_or_null
-                                    : salts_xml_default_limits();
+                                    : xml_default_limits();
     if (limits.max_input_bytes == 0u || limits.max_nodes == 0u ||
         limits.max_attributes == 0u || limits.max_depth == 0u ||
         limits.max_retained_string_bytes == 0u) {
@@ -376,7 +376,7 @@ salts_xml_status salts_xml_parse(salts_xml_document *out,
     status = preflight_depth(input, input_size, limits.max_depth, diagnostic);
     if (status != SALTS_XML_OK) return status;
 
-    impl = (salts_xml_document_impl *)calloc(1u, sizeof(*impl));
+    impl = (xml_document_impl *)calloc(1u, sizeof(*impl));
     if (impl == NULL) {
         return fail(diagnostic, SALTS_XML_ALLOCATION_FAILED, empty_location(),
                     "unable to allocate XML document");
@@ -403,11 +403,11 @@ salts_xml_status salts_xml_parse(salts_xml_document *out,
     impl->root = cxml_parse_xml_limited(impl->input, &parse_limits,
                                         &parse_error);
     if (impl->root == NULL) {
-        salts_xml_location location = convert_location(parse_error.source);
+        xml_location location = convert_location(parse_error.source);
         const char *message = parse_error.message[0] != '\0'
                                   ? parse_error.message
                                   : "malformed XML";
-        const salts_xml_status parse_status =
+        const xml_status parse_status =
             parse_error.kind == CXML_PARSE_ERROR_ALLOCATION
                 ? SALTS_XML_ALLOCATION_FAILED
                 : parse_error.kind == CXML_PARSE_ERROR_LIMIT
@@ -436,35 +436,35 @@ salts_xml_status salts_xml_parse(salts_xml_document *out,
     return SALTS_XML_OK;
 }
 
-void salts_xml_document_destroy(salts_xml_document *document) {
-    salts_xml_document_impl *impl;
+void xml_document_destroy(xml_document *document) {
+    xml_document_impl *impl;
     if (document == NULL || document->impl == NULL) return;
-    impl = (salts_xml_document_impl *)document->impl;
+    impl = (xml_document_impl *)document->impl;
     cxml_root_node_free(impl->root);
     free(impl->input);
     free(impl);
     document->impl = NULL;
 }
 
-salts_xml_node salts_xml_document_root(const salts_xml_document *document) {
-    salts_xml_node node = {NULL};
+xml_node xml_document_root(const xml_document *document) {
+    xml_node node = {NULL};
     if (document != NULL && document->impl != NULL) {
-        const salts_xml_document_impl *impl =
-            (const salts_xml_document_impl *)document->impl;
+        const xml_document_impl *impl =
+            (const xml_document_impl *)document->impl;
         node.impl = impl->root->root_element;
     }
     return node;
 }
 
-salts_xml_status salts_xml_serialize_children(
-    salts_xml_node node, char *output, size_t output_capacity,
+xml_status xml_serialize_children(
+    xml_node node, char *output, size_t output_capacity,
     size_t max_bytes, size_t *out_size) {
     const cxml_elem_node *element;
     char *serialized;
     size_t serialized_size;
     size_t required_capacity;
 
-    if (salts_xml_node_type(node) != SALTS_XML_ELEMENT || out_size == NULL ||
+    if (xml_node_type(node) != SALTS_XML_ELEMENT || out_size == NULL ||
         max_bytes == 0u || (output == NULL) != (output_capacity == 0u)) {
         return SALTS_XML_INVALID_ARGUMENT;
     }
@@ -491,7 +491,7 @@ salts_xml_status salts_xml_serialize_children(
     return SALTS_XML_OK;
 }
 
-salts_xml_node_kind salts_xml_node_type(salts_xml_node node) {
+xml_node_kind xml_node_type(xml_node node) {
     if (node.impl == NULL) return SALTS_XML_INVALID_NODE;
     switch (_cxml_node_type(node.impl)) {
         case CXML_ELEM_NODE: return SALTS_XML_ELEMENT;
@@ -507,7 +507,7 @@ salts_xml_node_kind salts_xml_node_type(salts_xml_node node) {
     }
 }
 
-salts_xml_location salts_xml_node_location(salts_xml_node node) {
+xml_location xml_node_location(xml_node node) {
     if (node.impl == NULL) return empty_location();
     switch (_cxml_node_type(node.impl)) {
         case CXML_ELEM_NODE:
@@ -522,37 +522,37 @@ salts_xml_location salts_xml_node_location(salts_xml_node node) {
     }
 }
 
-static salts_xml_string_view string_view(const cxml_string *string) {
-    salts_xml_string_view view;
+static xml_string_view string_view(const cxml_string *string) {
+    xml_string_view view;
     view.data = cxml_string_as_raw((cxml_string *)string);
     view.size = (size_t)cxml_string_len((cxml_string *)string);
     return view;
 }
 
-salts_xml_string_view salts_xml_node_qualified_name(salts_xml_node node) {
-    if (salts_xml_node_type(node) != SALTS_XML_ELEMENT) return empty_view();
+xml_string_view xml_node_qualified_name(xml_node node) {
+    if (xml_node_type(node) != SALTS_XML_ELEMENT) return empty_view();
     return string_view(&((const cxml_elem_node *)node.impl)->name.qname);
 }
 
-salts_xml_string_view salts_xml_node_local_name(salts_xml_node node) {
-    salts_xml_string_view view = empty_view();
+xml_string_view xml_node_local_name(xml_node node) {
+    xml_string_view view = empty_view();
     const cxml_elem_node *element;
-    if (salts_xml_node_type(node) != SALTS_XML_ELEMENT) return view;
+    if (xml_node_type(node) != SALTS_XML_ELEMENT) return view;
     element = (const cxml_elem_node *)node.impl;
     view.data = element->name.lname;
     view.size = (size_t)element->name.lname_len;
     return view;
 }
 
-salts_xml_string_view salts_xml_node_namespace_uri(salts_xml_node node) {
+xml_string_view xml_node_namespace_uri(xml_node node) {
     const cxml_elem_node *element;
-    if (salts_xml_node_type(node) != SALTS_XML_ELEMENT) return empty_view();
+    if (xml_node_type(node) != SALTS_XML_ELEMENT) return empty_view();
     element = (const cxml_elem_node *)node.impl;
     return element->namespace != NULL ? string_view(&element->namespace->uri)
                                       : empty_view();
 }
 
-salts_xml_string_view salts_xml_node_value(salts_xml_node node) {
+xml_string_view xml_node_value(xml_node node) {
     if (node.impl == NULL) return empty_view();
     switch (_cxml_node_type(node.impl)) {
         case CXML_TEXT_NODE:
@@ -576,11 +576,11 @@ static bool visible_child(const void *child) {
     }
 }
 
-size_t salts_xml_node_child_count(salts_xml_node node) {
+size_t xml_node_child_count(xml_node node) {
     const cxml_elem_node *element;
     const struct _cxml_list__node *cursor;
     size_t count = 0u;
-    if (salts_xml_node_type(node) != SALTS_XML_ELEMENT) return 0u;
+    if (xml_node_type(node) != SALTS_XML_ELEMENT) return 0u;
     element = (const cxml_elem_node *)node.impl;
     for (cursor = element->children.head; cursor != NULL; cursor = cursor->next) {
         if (visible_child(cursor->item)) ++count;
@@ -588,12 +588,12 @@ size_t salts_xml_node_child_count(salts_xml_node node) {
     return count;
 }
 
-salts_xml_node salts_xml_node_child_at(salts_xml_node node, size_t index) {
-    salts_xml_node result = {NULL};
+xml_node xml_node_child_at(xml_node node, size_t index) {
+    xml_node result = {NULL};
     const cxml_elem_node *element;
     const struct _cxml_list__node *cursor;
     size_t current = 0u;
-    if (salts_xml_node_type(node) != SALTS_XML_ELEMENT) return result;
+    if (xml_node_type(node) != SALTS_XML_ELEMENT) return result;
     element = (const cxml_elem_node *)node.impl;
     for (cursor = element->children.head; cursor != NULL; cursor = cursor->next) {
         if (!visible_child(cursor->item)) continue;
@@ -606,21 +606,21 @@ salts_xml_node salts_xml_node_child_at(salts_xml_node node, size_t index) {
     return result;
 }
 
-size_t salts_xml_node_attribute_count(salts_xml_node node) {
+size_t xml_node_attribute_count(xml_node node) {
     const cxml_elem_node *element;
-    if (salts_xml_node_type(node) != SALTS_XML_ELEMENT) return 0u;
+    if (xml_node_type(node) != SALTS_XML_ELEMENT) return 0u;
     element = (const cxml_elem_node *)node.impl;
     return element->attributes != NULL
                ? (size_t)cxml_table_size(element->attributes)
                : 0u;
 }
 
-salts_xml_attribute salts_xml_node_attribute_at(salts_xml_node node,
+xml_attribute xml_node_attribute_at(xml_node node,
                                                  size_t index) {
-    salts_xml_attribute result = {NULL};
+    xml_attribute result = {NULL};
     const cxml_elem_node *element;
     const char *key;
-    if (salts_xml_node_type(node) != SALTS_XML_ELEMENT) return result;
+    if (xml_node_type(node) != SALTS_XML_ELEMENT) return result;
     element = (const cxml_elem_node *)node.impl;
     if (element->attributes == NULL || index >= (size_t)element->attributes->count)
         return result;
@@ -629,22 +629,22 @@ salts_xml_attribute salts_xml_node_attribute_at(salts_xml_node node,
     return result;
 }
 
-salts_xml_location salts_xml_attribute_location(salts_xml_attribute attribute) {
+xml_location xml_attribute_location(xml_attribute attribute) {
     return attribute.impl != NULL
                ? convert_location(((const cxml_attr_node *)attribute.impl)->source)
                : empty_location();
 }
 
-salts_xml_string_view salts_xml_attribute_qualified_name(
-    salts_xml_attribute attribute) {
+xml_string_view xml_attribute_qualified_name(
+    xml_attribute attribute) {
     return attribute.impl != NULL
                ? string_view(&((const cxml_attr_node *)attribute.impl)->name.qname)
                : empty_view();
 }
 
-salts_xml_string_view salts_xml_attribute_local_name(
-    salts_xml_attribute attribute) {
-    salts_xml_string_view view = empty_view();
+xml_string_view xml_attribute_local_name(
+    xml_attribute attribute) {
+    xml_string_view view = empty_view();
     const cxml_attr_node *node;
     if (attribute.impl == NULL) return view;
     node = (const cxml_attr_node *)attribute.impl;
@@ -653,8 +653,8 @@ salts_xml_string_view salts_xml_attribute_local_name(
     return view;
 }
 
-salts_xml_string_view salts_xml_attribute_namespace_uri(
-    salts_xml_attribute attribute) {
+xml_string_view xml_attribute_namespace_uri(
+    xml_attribute attribute) {
     const cxml_attr_node *node;
     if (attribute.impl == NULL) return empty_view();
     node = (const cxml_attr_node *)attribute.impl;
@@ -662,23 +662,23 @@ salts_xml_string_view salts_xml_attribute_namespace_uri(
                                    : empty_view();
 }
 
-salts_xml_string_view salts_xml_attribute_value(salts_xml_attribute attribute) {
+xml_string_view xml_attribute_value(xml_attribute attribute) {
     return attribute.impl != NULL
                ? string_view(&((const cxml_attr_node *)attribute.impl)->value)
                : empty_view();
 }
 
-salts_xml_status salts_xml_document_create(salts_xml_document *out,
+xml_status xml_document_create(xml_document *out,
                                            const char *root_name) {
-    salts_xml_document_impl *impl;
+    xml_document_impl *impl;
     cxml_elem_node *root;
-    const salts_xml_limits limits = salts_xml_default_limits();
+    const xml_limits limits = xml_default_limits();
 
     if (out == NULL || out->impl != NULL || root_name == NULL || root_name[0] == '\0')
         return SALTS_XML_INVALID_ARGUMENT;
     if (strlen(root_name) > limits.max_retained_string_bytes)
         return SALTS_XML_LIMIT_EXCEEDED;
-    impl = (salts_xml_document_impl *)calloc(1u, sizeof(*impl));
+    impl = (xml_document_impl *)calloc(1u, sizeof(*impl));
     if (impl == NULL) return SALTS_XML_ALLOCATION_FAILED;
     impl->root = (cxml_root_node *)cxml_create_node(CXML_ROOT_NODE);
     root = (cxml_elem_node *)cxml_create_node(CXML_ELEM_NODE);
@@ -694,11 +694,11 @@ salts_xml_status salts_xml_document_create(salts_xml_document *out,
     return SALTS_XML_OK;
 }
 
-salts_xml_status salts_xml_node_add_element(salts_xml_node parent,
+xml_status xml_node_add_element(xml_node parent,
                                             const char *name,
-                                            salts_xml_node *out) {
+                                            xml_node *out) {
     cxml_elem_node *element;
-    salts_xml_status status;
+    xml_status status;
     if (parent.impl == NULL || name == NULL || name[0] == '\0' || out == NULL ||
         out->impl != NULL)
         return SALTS_XML_INVALID_ARGUMENT;
@@ -716,10 +716,10 @@ salts_xml_status salts_xml_node_add_element(salts_xml_node parent,
     return SALTS_XML_OK;
 }
 
-salts_xml_status salts_xml_node_set_text(salts_xml_node node,
+xml_status xml_node_set_text(xml_node node,
                                          const char *text) {
     cxml_text_node *child;
-    salts_xml_status status;
+    xml_status status;
     if (node.impl == NULL || text == NULL ||
         _cxml_node_type(node.impl) != CXML_ELEM_NODE)
         return SALTS_XML_INVALID_ARGUMENT;
@@ -738,43 +738,43 @@ salts_xml_status salts_xml_node_set_text(salts_xml_node node,
     return SALTS_XML_OK;
 }
 
-char *salts_xml_document_serialize(const salts_xml_document *document,
+char *xml_document_serialize(const xml_document *document,
                                    size_t *out_size) {
     char *serialized;
-    const salts_xml_document_impl *impl;
+    const xml_document_impl *impl;
     if (out_size != NULL) *out_size = 0u;
     if (document == NULL || document->impl == NULL) return NULL;
-    impl = (const salts_xml_document_impl *)document->impl;
+    impl = (const xml_document_impl *)document->impl;
     serialized = cxml_document_to_xml_rstring(impl->root);
     if (serialized != NULL && out_size != NULL) *out_size = strlen(serialized);
     return serialized;
 }
 
-void salts_xml_owned_string_free(char *string) { free(string); }
+void xml_owned_string_free(char *string) { free(string); }
 
-static salts_xml_status node_list_allocate(salts_xml_node_list *out,
+static xml_status node_list_allocate(xml_node_list *out,
                                            size_t size) {
     if (out == NULL || out->items != NULL || out->size != 0u)
         return SALTS_XML_INVALID_ARGUMENT;
     if (size == 0u) return SALTS_XML_OK;
-    if (size > SIZE_MAX / sizeof(salts_xml_node)) return SALTS_XML_LIMIT_EXCEEDED;
-    out->items = calloc(size, sizeof(salts_xml_node));
+    if (size > SIZE_MAX / sizeof(xml_node)) return SALTS_XML_LIMIT_EXCEEDED;
+    out->items = calloc(size, sizeof(xml_node));
     if (out->items == NULL) return SALTS_XML_ALLOCATION_FAILED;
     out->size = size;
     return SALTS_XML_OK;
 }
 
-salts_xml_node salts_xml_node_find(salts_xml_node root, const char *query) {
-    salts_xml_node result = {NULL};
+xml_node xml_node_find(xml_node root, const char *query) {
+    xml_node result = {NULL};
     if (root.impl != NULL && query != NULL)
         result.impl = cxml_find((void *)root.impl, query);
     return result;
 }
 
-salts_xml_status salts_xml_node_find_all(salts_xml_node root, const char *query,
-                                         salts_xml_node_list *out) {
+xml_status xml_node_find_all(xml_node root, const char *query,
+                                         xml_node_list *out) {
     cxml_list matches = new_cxml_list();
-    salts_xml_status status;
+    xml_status status;
     size_t index = 0u;
 
     if (root.impl == NULL || query == NULL || out == NULL || out->items != NULL || out->size != 0u)
@@ -783,20 +783,20 @@ salts_xml_status salts_xml_node_find_all(salts_xml_node root, const char *query,
     status = node_list_allocate(out, (size_t)cxml_list_size(&matches));
     if (status == SALTS_XML_OK) {
         cxml_for_each(item, &matches) {
-            ((salts_xml_node *)out->items)[index++].impl = item;
+            ((xml_node *)out->items)[index++].impl = item;
         }
     }
     cxml_list_free(&matches);
     return status;
 }
 
-char *salts_xml_node_text_dup(salts_xml_node node) {
+char *xml_node_text_dup(xml_node node) {
     if (node.impl == NULL) return NULL;
     if (_cxml_node_type(node.impl) == CXML_ROOT_NODE ||
         _cxml_node_type(node.impl) == CXML_ELEM_NODE)
         return cxml_text((void *)node.impl, NULL);
     {
-        const salts_xml_string_view value = salts_xml_node_text_view(node);
+        const xml_string_view value = xml_node_text_view(node);
         if (value.size == SIZE_MAX) return NULL;
         char *copy = (char *)malloc(value.size + 1u);
         if (copy == NULL) return NULL;
@@ -819,11 +819,11 @@ static qvm_status_t xpath_fail(qvm_diagnostic_t *diagnostic,
     return status;
 }
 
-qvm_status_t salts_xml_document_xpath_query(
-    const salts_xml_document *document, const char *xpath,
-    salts_xml_node_list *out, const qvm_limits_t *limits,
+qvm_status_t xml_document_xpath_query(
+    const xml_document *document, const char *xpath,
+    xml_node_list *out, const qvm_limits_t *limits,
     qvm_diagnostic_t *diagnostic) {
-    const salts_xml_document_impl *impl;
+    const xml_document_impl *impl;
     cxml_set *matches = NULL;
     qvm_status_t status;
     int count;
@@ -834,7 +834,7 @@ qvm_status_t salts_xml_document_xpath_query(
         return xpath_fail(diagnostic, QVM_STATUS_INVALID_ARGUMENT,
                           "invalid XML XPath arguments");
     }
-    impl = (const salts_xml_document_impl *)document->impl;
+    impl = (const xml_document_impl *)document->impl;
     status = (qvm_status_t)cxml_xpath_ex(impl->root, xpath, &matches, limits, diagnostic);
     if (status != QVM_STATUS_OK) return status;
     count = matches != NULL ? cxml_set_size(matches) : 0;
@@ -847,7 +847,7 @@ qvm_status_t salts_xml_document_xpath_query(
                           "unable to allocate XML XPath result handles");
     }
     for (index = 0; index < count; ++index)
-        ((salts_xml_node *)out->items)[index].impl = cxml_set_get(matches, index);
+        ((xml_node *)out->items)[index].impl = cxml_set_get(matches, index);
     if (matches != NULL) {
         cxml_set_free(matches);
         free(matches);
@@ -855,26 +855,26 @@ qvm_status_t salts_xml_document_xpath_query(
     return QVM_STATUS_OK;
 }
 
-size_t salts_xml_node_list_size(const salts_xml_node_list *list) {
+size_t xml_node_list_size(const xml_node_list *list) {
     return list != NULL ? list->size : 0u;
 }
 
-salts_xml_node salts_xml_node_list_at(const salts_xml_node_list *list,
+xml_node xml_node_list_at(const xml_node_list *list,
                                       size_t index) {
-    salts_xml_node result = {NULL};
+    xml_node result = {NULL};
     if (list != NULL && list->items != NULL && index < list->size)
-        result = ((const salts_xml_node *)list->items)[index];
+        result = ((const xml_node *)list->items)[index];
     return result;
 }
 
-void salts_xml_node_list_destroy(salts_xml_node_list *list) {
+void xml_node_list_destroy(xml_node_list *list) {
     if (list == NULL) return;
     free(list->items);
     list->items = NULL;
     list->size = 0u;
 }
 
-salts_xml_string_view salts_xml_node_display_name(salts_xml_node node) {
+xml_string_view xml_node_display_name(xml_node node) {
     if (node.impl == NULL) return empty_view();
     switch (_cxml_node_type(node.impl)) {
         case CXML_ELEM_NODE: return string_view(&((const cxml_elem_node *)node.impl)->name.qname);
@@ -889,7 +889,7 @@ salts_xml_string_view salts_xml_node_display_name(salts_xml_node node) {
     }
 }
 
-salts_xml_string_view salts_xml_node_text_view(salts_xml_node node) {
+xml_string_view xml_node_text_view(xml_node node) {
     if (node.impl == NULL) return empty_view();
     switch (_cxml_node_type(node.impl)) {
         case CXML_ELEM_NODE: {
@@ -911,7 +911,7 @@ salts_xml_string_view salts_xml_node_text_view(salts_xml_node node) {
     }
 }
 
-int salts_xml_node_text_has_entity_reference(salts_xml_node node) {
+int xml_node_text_has_entity_reference(xml_node node) {
     const cxml_text_node *text = NULL;
     if (node.impl == NULL) return 0;
     switch (_cxml_node_type(node.impl)) {
@@ -935,7 +935,7 @@ int salts_xml_node_text_has_entity_reference(salts_xml_node node) {
     return text != NULL && text->has_entity && !text->is_cdata;
 }
 
-char *salts_xml_node_serialize(salts_xml_node node, size_t *out_size) {
+char *xml_node_serialize(xml_node node, size_t *out_size) {
     char *serialized;
     if (out_size != NULL) *out_size = 0u;
     if (node.impl == NULL) return NULL;

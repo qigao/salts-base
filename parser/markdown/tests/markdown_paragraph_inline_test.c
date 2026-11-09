@@ -1,4 +1,4 @@
-#include <salts/markdown.h>
+#include <markdown.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -11,17 +11,17 @@
     } \
 } while (0)
 
-static size_t kind_count(salts_md_rich_document_view v,salts_md_block_kind kind) {
+static size_t kind_count(md_rich_document_view v,md_block_kind kind) {
     size_t result=0u;
     for(size_t i=0u;i<v.document.block_count;++i)
         result+=v.document.blocks[i].kind==kind;
     return result;
 }
 
-static bool has_text(salts_md_rich_document_view v,const char *expected) {
+static bool has_text(md_rich_document_view v,const char *expected) {
     const size_t n=strlen(expected);
     for(size_t i=0u;i<v.document.block_count;++i) {
-        const salts_md_block *node=&v.document.blocks[i];
+        const md_block *node=&v.document.blocks[i];
         if(node->kind==SALTS_MD_BLOCK_TEXT &&
            node->byte_end>=node->byte_begin &&
            node->byte_end<=v.document.source_bytes &&
@@ -36,13 +36,13 @@ static bool has_text(salts_md_rich_document_view v,const char *expected) {
  * while raw Markdown (including CRLF) remains exactly the original bytes. */
 static int check_multiline(const char *source,const char *before,
                            const char *after,size_t emphasis,size_t strong,
-                           salts_md_block_kind break_owner) {
+                           md_block_kind break_owner) {
     const size_t n=strlen(source);
-    salts_md_document *doc=NULL;
-    CHECK(salts_md_parse(source,n,128u,n+1u,&doc)==SALTS_MD_OK);
+    md_document *doc=NULL;
+    CHECK(md_parse(source,n,128u,n+1u,&doc)==SALTS_MD_OK);
     CHECK(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    CHECK(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    CHECK(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
     CHECK(v.raw_markdown_bytes==n);
     CHECK(memcmp(v.raw_markdown,source,n)==0);
     CHECK(kind_count(v,SALTS_MD_BLOCK_EMPHASIS)==emphasis);
@@ -52,14 +52,14 @@ static int check_multiline(const char *source,const char *before,
     CHECK(has_text(v,after));
     bool owned_break=false;
     for(size_t i=1u;i<v.document.block_count;++i) {
-        const salts_md_block *node=&v.document.blocks[i];
+        const md_block *node=&v.document.blocks[i];
         CHECK(node->parent_index<i);
         if(node->kind==SALTS_MD_BLOCK_LINE_BREAK &&
            v.document.blocks[node->parent_index].kind==break_owner)
             owned_break=true;
     }
     CHECK(owned_break);
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return 0;
 }
 
@@ -67,13 +67,13 @@ static int check_multiline(const char *source,const char *before,
  * across source LF/CRLF. Source-origin metadata is typed, bounded and owned,
  * never reconstructed from semantic TEXT offsets. */
 static int check_crossline_hard(const char *source,uint8_t origin,
-                                 salts_md_block_kind inline_owner) {
+                                 md_block_kind inline_owner) {
     const size_t n=strlen(source);
-    salts_md_document *doc=NULL;
-    CHECK(salts_md_parse(source,n,128u,n+1u,&doc)==SALTS_MD_OK);
+    md_document *doc=NULL;
+    CHECK(md_parse(source,n,128u,n+1u,&doc)==SALTS_MD_OK);
     CHECK(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    CHECK(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    CHECK(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
     CHECK(v.raw_markdown_bytes==n);
     CHECK(memcmp(v.raw_markdown,source,n)==0);
     CHECK(kind_count(v,SALTS_MD_BLOCK_HARD_LINE_BREAK)==1u);
@@ -82,21 +82,21 @@ static int check_crossline_hard(const char *source,uint8_t origin,
     CHECK(has_text(v,"bar"));
     bool owned=false;
     for(size_t i=1u;i<v.document.block_count;++i) {
-        const salts_md_block *node=&v.document.blocks[i];
+        const md_block *node=&v.document.blocks[i];
         CHECK(node->parent_index<i);
         if(node->kind!=SALTS_MD_BLOCK_HARD_LINE_BREAK)continue;
         CHECK(v.document.blocks[node->parent_index].kind==inline_owner);
         const char *bytes=NULL;size_t size=SIZE_MAX;
-        CHECK(salts_md_rich_document_metadata(&v,i,&bytes,&size)==SALTS_MD_OK);
-        CHECK(size==sizeof(salts_md_line_break_semantics));
-        salts_md_line_break_semantics meta;
+        CHECK(md_rich_document_metadata(&v,i,&bytes,&size)==SALTS_MD_OK);
+        CHECK(size==sizeof(md_line_break_semantics));
+        md_line_break_semantics meta;
         memcpy(&meta,bytes,sizeof(meta));
         CHECK(meta.origin==origin);
         CHECK(!meta.reserved[0]&&!meta.reserved[1]&&!meta.reserved[2]);
         owned=true;
     }
     CHECK(owned);
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return 0;
 }
 
@@ -104,14 +104,14 @@ static int check_crossline_hard(const char *source,uint8_t origin,
  * the HARD break still belongs to the OUTER inline owner. Its provenance
  * comes from the whole physical line rather than a residual text fragment. */
 static int check_hard_after_nested_inline(
-    const char *source,salts_md_block_kind outer,
-    salts_md_block_kind inner,uint8_t origin) {
+    const char *source,md_block_kind outer,
+    md_block_kind inner,uint8_t origin) {
     const size_t n=strlen(source);
-    salts_md_document *doc=NULL;
-    CHECK(salts_md_parse(source,n,128u,n+1u,&doc)==SALTS_MD_OK);
+    md_document *doc=NULL;
+    CHECK(md_parse(source,n,128u,n+1u,&doc)==SALTS_MD_OK);
     CHECK(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    CHECK(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    CHECK(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
     CHECK(v.raw_markdown_bytes==n);
     CHECK(memcmp(v.raw_markdown,source,n)==0);
     CHECK(kind_count(v,inner)==1u);
@@ -119,24 +119,24 @@ static int check_hard_after_nested_inline(
     CHECK(has_text(v,"baz"));
     bool inner_owned=false,hard_owned=false;
     for(size_t i=1u;i<v.document.block_count;++i) {
-        const salts_md_block *node=&v.document.blocks[i];
+        const md_block *node=&v.document.blocks[i];
         CHECK(node->parent_index<i);
-        const salts_md_block_kind parent_kind=
+        const md_block_kind parent_kind=
             v.document.blocks[node->parent_index].kind;
         if(node->kind==inner && parent_kind==outer)inner_owned=true;
         if(node->kind!=SALTS_MD_BLOCK_HARD_LINE_BREAK)continue;
         CHECK(parent_kind==outer);
         const char *meta=NULL;size_t len=SIZE_MAX;
-        CHECK(salts_md_rich_document_metadata(&v,i,&meta,&len)==SALTS_MD_OK);
-        CHECK(len==sizeof(salts_md_line_break_semantics));
-        salts_md_line_break_semantics sem;
+        CHECK(md_rich_document_metadata(&v,i,&meta,&len)==SALTS_MD_OK);
+        CHECK(len==sizeof(md_line_break_semantics));
+        md_line_break_semantics sem;
         memcpy(&sem,meta,sizeof(sem));
         CHECK(sem.origin==origin);
         CHECK(!sem.reserved[0]&&!sem.reserved[1]&&!sem.reserved[2]);
         hard_owned=true;
     }
     CHECK(inner_owned && hard_owned);
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return 0;
 }
 
@@ -205,25 +205,25 @@ int main(void) {
                    "cross-block barrier fixture count");
     for(size_t i=0u;i<sizeof(barriers)/sizeof(barriers[0]);++i) {
         const size_t n=strlen(barriers[i]);
-        salts_md_document *doc=NULL;
-        CHECK(salts_md_parse(barriers[i],n,128u,n+1u,&doc)==SALTS_MD_OK);
+        md_document *doc=NULL;
+        CHECK(md_parse(barriers[i],n,128u,n+1u,&doc)==SALTS_MD_OK);
         CHECK(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        CHECK(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        CHECK(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
         CHECK(kind_count(v,SALTS_MD_BLOCK_EMPHASIS)==0u);
         CHECK(v.raw_markdown_bytes==n);
         CHECK(memcmp(v.raw_markdown,barriers[i],n)==0);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
     }
 
     const char limited[]="**foo\nbar**\n";
-    salts_md_document *rejected=(salts_md_document*)(uintptr_t)1u;
-    CHECK(salts_md_parse(limited,sizeof(limited)-1u,5u,
+    md_document *rejected=(md_document*)(uintptr_t)1u;
+    CHECK(md_parse(limited,sizeof(limited)-1u,5u,
                         sizeof(limited),&rejected)==SALTS_MD_CAPACITY_EXCEEDED);
     CHECK(rejected==NULL);
     const char hard_limited[]="*foo  \nbar*\n";
-    rejected=(salts_md_document*)(uintptr_t)1u;
-    CHECK(salts_md_parse(hard_limited,sizeof(hard_limited)-1u,5u,
+    rejected=(md_document*)(uintptr_t)1u;
+    CHECK(md_parse(hard_limited,sizeof(hard_limited)-1u,5u,
                         sizeof(hard_limited),&rejected)==
           SALTS_MD_CAPACITY_EXCEEDED);
     CHECK(rejected==NULL);

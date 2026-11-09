@@ -3,26 +3,26 @@
  *
  * Centralizes capture start/stop/destroy for all types on Linux
  */
-#include "capture.h"
+#include <capture.h>
 
 #if defined(__linux__) && !defined(__ANDROID__)
 
 #include <stdlib.h>
 
 /* Internal hooks from specific implementations */
-extern int linux_audio_start(salts_capture_t *capture);
-extern void linux_audio_stop(salts_capture_t *capture);
-extern void linux_audio_destroy(salts_capture_t *capture);
+extern int linux_audio_start(capture_t *capture);
+extern void linux_audio_stop(capture_t *capture);
+extern void linux_audio_destroy(capture_t *capture);
 
-extern int v4l2_video_start(salts_capture_t *capture);
-extern void v4l2_video_stop(salts_capture_t *capture);
-extern void v4l2_video_destroy(salts_capture_t *capture);
+extern int v4l2_video_start(capture_t *capture);
+extern void v4l2_video_stop(capture_t *capture);
+extern void v4l2_video_destroy(capture_t *capture);
 
-extern int linux_screen_start(salts_capture_t *capture);
-extern void linux_screen_stop(salts_capture_t *capture);
-extern void linux_screen_destroy(salts_capture_t *capture);
+extern int linux_screen_start(capture_t *capture);
+extern void linux_screen_stop(capture_t *capture);
+extern void linux_screen_destroy(capture_t *capture);
 
-int salts_capture_start(salts_capture_t *capture) {
+int capture_start(capture_t *capture) {
     if (!capture) return -1;
     if (capture->state == SALTS_CAPTURE_STATE_RUNNING) return 0;
 
@@ -55,7 +55,7 @@ int salts_capture_start(salts_capture_t *capture) {
     return res;
 }
 
-void salts_capture_stop(salts_capture_t *capture) {
+void capture_stop(capture_t *capture) {
     if (!capture || capture->state == SALTS_CAPTURE_STATE_STOPPED) return;
 
     capture->state = SALTS_CAPTURE_STATE_STOPPING;
@@ -78,7 +78,7 @@ void salts_capture_stop(salts_capture_t *capture) {
     }
 }
 
-void salts_capture_destroy(salts_capture_t *capture) {
+void capture_destroy(capture_t *capture) {
     if (!capture) return;
 
     switch (capture->type) {
@@ -94,15 +94,15 @@ void salts_capture_destroy(salts_capture_t *capture) {
     }
 }
 
-salts_capture_state_t salts_capture_get_state(salts_capture_t *capture) {
+capture_state_t capture_get_state(capture_t *capture) {
     return capture ? capture->state : SALTS_CAPTURE_STATE_STOPPED;
 }
 
-void salts_capture_on_state(salts_capture_t *capture, salts_capture_state_cb cb) {
+void capture_on_state(capture_t *capture, capture_state_cb cb) {
     if (capture) capture->state_cb = cb;
 }
 
-int salts_capture_list_gpu_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_gpu_devices(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
     return 0;
 }

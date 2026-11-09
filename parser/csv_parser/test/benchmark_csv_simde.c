@@ -1,5 +1,5 @@
 #include "csv_lexer_simde.h"
-#include "csv_parser.h"
+#include <csv_parser.h>
 #include "tinytest.h"
 
 #include <stdlib.h>

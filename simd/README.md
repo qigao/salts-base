@@ -2,27 +2,27 @@
 
 `Salts::SIMD` is the independent C11 128-bit SIMD execution module in
 SaltsCore. It owns the native carrier, lane descriptors and execution code.
-Its public header is `<salts/simd.h>`; it neither includes nor links CMeta,
+Its public header is `<simd.h>`; it neither includes nor links CMeta,
 CFlow, Core or a reflection runtime. SIMDe remains a private implementation
-dependency supplied through the repository's pinned vcpkg contract.
+dependency supplied through the repository's vcpkg-cache installation.
 
 ## Original source and migration boundary
 
 The original seven `simd/` files come from
 [`qigao/salts@386f81328c656f416d61a6d2ef662f05443e1b4a`](https://github.com/qigao/salts/tree/386f81328c656f416d61a6d2ef662f05443e1b4a/simd).
-Original paths are retained. The 32 `cmeta_simd_*` entrypoint names, operation
+Original paths are retained. The 32 `simd_*` entrypoint names, operation
 enum values and all numeric implementation branches remain present. The
 execution body changes only the descriptor/type/constant identifiers needed
 to remove its CMeta dependency. This includes the eight original typed
 helpers; their existing behavior has not been deleted.
 
-The old `cmeta_vector_desc` embedded a `cmeta_type_desc *type`. The new
-`salts_simd_desc` contains only `lane_kind`, `lane_bits`, `lane_count` and
+The old `vector_desc` embedded a `type_desc *type`. The new
+`simd_desc` contains only `lane_kind`, `lane_bits`, `lane_count` and
 `is_mask`. **These descriptor ABIs are different.** Do not cast or reinterpret
 an old reflected descriptor as a native one. Source consumers of generic
-operations must pass the native descriptor explicitly. `salts_simd_v128`
+operations must pass the native descriptor explicitly. `simd_v128`
 retains the original 16-byte size, 16-byte alignment and neutral byte storage;
-`cmeta_v128` names that same native carrier for the existing execution APIs.
+`v128` names that same native carrier for the existing execution APIs.
 
 CMeta continues to own type identity, traits, builtin-name lookup and
 reflection validity. Its future adapter must validate those semantics and
@@ -42,9 +42,9 @@ Levenshtein are outside this iteration and remain pending.
 
 The public descriptor constants cover ten numeric shapes and four masks:
 
-- `salts_simd_i8x16`, `u8x16`, `i16x8`, `u16x8`, `i32x4`, `u32x4`,
-  `i64x2`, `u64x2`, `f32x4`, `f64x2` (each with the `salts_simd_` prefix).
-- `salts_simd_b8x16`, `b16x8`, `b32x4`, `b64x2` (same prefix).
+- `simd_i8x16`, `u8x16`, `i16x8`, `u16x8`, `i32x4`, `u32x4`,
+  `i64x2`, `u64x2`, `f32x4`, `f64x2` (each with the `simd_` prefix).
+- `simd_b8x16`, `b16x8`, `b32x4`, `b64x2` (same prefix).
 
 Descriptors are immutable values. Callers may copy a descriptor; execution
 does not require a particular descriptor address. Static linking can place
@@ -55,12 +55,12 @@ vector types are private and must not appear in application storage or installed
 headers.
 
 ```c
-#include <salts/simd.h>
+#include <simd.h>
 
-cmeta_v128 left = {{0}}, right = {{0}}, sum = {{0}};
-cmeta_simd_i32x4_splat(&left, 7);
-cmeta_simd_i32x4_splat(&right, 3);
-bool ok = cmeta_simd_binary(&salts_simd_i32x4, SALTS_SIMD_BINARY_ADD,
+v128 left = {{0}}, right = {{0}}, sum = {{0}};
+simd_i32x4_splat(&left, 7);
+simd_i32x4_splat(&right, 3);
+bool ok = simd_binary(&simd_i32x4, SALTS_SIMD_BINARY_ADD,
                             &sum, &left, &right);
 ```
 
@@ -71,7 +71,7 @@ byte shuffle/swizzle. Integer wrap and saturating operations remain distinct.
 Floating-point min/max and pseudo-min/max remain distinct. Unsupported
 operation/shape pairs return `false` according to the original implementation.
 
-`salts_simd_desc_valid` retains the original numeric structural rules:
+`simd_desc_valid` retains the original numeric structural rules:
 nonzero dimensions totaling 128 bits and agreement between BOOL and the mask
 flag. It does not validate a CMeta type, infer dimensions from lane kind, or
 make an unsupported operation valid. This migration does not silently tighten
@@ -96,13 +96,13 @@ original SIMDe load/store paths; the carrier itself remains 16-byte aligned.
 Generic operations reject unsupported pairs or invalid arguments with
 `false`. Successful operations publish the computed result to the caller's
 output; retained original failure paths must not be replaced with successful
-empty results. The void `cmeta_simd_v128_load/store` functions retain their
+empty results. The void `simd_v128_load/store` functions retain their
 original no-op behavior for null arguments. Shuffle rejects selectors at
 least 32, while swizzle writes zero for indices at least 16.
 
 ## Build and validation
 
-Enable `SALTSCORE_BUILD_SIMD=ON` with the repository's `simd` vcpkg feature.
+The root build includes SIMD and consumes SIMDe from the selected vcpkg-cache installation.
 SIMDe is required at configure time and used privately; there is no alternate
 provider when it is missing. `Salts::SIMD` is always a static library,
 independent of `BUILD_SHARED_LIBS`, and installs an archive plus its public

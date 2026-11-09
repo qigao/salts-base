@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "toml.h"
+#include <toml.h>
 #include "toml_lexer.h"
 #include "toml_grammar_gen.h"
 #include "toml_types.h"

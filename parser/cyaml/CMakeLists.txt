@@ -55,7 +55,7 @@ endif()
 
 install(
   TARGETS ${TARGET_NAME}
-  EXPORT SaltsUtilsTargets
+  EXPORT SaltsBaseTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(FILES src/cyaml.h DESTINATION include/cyaml)
 

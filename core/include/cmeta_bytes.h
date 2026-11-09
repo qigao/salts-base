@@ -1,7 +1,7 @@
 #ifndef SALTS_BYTES_H
 #define SALTS_BYTES_H
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 #include <error_codes.h>
 
 #include <stddef.h>

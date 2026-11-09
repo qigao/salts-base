@@ -3,9 +3,9 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include "csv_parser.h"
-#include "dsv_index.h"
-#include "query_vm.h"
+#include <csv_parser.h>
+#include <dsv_index.h>
+#include <query_vm.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,7 +1,7 @@
 #ifndef JSONPATH_CONTAINS_H
 #define JSONPATH_CONTAINS_H
 
-#include <cmeta_simd_scan.h>
+#include <salts/scan.h>
 
 #include <stddef.h>
 #include <string.h>
@@ -23,7 +23,7 @@ static inline int jsonpath_contains_scalar(const char *haystack, size_t haystack
 
 static inline int jsonpath_contains_simde(const char *haystack, size_t haystack_len,
                                           const char *needle, size_t needle_len) {
-  return cmeta_scan_mem(haystack, haystack_len, needle, needle_len) != NULL;
+  return scan_mem(haystack, haystack_len, needle, needle_len) != NULL;
 }
 
 #endif

@@ -5,7 +5,7 @@
  */
 
 #include "fmt_lexer.h"
-#include <vstr.h>
+#include <salts/vstr.h>
 #include <string.h>
 
 fmt_token_t fmt_scan_v_n(const char **cursor, const char *end, vstr *token) {

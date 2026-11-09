@@ -1,6 +1,6 @@
-#include <cmeta_buffer.h>
+#include <memory/buffer.h>
 #include <tinytest.h>
-#include <error_codes.h>
+#include <salts/error_codes.h>
 
 #include <stdint.h>
 #include <stdlib.h>

@@ -1,4 +1,4 @@
-#include "toonc.h"
+#include <toonc.h>
 #include <stdio.h>
 
 int main() {

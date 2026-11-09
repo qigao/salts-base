@@ -1,4 +1,4 @@
-#include "cyaml.h"
+#include <cyaml.h>
 #include "tinytest.h"
 #include <math.h>
 #include <stdlib.h>

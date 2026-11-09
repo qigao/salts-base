@@ -4,7 +4,7 @@
 as `<xml_parser/xml_parser.h>`. It accepts explicit-length input, copies it into
 document-owned storage, and returns opaque document/node/attribute handles with
 borrowed string views. Views and handles become invalid when
-`salts_xml_document_destroy()` is called.
+`xml_document_destroy()` is called.
 
 The facade reports zero-based byte offsets and one-based line/column locations.
 Input bytes, tree depth, nodes, attributes, and retained string bytes all have

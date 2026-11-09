@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 #include <stdarg.h>
-#include "cmd_arger.h"
+#include <cmd_arger.h>
 
 /**
  * @brief Token types for the re2c lexer.

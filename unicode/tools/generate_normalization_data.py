@@ -4,7 +4,6 @@ import hashlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / "data/17.0.0"
 HASHES = {
     "UnicodeData.txt": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c",
     "DerivedNormalizationProps.txt": "71fd6a206a2c0cdd41feb6b7f656aa31091db45e9cedc926985d718397f9e488",
@@ -14,13 +13,15 @@ HASHES = {
 
 def main():
     parser = argparse.ArgumentParser(__doc__)
+    parser.add_argument("--data-dir", type=Path, default=ROOT.parent / "build/unicode-data/17.0.0")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
+    data_dir = args.data_dir
     for name, digest in HASHES.items():
-        if hashlib.sha256((DATA / name).read_bytes()).hexdigest() != digest:
+        if hashlib.sha256((data_dir / name).read_bytes()).hexdigest() != digest:
             raise SystemExit(f"Unicode 17 input hash mismatch: {name}")
     decompositions, properties, exclusions = {}, {}, set()
-    for line in (DATA / "UnicodeData.txt").read_text(encoding="utf-8").splitlines():
+    for line in (data_dir / "UnicodeData.txt").read_text(encoding="utf-8").splitlines():
         f = line.split(";")
         cp = int(f[0], 16)
         prop = int(f[3]) | (256 if f[2].startswith("M") else 0)
@@ -28,7 +29,7 @@ def main():
             properties[cp] = prop
         if f[5] and not f[5].startswith("<"):
             decompositions[cp] = tuple(int(x, 16) for x in f[5].split())
-    for line in (DATA / "DerivedNormalizationProps.txt").read_text(encoding="utf-8").splitlines():
+    for line in (data_dir / "DerivedNormalizationProps.txt").read_text(encoding="utf-8").splitlines():
         f = [x.strip() for x in line.split("#")[0].split(";")]
         if len(f) > 1 and f[1] == "Full_Composition_Exclusion":
             bounds = [int(x, 16) for x in f[0].split("..")]

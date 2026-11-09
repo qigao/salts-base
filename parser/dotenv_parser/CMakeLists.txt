@@ -10,11 +10,10 @@ cmake_add_grammar(DOTENV
 # Library
 # =============================================================================
 
-add_library(${TARGET_NAME} STATIC
-    ${DOTENV_LEXER_GEN}
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/dotenv_environment.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/dotenv.c
-)
+cmake_add_source(dotenv_sources DIRS src)
+cmake_add_source(dotenv_sources_headers RECURSE DIRS include PATTERNS "*.h" "*.hpp")
+list(APPEND dotenv_sources ${dotenv_sources_headers})
+add_library(${TARGET_NAME} STATIC ${dotenv_sources} ${DOTENV_LEXER_GEN})
 add_dependencies(${TARGET_NAME} ${DOTENV_LEXER_TARGET})
 
 cmake_config_target(${TARGET_NAME}

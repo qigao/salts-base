@@ -1,9 +1,9 @@
-#include "playback.h"
+#include <playback.h>
 
 #include "playback_buffer.h"
 
 #include <miniaudio.h>
-#include <thread.h>
+#include <threads/threads.h>
 
 #include <stdatomic.h>
 #include <stdio.h>
@@ -16,10 +16,10 @@ enum {
   SALTS_PLAYBACK_DEFAULT_BUFFER_MS = 50u
 };
 
-struct salts_playback {
+struct playback {
   playback_buffer_t buffer;
   size_t frame_bytes;
-  salts_playback_state_cb state_callback;
+  playback_state_cb state_callback;
   void *state_user_data;
   ma_context context;
   ma_device device;
@@ -29,7 +29,7 @@ struct salts_playback {
   _Atomic int stop_expected;
   _Atomic int state;
   float volume;
-  salts_playback_config_t config;
+  playback_config_t config;
 #if defined(SALTS_PLAYBACK_TEST_NULL_BACKEND)
   int stop_during_next_start;
 #endif
@@ -44,13 +44,13 @@ static ma_result playback_context_init(ma_context *context) {
 #endif
 }
 
-static salts_playback_config_t playback_default_config(void) {
-  salts_playback_config_t config = {SALTS_PLAYBACK_DEFAULT_RATE, SALTS_PLAYBACK_DEFAULT_CHANNELS,
+static playback_config_t playback_default_config(void) {
+  playback_config_t config = {SALTS_PLAYBACK_DEFAULT_RATE, SALTS_PLAYBACK_DEFAULT_CHANNELS,
                                     SALTS_PLAYBACK_FORMAT_F32, SALTS_PLAYBACK_DEFAULT_BUFFER_MS};
   return config;
 }
 
-static int playback_config_valid(const salts_playback_config_t *config) {
+static int playback_config_valid(const playback_config_t *config) {
   int valid_rate;
 
   if (!config) {
@@ -66,11 +66,11 @@ static int playback_config_valid(const salts_playback_config_t *config) {
          config->buffer_duration_ms <= SALTS_PLAYBACK_MAX_BUFFER_MS;
 }
 
-static size_t playback_sample_bytes(salts_playback_format_t format) {
+static size_t playback_sample_bytes(playback_format_t format) {
   return format == SALTS_PLAYBACK_FORMAT_S16 ? 2u : 4u;
 }
 
-static ma_format playback_miniaudio_format(salts_playback_format_t format) {
+static ma_format playback_miniaudio_format(playback_format_t format) {
   switch (format) {
   case SALTS_PLAYBACK_FORMAT_S16:
     return ma_format_s16;
@@ -83,7 +83,7 @@ static ma_format playback_miniaudio_format(salts_playback_format_t format) {
   }
 }
 
-static size_t playback_buffer_capacity(const salts_playback_config_t *config, size_t frame_bytes) {
+static size_t playback_buffer_capacity(const playback_config_t *config, size_t frame_bytes) {
   size_t frames = ((size_t)config->sample_rate * config->buffer_duration_ms + 999u) / 1000u;
   return frames * frame_bytes;
 }
@@ -91,17 +91,17 @@ static size_t playback_buffer_capacity(const salts_playback_config_t *config, si
 _Static_assert(sizeof(ma_device_id) <= SALTS_PLAYBACK_DEVICE_ID_BYTES,
                "SALTS_PLAYBACK_DEVICE_ID_BYTES is too small for miniaudio");
 
-static void playback_handle_unexpected_stop(salts_playback_t *playback);
+static void playback_handle_unexpected_stop(playback_t *playback);
 
-static void playback_set_state(salts_playback_t *playback, salts_playback_state_t state) {
+static void playback_set_state(playback_t *playback, playback_state_t state) {
   int previous = atomic_exchange_explicit(&playback->state, (int)state, memory_order_acq_rel);
   if (previous != (int)state && playback->state_callback) {
     playback->state_callback(playback, state, playback->state_user_data);
   }
 }
 
-static int playback_complete_start(salts_playback_t *playback,
-                                   salts_playback_state_t expected_state) {
+static int playback_complete_start(playback_t *playback,
+                                   playback_state_t expected_state) {
   int expected = (int)expected_state;
 
 #if defined(SALTS_PLAYBACK_TEST_NULL_BACKEND)
@@ -131,7 +131,7 @@ static int playback_complete_start(salts_playback_t *playback,
 
 static void playback_device_callback(ma_device *device, void *output, const void *input,
                                      ma_uint32 frame_count) {
-  salts_playback_t *playback = (salts_playback_t *)device->pUserData;
+  playback_t *playback = (playback_t *)device->pUserData;
   size_t requested;
   size_t read = 0u;
 
@@ -145,19 +145,19 @@ static void playback_device_callback(ma_device *device, void *output, const void
   }
 }
 
-static void playback_handle_unexpected_stop(salts_playback_t *playback) {
+static void playback_handle_unexpected_stop(playback_t *playback) {
   if (atomic_exchange_explicit(&playback->desired_active, 0, memory_order_acq_rel)) {
     atomic_store_explicit(&playback->state, SALTS_PLAYBACK_STATE_ERROR, memory_order_release);
   }
 }
 
 static void playback_device_notification(const ma_device_notification *notification) {
-  salts_playback_t *playback;
+  playback_t *playback;
 
   if (!notification || !notification->pDevice) {
     return;
   }
-  playback = (salts_playback_t *)notification->pDevice->pUserData;
+  playback = (playback_t *)notification->pDevice->pUserData;
   if (!playback) {
     return;
   }
@@ -171,7 +171,7 @@ static void playback_device_notification(const ma_device_notification *notificat
   }
 }
 
-static void playback_copy_device(salts_playback_device_t *destination, const ma_device_info *source,
+static void playback_copy_device(playback_device_t *destination, const ma_device_info *source,
                                  ma_uint32 index) {
   memset(destination, 0, sizeof(*destination));
   destination->index = index;
@@ -181,7 +181,7 @@ static void playback_copy_device(salts_playback_device_t *destination, const ma_
   destination->is_default = source->isDefault ? 1 : 0;
 }
 
-static int playback_select_device(const salts_playback_device_t *device,
+static int playback_select_device(const playback_device_t *device,
                                   ma_device_config *device_config, ma_device_id *selected_id) {
   if (!device) {
     return SALTS_PLAYBACK_OK;
@@ -194,7 +194,7 @@ static int playback_select_device(const salts_playback_device_t *device,
   return SALTS_PLAYBACK_OK;
 }
 
-int salts_playback_list_devices(salts_playback_device_t *devices, size_t capacity,
+int playback_list_devices(playback_device_t *devices, size_t capacity,
                                 size_t *out_count) {
   ma_context context;
   ma_device_info *device_infos = NULL;
@@ -227,7 +227,7 @@ int salts_playback_list_devices(salts_playback_device_t *devices, size_t capacit
   return SALTS_PLAYBACK_OK;
 }
 
-int salts_playback_get_default_device(salts_playback_device_t *device) {
+int playback_get_default_device(playback_device_t *device) {
   ma_context context;
   ma_device_info *device_infos = NULL;
   ma_uint32 device_count = 0u;
@@ -254,10 +254,10 @@ int salts_playback_get_default_device(salts_playback_device_t *device) {
   return SALTS_PLAYBACK_ERR_DEVICE;
 }
 
-int salts_playback_create(const salts_playback_device_t *device,
-                          const salts_playback_config_t *config, salts_playback_t **out_playback) {
-  salts_playback_config_t selected_config;
-  salts_playback_t *playback;
+int playback_create(const playback_device_t *device,
+                          const playback_config_t *config, playback_t **out_playback) {
+  playback_config_t selected_config;
+  playback_t *playback;
   ma_device_config device_config;
   ma_device_id selected_id;
   int result;
@@ -273,7 +273,7 @@ int salts_playback_create(const salts_playback_device_t *device,
     return SALTS_PLAYBACK_ERR_FORMAT;
   }
 
-  playback = (salts_playback_t *)calloc(1u, sizeof(*playback));
+  playback = (playback_t *)calloc(1u, sizeof(*playback));
   if (!playback) {
     return SALTS_PLAYBACK_ERR_NOMEM;
   }
@@ -317,14 +317,14 @@ int salts_playback_create(const salts_playback_device_t *device,
   return SALTS_PLAYBACK_OK;
 }
 
-void salts_playback_destroy(salts_playback_t *playback) {
+void playback_destroy(playback_t *playback) {
   if (!playback) {
     return;
   }
   atomic_store_explicit(&playback->desired_active, 0, memory_order_release);
-  if (salts_playback_get_state(playback) == SALTS_PLAYBACK_STATE_PLAYING ||
-      salts_playback_get_state(playback) == SALTS_PLAYBACK_STATE_PAUSED) {
-    (void)salts_playback_stop(playback);
+  if (playback_get_state(playback) == SALTS_PLAYBACK_STATE_PLAYING ||
+      playback_get_state(playback) == SALTS_PLAYBACK_STATE_PAUSED) {
+    (void)playback_stop(playback);
   }
   if (playback->device_initialized) {
     ma_device_uninit(&playback->device);
@@ -336,12 +336,12 @@ void salts_playback_destroy(salts_playback_t *playback) {
   free(playback);
 }
 
-int salts_playback_set_state_callback(salts_playback_t *playback, salts_playback_state_cb callback,
+int playback_set_state_callback(playback_t *playback, playback_state_cb callback,
                                       void *user_data) {
   if (!playback) {
     return SALTS_PLAYBACK_ERR_FORMAT;
   }
-  if (salts_playback_get_state(playback) != SALTS_PLAYBACK_STATE_STOPPED) {
+  if (playback_get_state(playback) != SALTS_PLAYBACK_STATE_STOPPED) {
     return SALTS_PLAYBACK_ERR_BUSY;
   }
   playback->state_callback = callback;
@@ -349,13 +349,13 @@ int salts_playback_set_state_callback(salts_playback_t *playback, salts_playback
   return SALTS_PLAYBACK_OK;
 }
 
-int salts_playback_start(salts_playback_t *playback) {
-  salts_playback_state_t state;
+int playback_start(playback_t *playback) {
+  playback_state_t state;
 
   if (!playback) {
     return SALTS_PLAYBACK_ERR_FORMAT;
   }
-  state = salts_playback_get_state(playback);
+  state = playback_get_state(playback);
   if (state == SALTS_PLAYBACK_STATE_PLAYING) {
     return SALTS_PLAYBACK_OK;
   }
@@ -372,14 +372,14 @@ int salts_playback_start(salts_playback_t *playback) {
   return playback_complete_start(playback, SALTS_PLAYBACK_STATE_STARTING);
 }
 
-int salts_playback_stop(salts_playback_t *playback) {
-  salts_playback_state_t state;
+int playback_stop(playback_t *playback) {
+  playback_state_t state;
 
   if (!playback) {
     return SALTS_PLAYBACK_ERR_FORMAT;
   }
   atomic_store_explicit(&playback->desired_active, 0, memory_order_release);
-  state = salts_playback_get_state(playback);
+  state = playback_get_state(playback);
   if (state == SALTS_PLAYBACK_STATE_STOPPED) {
     return SALTS_PLAYBACK_OK;
   }
@@ -397,14 +397,14 @@ int salts_playback_stop(salts_playback_t *playback) {
   return SALTS_PLAYBACK_OK;
 }
 
-int salts_playback_pause(salts_playback_t *playback) {
-  salts_playback_state_t state;
+int playback_pause(playback_t *playback) {
+  playback_state_t state;
 
   if (!playback) {
     return SALTS_PLAYBACK_ERR_FORMAT;
   }
   atomic_store_explicit(&playback->desired_active, 0, memory_order_release);
-  state = salts_playback_get_state(playback);
+  state = playback_get_state(playback);
   if (state == SALTS_PLAYBACK_STATE_PAUSED) {
     return SALTS_PLAYBACK_OK;
   }
@@ -421,13 +421,13 @@ int salts_playback_pause(salts_playback_t *playback) {
   return SALTS_PLAYBACK_OK;
 }
 
-int salts_playback_resume(salts_playback_t *playback) {
-  salts_playback_state_t state;
+int playback_resume(playback_t *playback) {
+  playback_state_t state;
 
   if (!playback) {
     return SALTS_PLAYBACK_ERR_FORMAT;
   }
-  state = salts_playback_get_state(playback);
+  state = playback_get_state(playback);
   if (state == SALTS_PLAYBACK_STATE_PLAYING) {
     return SALTS_PLAYBACK_OK;
   }
@@ -443,14 +443,14 @@ int salts_playback_resume(salts_playback_t *playback) {
   return playback_complete_start(playback, SALTS_PLAYBACK_STATE_PAUSED);
 }
 
-salts_playback_state_t salts_playback_get_state(const salts_playback_t *playback) {
+playback_state_t playback_get_state(const playback_t *playback) {
   if (!playback) {
     return SALTS_PLAYBACK_STATE_ERROR;
   }
-  return (salts_playback_state_t)atomic_load_explicit(&playback->state, memory_order_acquire);
+  return (playback_state_t)atomic_load_explicit(&playback->state, memory_order_acquire);
 }
 
-int salts_playback_set_volume(salts_playback_t *playback, float volume) {
+int playback_set_volume(playback_t *playback, float volume) {
   if (!playback || volume < 0.0f) {
     return SALTS_PLAYBACK_ERR_FORMAT;
   }
@@ -461,7 +461,7 @@ int salts_playback_set_volume(salts_playback_t *playback, float volume) {
   return SALTS_PLAYBACK_OK;
 }
 
-int salts_playback_get_volume(const salts_playback_t *playback, float *out_volume) {
+int playback_get_volume(const playback_t *playback, float *out_volume) {
   if (out_volume) {
     *out_volume = 0.0f;
   }
@@ -472,9 +472,9 @@ int salts_playback_get_volume(const salts_playback_t *playback, float *out_volum
   return SALTS_PLAYBACK_OK;
 }
 
-int salts_playback_write(salts_playback_t *playback, const void *samples, size_t len,
+int playback_write(playback_t *playback, const void *samples, size_t len,
                          size_t *out_written) {
-  salts_playback_state_t state;
+  playback_state_t state;
 
   if (out_written) {
     *out_written = 0u;
@@ -482,7 +482,7 @@ int salts_playback_write(salts_playback_t *playback, const void *samples, size_t
   if (!playback || !samples || len == 0u || !out_written || len % playback->frame_bytes != 0u) {
     return SALTS_PLAYBACK_ERR_FORMAT;
   }
-  state = salts_playback_get_state(playback);
+  state = playback_get_state(playback);
   if (state == SALTS_PLAYBACK_STATE_ERROR) {
     return SALTS_PLAYBACK_ERR_DEVICE;
   }
@@ -493,22 +493,22 @@ int salts_playback_write(salts_playback_t *playback, const void *samples, size_t
   return SALTS_PLAYBACK_OK;
 }
 
-size_t salts_playback_get_available(const salts_playback_t *playback) {
+size_t playback_get_available(const playback_t *playback) {
   return playback ? playback_buffer_write_available(&playback->buffer) : 0u;
 }
 
-size_t salts_playback_get_buffered(const salts_playback_t *playback) {
+size_t playback_get_buffered(const playback_t *playback) {
   return playback ? playback_buffer_read_available(&playback->buffer) : 0u;
 }
 
-int salts_playback_clear(salts_playback_t *playback) {
-  salts_playback_state_t state;
+int playback_clear(playback_t *playback) {
+  playback_state_t state;
 
   if (!playback) {
     return SALTS_PLAYBACK_ERR_FORMAT;
   }
   atomic_store_explicit(&playback->desired_active, 0, memory_order_release);
-  state = salts_playback_get_state(playback);
+  state = playback_get_state(playback);
   if (state == SALTS_PLAYBACK_STATE_STARTING || state == SALTS_PLAYBACK_STATE_STOPPING ||
       state == SALTS_PLAYBACK_STATE_ERROR) {
     return SALTS_PLAYBACK_ERR_BUSY;
@@ -533,38 +533,38 @@ int salts_playback_clear(salts_playback_t *playback) {
   return SALTS_PLAYBACK_OK;
 }
 
-int salts_playback_drain(salts_playback_t *playback, uint32_t timeout_ms) {
+int playback_drain(playback_t *playback, uint32_t timeout_ms) {
   if (!playback || timeout_ms == 0u) {
     return SALTS_PLAYBACK_ERR_FORMAT;
   }
-  if (salts_playback_get_buffered(playback) == 0u) {
+  if (playback_get_buffered(playback) == 0u) {
     return SALTS_PLAYBACK_OK;
   }
-  if (salts_playback_get_state(playback) == SALTS_PLAYBACK_STATE_ERROR) {
+  if (playback_get_state(playback) == SALTS_PLAYBACK_STATE_ERROR) {
     return SALTS_PLAYBACK_ERR_DEVICE;
   }
-  if (salts_playback_get_state(playback) != SALTS_PLAYBACK_STATE_PLAYING) {
+  if (playback_get_state(playback) != SALTS_PLAYBACK_STATE_PLAYING) {
     return SALTS_PLAYBACK_ERR_BUSY;
   }
 
   for (uint32_t elapsed = 0u; elapsed < timeout_ms; ++elapsed) {
-    if (salts_playback_get_buffered(playback) == 0u) {
+    if (playback_get_buffered(playback) == 0u) {
       return SALTS_PLAYBACK_OK;
     }
-    cmeta_sleep_ms(1u);
+    sleep_ms(1u);
   }
-  return salts_playback_get_buffered(playback) == 0u ? SALTS_PLAYBACK_OK
+  return playback_get_buffered(playback) == 0u ? SALTS_PLAYBACK_OK
                                                      : SALTS_PLAYBACK_ERR_TIMEOUT;
 }
 
 #if defined(SALTS_PLAYBACK_TEST_NULL_BACKEND)
-void salts_playback_test_simulate_unexpected_stop(salts_playback_t *playback) {
+void playback_test_simulate_unexpected_stop(playback_t *playback) {
   if (playback) {
     playback_handle_unexpected_stop(playback);
   }
 }
 
-void salts_playback_test_stop_during_next_start(salts_playback_t *playback) {
+void playback_test_stop_during_next_start(playback_t *playback) {
   if (playback) {
     playback->stop_during_next_start = 1;
   }

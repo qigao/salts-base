@@ -6,7 +6,7 @@
 #ifndef SALTS_UNICODE_H
 #define SALTS_UNICODE_H
 
-#include <vstr.h>
+#include <salts/vstr.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -20,7 +20,7 @@ extern "C" {
 #define SALTS_UNICODE_VERSION_PATCH 0
 #define SALTS_UNICODE_VERSION_STRING "17.0.0"
 
-typedef enum salts_unicode_status {
+typedef enum unicode_status {
   SALTS_UNICODE_OK = 0,
   SALTS_UNICODE_END = 1,
   SALTS_UNICODE_NO_MATCH = 2,
@@ -28,17 +28,17 @@ typedef enum salts_unicode_status {
   SALTS_UNICODE_ERR_INVALID_UTF8 = -2,
   SALTS_UNICODE_ERR_CALLBACK = -3,
   SALTS_UNICODE_ERR_CAPACITY = -4
-} salts_unicode_status;
+} unicode_status;
 
-typedef enum salts_unicode_case_mode {
+typedef enum unicode_case_mode {
   SALTS_UNICODE_CASE_UPPER,
   SALTS_UNICODE_CASE_LOWER,
   SALTS_UNICODE_CASE_TITLE
-} salts_unicode_case_mode;
+} unicode_case_mode;
 
-typedef int (*salts_unicode_case_write)(const char *bytes, size_t length, void *userdata);
+typedef int (*unicode_case_write)(const char *bytes, size_t length, void *userdata);
 
-typedef enum salts_unicode_property {
+typedef enum unicode_property {
   SALTS_UNICODE_PROPERTY_NONE = 0u,
   SALTS_UNICODE_PROPERTY_XID_START = 1u << 0,
   SALTS_UNICODE_PROPERTY_XID_CONTINUE = 1u << 1,
@@ -49,16 +49,16 @@ typedef enum salts_unicode_property {
   SALTS_UNICODE_PROPERTY_EMOJI_MODIFIER_BASE = 1u << 6,
   SALTS_UNICODE_PROPERTY_EMOJI_COMPONENT = 1u << 7,
   SALTS_UNICODE_PROPERTY_EXTENDED_PICTOGRAPHIC = 1u << 8
-} salts_unicode_property;
+} unicode_property;
 
-typedef struct salts_unicode_scalar {
+typedef struct unicode_scalar {
   uint32_t value;
   uint32_t properties;
   size_t byte_offset;
   size_t byte_length;
-} salts_unicode_scalar;
+} unicode_scalar;
 
-typedef enum salts_unicode_grapheme_break {
+typedef enum unicode_grapheme_break {
   SALTS_UNICODE_GRAPHEME_OTHER = 0,
   SALTS_UNICODE_GRAPHEME_CR,
   SALTS_UNICODE_GRAPHEME_LF,
@@ -73,10 +73,10 @@ typedef enum salts_unicode_grapheme_break {
   SALTS_UNICODE_GRAPHEME_T,
   SALTS_UNICODE_GRAPHEME_LV,
   SALTS_UNICODE_GRAPHEME_LVT
-} salts_unicode_grapheme_break;
+} unicode_grapheme_break;
 
 
-typedef enum salts_unicode_word_break {
+typedef enum unicode_word_break {
   SALTS_UNICODE_WORD_OTHER = 0,
   SALTS_UNICODE_WORD_CR,
   SALTS_UNICODE_WORD_LF,
@@ -96,9 +96,9 @@ typedef enum salts_unicode_word_break {
   SALTS_UNICODE_WORD_SINGLE_QUOTE,
   SALTS_UNICODE_WORD_DOUBLE_QUOTE,
   SALTS_UNICODE_WORD_REGIONAL_INDICATOR
-} salts_unicode_word_break;
+} unicode_word_break;
 
-typedef enum salts_unicode_line_break {
+typedef enum unicode_line_break {
   SALTS_UNICODE_LINE_BREAK_OP = 0,
   SALTS_UNICODE_LINE_BREAK_CL,
   SALTS_UNICODE_LINE_BREAK_CP,
@@ -148,15 +148,15 @@ typedef enum salts_unicode_line_break {
   SALTS_UNICODE_LINE_BREAK_SG,
   SALTS_UNICODE_LINE_BREAK_SP,
   SALTS_UNICODE_LINE_BREAK_XX
-} salts_unicode_line_break;
+} unicode_line_break;
 
-typedef enum salts_unicode_line_break_opportunity {
+typedef enum unicode_line_break_opportunity {
   SALTS_UNICODE_LINE_BREAK_ALLOWED = 0,
   SALTS_UNICODE_LINE_BREAK_MANDATORY = 1
-} salts_unicode_line_break_opportunity;
+} unicode_line_break_opportunity;
 
 
-typedef enum salts_unicode_bidi_class {
+typedef enum unicode_bidi_class {
   SALTS_UNICODE_BIDI_L = 0,
   SALTS_UNICODE_BIDI_R,
   SALTS_UNICODE_BIDI_AL,
@@ -180,7 +180,7 @@ typedef enum salts_unicode_bidi_class {
   SALTS_UNICODE_BIDI_RLI,
   SALTS_UNICODE_BIDI_FSI,
   SALTS_UNICODE_BIDI_PDI
-} salts_unicode_bidi_class;
+} unicode_bidi_class;
 
 /**
  * Scan one Unicode scalar from an explicit-length borrowed UTF-8 view.
@@ -197,15 +197,15 @@ typedef enum salts_unicode_bidi_class {
  * @param out_scalar Output scalar record.
  * @return `SALTS_UNICODE_OK`, `SALTS_UNICODE_END`, or a negative error code.
  */
-salts_unicode_status salts_unicode_utf8_next(vstr input, size_t *cursor,
-                                             salts_unicode_scalar *out_scalar);
+unicode_status unicode_utf8_next(vstr input, size_t *cursor,
+                                             unicode_scalar *out_scalar);
 
 /**
  * Query the Unicode 17.0.0 Grapheme_Cluster_Break value for one scalar.
  * Scalars not explicitly assigned by the UCD return OTHER.
  */
-salts_unicode_status salts_unicode_grapheme_break_class(
-    uint32_t scalar, salts_unicode_grapheme_break *out_class);
+unicode_status unicode_grapheme_break_class(
+    uint32_t scalar, unicode_grapheme_break *out_class);
 
 
 /**
@@ -214,7 +214,7 @@ salts_unicode_status salts_unicode_grapheme_break_class(
  * @param scalar Unicode scalar value; surrogates and values above U+10FFFF are invalid.
  * @param result Receives zero or one on success and is unchanged on error.
  */
-salts_unicode_status salts_unicode_is_extended_pictographic(
+unicode_status unicode_is_extended_pictographic(
     uint32_t scalar, int *result);
 
 /**
@@ -224,7 +224,7 @@ salts_unicode_status salts_unicode_is_extended_pictographic(
  * receives a borrowed subview of input. At end or on error both outputs remain
  * unchanged. Embedded NUL is ordinary text and no normalization is performed.
  */
-salts_unicode_status salts_unicode_grapheme_next(vstr input, size_t *cursor,
+unicode_status unicode_grapheme_next(vstr input, size_t *cursor,
                                                  vstr *cluster);
 
 /**
@@ -234,7 +234,7 @@ salts_unicode_status salts_unicode_grapheme_next(vstr input, size_t *cursor,
  * success it moves to the cluster start and *cluster receives a borrowed view.
  * At start or on error both outputs remain unchanged.
  */
-salts_unicode_status salts_unicode_grapheme_prev(vstr input, size_t *cursor,
+unicode_status unicode_grapheme_prev(vstr input, size_t *cursor,
                                                  vstr *cluster);
 
 
@@ -242,8 +242,8 @@ salts_unicode_status salts_unicode_grapheme_prev(vstr input, size_t *cursor,
  * Query the Unicode 17.0.0 Word_Break value for one scalar.
  * Scalars not explicitly assigned by the UCD return OTHER.
  */
-salts_unicode_status salts_unicode_word_break_class(
-    uint32_t scalar, salts_unicode_word_break *out_class);
+unicode_status unicode_word_break_class(
+    uint32_t scalar, unicode_word_break *out_class);
 
 /**
  * Advance one Unicode 17.0.0 default word-boundary segment (UAX #29).
@@ -254,7 +254,7 @@ salts_unicode_status salts_unicode_word_break_class(
  * At end or on error both outputs remain unchanged. No locale tailoring,
  * normalization, allocation, or source-lifetime extension is performed.
  */
-salts_unicode_status salts_unicode_word_next(vstr input, size_t *cursor,
+unicode_status unicode_word_next(vstr input, size_t *cursor,
                                              vstr *segment);
 
 /**
@@ -264,14 +264,14 @@ salts_unicode_status salts_unicode_word_next(vstr input, size_t *cursor,
  * it moves to the segment start and *segment receives a borrowed input view.
  * At start or on error both outputs remain unchanged.
  */
-salts_unicode_status salts_unicode_word_prev(vstr input, size_t *cursor,
+unicode_status unicode_word_prev(vstr input, size_t *cursor,
                                              vstr *segment);
 
 /**
  * Query the raw Unicode 17.0.0 Line_Break value for one scalar.
  */
-salts_unicode_status salts_unicode_line_break_class(
-    uint32_t scalar, salts_unicode_line_break *out_class);
+unicode_status unicode_line_break_class(
+    uint32_t scalar, unicode_line_break *out_class);
 
 /**
  * Find the next default Unicode 17.0.0 line-break opportunity (UAX #14).
@@ -281,14 +281,14 @@ salts_unicode_status salts_unicode_line_break_class(
  * At end or on error all outputs remain unchanged. The complete input is
  * validated before success is reported.
  */
-salts_unicode_status salts_unicode_line_break_next(
+unicode_status unicode_line_break_next(
     vstr input, size_t *cursor, size_t *break_offset,
-    salts_unicode_line_break_opportunity *opportunity);
+    unicode_line_break_opportunity *opportunity);
 
 
 /** Query the Unicode 17.0.0 Bidi_Class value for one scalar. */
-salts_unicode_status salts_unicode_bidi_class_of(
-    uint32_t scalar, salts_unicode_bidi_class *out_class);
+unicode_status unicode_bidi_class_of(
+    uint32_t scalar, unicode_bidi_class *out_class);
 
 /**
  * Determine the default UAX #9 P2/P3 paragraph embedding level.
@@ -297,17 +297,17 @@ salts_unicode_status salts_unicode_bidi_class_of(
  * Returns level 0 for LTR/no-strong paragraphs and level 1 for R/AL.
  * The complete input is UTF-8 validated before success is reported.
  */
-salts_unicode_status salts_unicode_bidi_paragraph_level(
+unicode_status unicode_bidi_paragraph_level(
     vstr input, uint8_t *out_level);
 
 /**
  * Query Unicode 17.0.0 properties for one scalar value.
  *
  * @param scalar Unicode scalar value (surrogates are rejected).
- * @param out_properties Receives `salts_unicode_property` flags.
+ * @param out_properties Receives `unicode_property` flags.
  * @return `SALTS_UNICODE_OK` or `SALTS_UNICODE_ERR_INVALID_ARGUMENT`.
  */
-salts_unicode_status salts_unicode_scalar_properties(uint32_t scalar, uint32_t *out_properties);
+unicode_status unicode_scalar_properties(uint32_t scalar, uint32_t *out_properties);
 
 /**
  * Query whether one Unicode 17.0.0 scalar belongs to General_Category P*
@@ -316,12 +316,12 @@ salts_unicode_status salts_unicode_scalar_properties(uint32_t scalar, uint32_t *
  *
  * The canonical pinned Unicode 17 re2c category table is the sole source.
  * The function is allocation-free, reentrant, and does not modify existing
- * salts_unicode_scalar layout, property flags or case transformation modes.
+ * unicode_scalar layout, property flags or case transformation modes.
  * A valid scalar returns OK and sets *out_result to 0/1; a surrogate,
  * out-of-range scalar or NULL output returns INVALID_ARGUMENT and leaves
  * the supplied output unchanged.
  */
-salts_unicode_status salts_unicode_is_punctuation_or_symbol(
+unicode_status unicode_is_punctuation_or_symbol(
     uint32_t scalar, int *out_result);
 
 /**
@@ -331,9 +331,9 @@ salts_unicode_status salts_unicode_is_punctuation_or_symbol(
  * @param out_value Receives 0 through 9 on success; unchanged on all other results.
  * @return OK for Nd, NO_MATCH for other scalars, ERR_INVALID_ARGUMENT for an
  *         invalid scalar or NULL output. No shared mutable state is accessed.
- * Example: salts_unicode_decimal_value(0x0662u, &value) writes 2 and returns OK.
+ * Example: unicode_decimal_value(0x0662u, &value) writes 2 and returns OK.
  */
-salts_unicode_status salts_unicode_decimal_value(uint32_t scalar, uint32_t *out_value);
+unicode_status unicode_decimal_value(uint32_t scalar, uint32_t *out_value);
 
 /**
  * Resolve a Unicode 17 character name or name alias to one scalar.
@@ -345,9 +345,9 @@ salts_unicode_status salts_unicode_decimal_value(uint32_t scalar, uint32_t *out_
  * @return OK, NO_MATCH for unknown/malformed names, or ERR_INVALID_ARGUMENT for
  * NULL output or a NULL input pointer with nonzero length. Allocation-free and
  * safe for concurrent calls; no storage is retained from name.
- * Example: salts_unicode_name_lookup(vstr_from_cstr("LF"), &scalar) writes 10.
+ * Example: unicode_name_lookup(vstr_from_cstr("LF"), &scalar) writes 10.
  */
-salts_unicode_status salts_unicode_name_lookup(vstr name, uint32_t *out_scalar);
+unicode_status unicode_name_lookup(vstr name, uint32_t *out_scalar);
 
 /**
  * Trim Unicode White_Space scalars from both ends of a UTF-8 view.
@@ -360,15 +360,15 @@ salts_unicode_status salts_unicode_name_lookup(vstr name, uint32_t *out_scalar);
  * @param output Receives the trimmed borrowed view; unchanged on error.
  * @return `SALTS_UNICODE_OK` or a negative error code.
  */
-salts_unicode_status salts_unicode_trim_whitespace(vstr input, vstr *output);
+unicode_status unicode_trim_whitespace(vstr input, vstr *output);
 
 /** Transform UTF-8 using Unicode 17.0.0 default full case mappings. The input
  * is fully validated before callbacks begin. Mappings can expand a scalar;
  * lowercase applies Greek final sigma, while title maps every scalar's default
  * titlecase mapping. Locale-specific mappings are excluded. Callback chunks
  * borrow valid UTF-8 and a nonzero return stops with ERR_CALLBACK. */
-salts_unicode_status salts_unicode_case_transform(vstr input, salts_unicode_case_mode mode,
-                                                  salts_unicode_case_write write, void *userdata);
+unicode_status unicode_case_transform(vstr input, unicode_case_mode mode,
+                                                  unicode_case_write write, void *userdata);
 
 /** Unicode 17 Default Full Case Folding, C/F mappings (not locale or
  * LOWER/UPPER/TITLE). Both passes borrow the same immutable counted UTF-8
@@ -377,7 +377,7 @@ salts_unicode_status salts_unicode_case_transform(vstr input, salts_unicode_case
  * All malformed UTF-8 and capacity failures occur before output is changed.
  * No heap allocation or global mutable state.
  */
-salts_unicode_status salts_unicode_case_fold(vstr input, char *output,
+unicode_status unicode_case_fold(vstr input, char *output,
                                              size_t capacity, size_t *out_length);
 
 /**
@@ -394,7 +394,7 @@ salts_unicode_status salts_unicode_case_fold(vstr input, char *output,
  * @return `SALTS_UNICODE_OK`, `SALTS_UNICODE_END`,
  *         `SALTS_UNICODE_NO_MATCH`, or a negative error code.
  */
-salts_unicode_status salts_unicode_xid_span(vstr input, size_t start, size_t *end);
+unicode_status unicode_xid_span(vstr input, size_t start, size_t *end);
 
 /**
  * Validate that a complete UTF-8 view is one Unicode XID identifier.
@@ -408,10 +408,10 @@ salts_unicode_status salts_unicode_xid_span(vstr input, size_t start, size_t *en
  * @param result Receives zero or one on success.
  * @return `SALTS_UNICODE_OK` or a negative error code.
  */
-salts_unicode_status salts_unicode_is_xid(vstr input, int *result);
+unicode_status unicode_is_xid(vstr input, int *result);
 
 /** Return the immutable Unicode Character Database version string. */
-const char *salts_unicode_version(void);
+const char *unicode_version(void);
 
 #ifdef __cplusplus
 }

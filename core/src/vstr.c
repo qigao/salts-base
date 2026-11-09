@@ -1,4 +1,4 @@
-#include "vstr.h"
+#include <salts/vstr.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

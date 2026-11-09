@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "../toonc.h"
+#include <toonc.h>
 
 int main(void) {
     FILE *fp = fopen("data.toon", "r");

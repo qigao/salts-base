@@ -104,7 +104,7 @@ def git_blob_sha(text: str) -> str:
 
 
 def emit_array(name: str, entries: list[tuple[int, int, str]]) -> list[str]:
-    lines = [f"static const salts_unicode_word_range {name}[] = {{"]
+    lines = [f"static const unicode_word_range {name}[] = {{"]
     for first, last, value in entries:
         lines.append(f"  {{0x{first:06X}u, 0x{last:06X}u, {value}}},")
     lines.append("};")
@@ -138,16 +138,16 @@ def main() -> None:
         "#include <stddef.h>",
         "#include <stdint.h>",
         "",
-        "typedef struct salts_unicode_word_range {",
+        "typedef struct unicode_word_range {",
         "  uint32_t first;",
         "  uint32_t last;",
         "  uint8_t value;",
-        "} salts_unicode_word_range;",
+        "} unicode_word_range;",
         "",
     ]
-    lines += emit_array("salts_unicode_word_break_ranges", wb)
+    lines += emit_array("unicode_word_break_ranges", wb)
     lines.append("")
-    lines += emit_array("salts_unicode_word_extended_pictographic_ranges", ep)
+    lines += emit_array("unicode_word_extended_pictographic_ranges", ep)
     lines += ["", "#endif", ""]
 
     args.output.write_text("\n".join(lines), encoding="utf-8")

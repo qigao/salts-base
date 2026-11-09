@@ -1,7 +1,7 @@
 #ifndef CYAML_INTERNAL_H
 #define CYAML_INTERNAL_H
 
-#include "cyaml.h"
+#include <cyaml.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -3,8 +3,8 @@
  * Output: stdout HTML bytes only; failure emits diagnostics to stderr.
  * Uses the same production-candidate C11 parse + renderer implementations.
  */
-#include <salts/markdown.h>
-#include <salts/markdown_html.h>
+#include <markdown.h>
+#include <markdown_html.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -40,7 +40,7 @@ int main(int argc,char **argv) {
         fputs("markdown HTML test CLI: invalid render policy\n",stderr);
         return 2;
     }
-    const salts_md_html_policy policy=spec_mode?
+    const md_html_policy policy=spec_mode?
         SALTS_MD_HTML_SPEC_CONFORMANCE:SALTS_MD_HTML_SAFE_APPLICATION;
     char *source = (char *)malloc(MD_TEST_INPUT_MAX + 1u);
     if (!source) {
@@ -61,44 +61,44 @@ int main(int argc,char **argv) {
         return 2;
     }
 
-    salts_md_document *doc=NULL;
-    salts_md_status status=salts_md_parse(
+    md_document *doc=NULL;
+    md_status status=md_parse(
         source,length,MD_TEST_NODES_MAX,MD_TEST_INPUT_MAX,&doc);
     free(source);
     if(status!=SALTS_MD_OK || !doc) {
         fprintf(stderr,"markdown HTML test CLI: parse error %d\n",(int)status);
         return 2;
     }
-    salts_md_rich_document_view view=salts_md_get_document_view(doc);
+    md_rich_document_view view=md_get_document_view(doc);
     size_t size=0u;
-    status=salts_md_render_html_with_policy(&view,MD_TEST_NODES_MAX,
+    status=md_render_html_with_policy(&view,MD_TEST_NODES_MAX,
                                              policy,NULL,0u,&size);
     if(status!=SALTS_MD_OK || size>MD_TEST_OUTPUT_MAX) {
         fprintf(stderr,"markdown HTML test CLI: render/count error %d (%zu)\n",
                 (int)status,size);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         return 2;
     }
 
     char *html=(char*)malloc(size+1u);
     if(!html) {
         fputs("markdown HTML test CLI: output OOM\n",stderr);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         return 2;
     }
-    status=salts_md_render_html_with_policy(&view,MD_TEST_NODES_MAX,
+    status=md_render_html_with_policy(&view,MD_TEST_NODES_MAX,
                                              policy,html,size+1u,&size);
     if(status!=SALTS_MD_OK) {
         fprintf(stderr,"markdown HTML test CLI: render error %d\n",(int)status);
         free(html);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         return 2;
     }
 
     const bool wrote=(size==0u || fwrite(html,1u,size,stdout)==size) &&
                      fflush(stdout)==0 && !ferror(stdout);
     free(html);
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     if(!wrote) {
         fputs("markdown HTML test CLI: stdout write failed\n",stderr);
         return 2;

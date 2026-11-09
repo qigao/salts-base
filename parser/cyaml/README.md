@@ -45,7 +45,7 @@ setting and benchmarks follow `BUILD_BENCHMARKS`.
 ### Parsing
 
 ```c
-#include "cyaml.h"
+#include <cyaml.h>
 
 const char *yaml = "name: cyaml\nversion: 1.0\n";
 cyaml_error_t err;

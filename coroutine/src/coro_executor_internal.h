@@ -1,7 +1,7 @@
 #ifndef CORO_EXECUTOR_INTERNAL_H
 #define CORO_EXECUTOR_INTERNAL_H
 
-#include "coro_executor.h"
+#include <salts/coro_executor.h>
 
 #include <stddef.h>
 

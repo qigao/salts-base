@@ -6,22 +6,22 @@
 
 #import <AVFoundation/AVFoundation.h>
 #import <Foundation/Foundation.h>
-#include "capture.h"
+#include <capture.h>
 #include "capture_video_ios_backend.h"
 #include <stdlib.h>
 #include <string.h>
 
-extern int ios_audio_start(salts_capture_t *capture);
-extern void ios_audio_stop(salts_capture_t *capture);
-extern void ios_audio_destroy(salts_capture_t *capture);
+extern int ios_audio_start(capture_t *capture);
+extern void ios_audio_stop(capture_t *capture);
+extern void ios_audio_destroy(capture_t *capture);
 
-extern int ios_video_start(salts_capture_t *capture);
-extern void ios_video_stop(salts_capture_t *capture);
-extern void ios_video_destroy(salts_capture_t *capture);
+extern int ios_video_start(capture_t *capture);
+extern void ios_video_stop(capture_t *capture);
+extern void ios_video_destroy(capture_t *capture);
 
-extern int ios_screen_start(salts_capture_t *capture);
-extern void ios_screen_stop(salts_capture_t *capture);
-extern void ios_screen_destroy(salts_capture_t *capture);
+extern int ios_screen_start(capture_t *capture);
+extern void ios_screen_stop(capture_t *capture);
+extern void ios_screen_destroy(capture_t *capture);
 
 static void copy_nsstring(char *dst, size_t dst_size, NSString *value) {
     if (!dst || dst_size == 0) return;
@@ -52,7 +52,7 @@ int ios_video_make_mode(AVCaptureDevice *device,
                         uint32_t format_index,
                         uint32_t range_index,
                         uint32_t endpoint,
-                        salts_video_native_mode_t *mode,
+                        video_native_mode_t *mode,
                         AVCaptureDeviceFormat **out_format,
                         CMTime *out_duration) {
     if (!device || !mode || endpoint > 1 ||
@@ -88,15 +88,15 @@ int ios_video_make_mode(AVCaptureDevice *device,
     return SALTS_CAPTURE_OK;
 }
 
-int ios_video_modes_equal(const salts_video_native_mode_t *lhs,
-                          const salts_video_native_mode_t *rhs) {
+int ios_video_modes_equal(const video_native_mode_t *lhs,
+                          const video_native_mode_t *rhs) {
     return lhs->width == rhs->width && lhs->height == rhs->height &&
            lhs->framerate_numerator == rhs->framerate_numerator &&
            lhs->framerate_denominator == rhs->framerate_denominator &&
            lhs->format == rhs->format && lhs->mode_id == rhs->mode_id;
 }
 
-int salts_capture_list_video_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_video_devices(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     @autoreleasepool {
@@ -116,7 +116,7 @@ int salts_capture_list_video_devices(salts_capture_device_t *devices, int max_co
         int count = 0;
         for (AVCaptureDevice *device in session.devices) {
             if (count >= max_count) break;
-            salts_capture_device_t *out = &devices[count];
+            capture_device_t *out = &devices[count];
             memset(out, 0, sizeof(*out));
             out->index = count;
             out->type = SALTS_CAPTURE_TYPE_VIDEO;
@@ -157,7 +157,7 @@ static void ios_video_device_close(void *backend_ctx) {
 
 static int ios_video_device_list_modes(
     void *backend_ctx,
-    salts_video_native_mode_t *modes,
+    video_native_mode_t *modes,
     size_t capacity,
     size_t *out_count) {
     ios_video_device_ctx_t *ctx = (ios_video_device_ctx_t *)backend_ctx;
@@ -202,8 +202,8 @@ done:
     }
 }
 
-const salts_video_backend_ops_t *salts_video_platform_backend(void) {
-    static const salts_video_backend_ops_t ops = {
+const video_backend_ops_t *video_platform_backend(void) {
+    static const video_backend_ops_t ops = {
         ios_video_device_open,
         ios_video_device_close,
         ios_video_device_list_modes,
@@ -212,7 +212,7 @@ const salts_video_backend_ops_t *salts_video_platform_backend(void) {
     return &ops;
 }
 
-int salts_capture_list_audio_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_audio_devices(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     @autoreleasepool {
@@ -229,7 +229,7 @@ int salts_capture_list_audio_devices(salts_capture_device_t *devices, int max_co
 
         for (AVAudioSessionPortDescription *input in audio_inputs) {
             if (count >= max_count) break;
-            salts_capture_device_t *out = &devices[count];
+            capture_device_t *out = &devices[count];
             memset(out, 0, sizeof(*out));
             out->index = count;
             out->type = SALTS_CAPTURE_TYPE_AUDIO;
@@ -246,7 +246,7 @@ int salts_capture_list_audio_devices(salts_capture_device_t *devices, int max_co
     }
 }
 
-int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
+int capture_list_screens(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     memset(&devices[0], 0, sizeof(devices[0]));
@@ -258,7 +258,7 @@ int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
     return 1;
 }
 
-int salts_capture_start(salts_capture_t *capture) {
+int capture_start(capture_t *capture) {
     if (!capture) return -1;
     if (capture->state == SALTS_CAPTURE_STATE_RUNNING) return 0;
 
@@ -287,7 +287,7 @@ int salts_capture_start(salts_capture_t *capture) {
     return result;
 }
 
-void salts_capture_stop(salts_capture_t *capture) {
+void capture_stop(capture_t *capture) {
     if (!capture || capture->state == SALTS_CAPTURE_STATE_STOPPED) return;
 
     capture->state = SALTS_CAPTURE_STATE_STOPPING;
@@ -312,7 +312,7 @@ void salts_capture_stop(salts_capture_t *capture) {
     }
 }
 
-void salts_capture_destroy(salts_capture_t *capture) {
+void capture_destroy(capture_t *capture) {
     if (!capture) return;
 
     switch (capture->type) {
@@ -331,32 +331,32 @@ void salts_capture_destroy(salts_capture_t *capture) {
     }
 }
 
-salts_capture_state_t salts_capture_get_state(salts_capture_t *capture) {
+capture_state_t capture_get_state(capture_t *capture) {
     return capture ? capture->state : SALTS_CAPTURE_STATE_STOPPED;
 }
 
-void salts_capture_on_state(salts_capture_t *capture, salts_capture_state_cb cb) {
+void capture_on_state(capture_t *capture, capture_state_cb cb) {
     if (capture) capture->state_cb = cb;
 }
 
-void salts_audio_capture_set_callback(salts_capture_t *capture,
-                                      salts_audio_capture_cb cb,
+void audio_capture_set_callback(capture_t *capture,
+                                      audio_capture_cb cb,
                                       void *user_data) {
     if (!capture || capture->type != SALTS_CAPTURE_TYPE_AUDIO) return;
     capture->audio_cb = cb;
     capture->user_data = user_data;
 }
 
-void salts_video_capture_set_callback(salts_capture_t *capture,
-                                      salts_video_capture_cb cb,
+void video_capture_set_callback(capture_t *capture,
+                                      video_capture_cb cb,
                                       void *user_data) {
     if (!capture || capture->type != SALTS_CAPTURE_TYPE_VIDEO) return;
     capture->video_cb = cb;
     capture->user_data = user_data;
 }
 
-void salts_screen_capture_set_callback(salts_capture_t *capture,
-                                       salts_video_capture_cb cb,
+void screen_capture_set_callback(capture_t *capture,
+                                       video_capture_cb cb,
                                        void *user_data) {
     if (!capture || capture->type != SALTS_CAPTURE_TYPE_SCREEN) return;
     capture->video_cb = cb;
@@ -364,14 +364,14 @@ void salts_screen_capture_set_callback(salts_capture_t *capture,
 }
 
 /* Explicit iOS platform API contract; no generated CMake compatibility unit. */
-int salts_capture_list_gpu_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_gpu_devices(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
     return 0;
 }
 
-int salts_video_capture_get_control_range(
-        salts_capture_t *capture, salts_camera_control_t control,
-        salts_camera_control_range_t *range) {
+int video_capture_get_control_range(
+        capture_t *capture, camera_control_t control,
+        camera_control_range_t *range) {
     (void)capture;
     (void)control;
     if (!range) return SALTS_CAPTURE_ERR_DEVICE;
@@ -379,31 +379,31 @@ int salts_video_capture_get_control_range(
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_set_control(
-        salts_capture_t *capture, salts_camera_control_t control, int value) {
+int video_capture_set_control(
+        capture_t *capture, camera_control_t control, int value) {
     (void)capture;
     (void)control;
     (void)value;
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_get_control(
-        salts_capture_t *capture, salts_camera_control_t control, int *value) {
+int video_capture_get_control(
+        capture_t *capture, camera_control_t control, int *value) {
     (void)capture;
     (void)control;
     if (value) *value = 0;
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_set_crop(
-        salts_capture_t *capture, const salts_video_crop_t *crop) {
+int video_capture_set_crop(
+        capture_t *capture, const video_crop_t *crop) {
     (void)capture;
     (void)crop;
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_get_crop(
-        salts_capture_t *capture, salts_video_crop_t *crop) {
+int video_capture_get_crop(
+        capture_t *capture, video_crop_t *crop) {
     (void)capture;
     if (!crop) return SALTS_CAPTURE_ERR_DEVICE;
     memset(crop, 0, sizeof(*crop));

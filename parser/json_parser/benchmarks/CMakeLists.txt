@@ -1,5 +1,4 @@
-set(BENCHMARK_SOURCES benchmark_json_parser.c benchmark_query.c
-                    benchmark_json_whitespace.c benchmark_regex.c benchmark_filter.c)
+cmake_add_source(BENCHMARK_SOURCES DIRS . PATTERNS "benchmark_*.c")
 
 foreach(benchmark_source ${BENCHMARK_SOURCES})
   get_filename_component(benchmark_name ${benchmark_source} NAME_WE)

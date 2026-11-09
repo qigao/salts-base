@@ -1,4 +1,4 @@
-#include <asn1.h>
+#include <salts/asn1.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -13,10 +13,10 @@ typedef struct asn1_header {
     bool indefinite;
 } asn1_header;
 
-static salts_asn1_status parse_one(const uint8_t *, size_t, salts_asn1_mode,
-                                   size_t, salts_asn1_tlv *, bool *);
+static asn1_status parse_one(const uint8_t *, size_t, asn1_mode,
+                                   size_t, asn1_tlv *, bool *);
 
-static salts_asn1_status parse_tag(const uint8_t *data, size_t size,
+static asn1_status parse_tag(const uint8_t *data, size_t size,
                                    asn1_header *header, size_t *used) {
     uint8_t first;
     uint32_t number;
@@ -48,8 +48,8 @@ static salts_asn1_status parse_tag(const uint8_t *data, size_t size,
     return SALTS_ASN1_OK;
 }
 
-static salts_asn1_status parse_length(const uint8_t *data, size_t size,
-                                      salts_asn1_mode mode, size_t *length,
+static asn1_status parse_length(const uint8_t *data, size_t size,
+                                      asn1_mode mode, size_t *length,
                                       size_t *used, bool *indefinite) {
     uint8_t first;
     size_t count, value = 0u, i;
@@ -85,7 +85,7 @@ static int bytes_compare(const uint8_t *a, size_t an,
     return an < bn ? -1 : an > bn ? 1 : 0;
 }
 
-static salts_asn1_status validate_oid(const uint8_t *data, size_t size) {
+static asn1_status validate_oid(const uint8_t *data, size_t size) {
     size_t pos = 0u;
     if (size == 0u) return SALTS_ASN1_MALFORMED;
     while (pos < size) {
@@ -101,9 +101,9 @@ static salts_asn1_status validate_oid(const uint8_t *data, size_t size) {
     return SALTS_ASN1_OK;
 }
 
-static salts_asn1_status validate_primitive(const uint8_t *data, size_t size,
+static asn1_status validate_primitive(const uint8_t *data, size_t size,
                                             uint8_t cls, uint32_t tag,
-                                            salts_asn1_mode mode) {
+                                            asn1_mode mode) {
     if (cls != 0u) return SALTS_ASN1_OK;
     switch (tag) {
     case 0u: return SALTS_ASN1_INVALID_TAG;
@@ -159,12 +159,12 @@ static bool universal_tag_is_constructible_string(uint32_t tag) {
     }
 }
 
-static salts_asn1_status parse_one(const uint8_t *data, size_t size,
-                                   salts_asn1_mode mode, size_t depth,
-                                   salts_asn1_tlv *out, bool *is_eoc) {
+static asn1_status parse_one(const uint8_t *data, size_t size,
+                                   asn1_mode mode, size_t depth,
+                                   asn1_tlv *out, bool *is_eoc) {
     asn1_header h;
-    salts_asn1_tlv value;
-    salts_asn1_status st;
+    asn1_tlv value;
+    asn1_status st;
     size_t tag_size = 0u, len_size = 0u, remaining;
     const uint8_t *content;
     if (!data || !out || !is_eoc) return SALTS_ASN1_INVALID_ARGUMENT;
@@ -220,7 +220,7 @@ static salts_asn1_status parse_one(const uint8_t *data, size_t size,
         size_t prev_size = 0u;
         size_t content_bound = h.indefinite ? remaining : h.content_size;
         while (pos < content_bound) {
-            salts_asn1_tlv child;
+            asn1_tlv child;
             bool child_eoc = false;
             st = parse_one(content + pos, content_bound - pos, mode,
                            depth + 1u, &child, &child_eoc);
@@ -262,9 +262,9 @@ static salts_asn1_status parse_one(const uint8_t *data, size_t size,
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_reader_init(salts_asn1_reader *reader,
+asn1_status asn1_reader_init(asn1_reader *reader,
                                           const void *data, size_t size,
-                                          salts_asn1_mode mode) {
+                                          asn1_mode mode) {
     if (!reader || (!data && size != 0u) ||
         (mode != SALTS_ASN1_BER && mode != SALTS_ASN1_DER))
         return SALTS_ASN1_INVALID_ARGUMENT;
@@ -276,11 +276,11 @@ salts_asn1_status salts_asn1_reader_init(salts_asn1_reader *reader,
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_reader_next(salts_asn1_reader *reader,
-                                          salts_asn1_tlv *out) {
-    salts_asn1_tlv value;
+asn1_status asn1_reader_next(asn1_reader *reader,
+                                          asn1_tlv *out) {
+    asn1_tlv value;
     bool is_eoc = false;
-    salts_asn1_status st;
+    asn1_status st;
     if (!reader || !out || (!reader->data && reader->size != 0u) ||
         reader->offset > reader->size ||
         (reader->mode != SALTS_ASN1_BER && reader->mode != SALTS_ASN1_DER))
@@ -299,9 +299,9 @@ salts_asn1_status salts_asn1_reader_next(salts_asn1_reader *reader,
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_reader_open_children(
-    const salts_asn1_reader *parent, const salts_asn1_tlv *value,
-    salts_asn1_reader *children) {
+asn1_status asn1_reader_open_children(
+    const asn1_reader *parent, const asn1_tlv *value,
+    asn1_reader *children) {
     if (!parent || !value || !children) return SALTS_ASN1_INVALID_ARGUMENT;
     if ((parent->mode != SALTS_ASN1_BER && parent->mode != SALTS_ASN1_DER) ||
         value->depth != parent->depth)
@@ -321,25 +321,25 @@ salts_asn1_status salts_asn1_reader_open_children(
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_validate(const void *data, size_t size,
-                                      salts_asn1_mode mode) {
-    salts_asn1_reader reader;
-    salts_asn1_tlv value;
-    salts_asn1_status st;
+asn1_status asn1_validate(const void *data, size_t size,
+                                      asn1_mode mode) {
+    asn1_reader reader;
+    asn1_tlv value;
+    asn1_status st;
     if (!data || size == 0u) return SALTS_ASN1_INVALID_ARGUMENT;
-    st = salts_asn1_reader_init(&reader, data, size, mode);
+    st = asn1_reader_init(&reader, data, size, mode);
     if (st != SALTS_ASN1_OK) return st;
-    st = salts_asn1_reader_next(&reader, &value);
+    st = asn1_reader_next(&reader, &value);
     if (st != SALTS_ASN1_OK) return st;
     if (reader.offset != size) return SALTS_ASN1_TRAILING_DATA;
     return SALTS_ASN1_OK;
 }
 
 
-static salts_asn1_status validate_content_for_encoding(
+static asn1_status validate_content_for_encoding(
     uint8_t tag_class, uint8_t constructed, uint32_t tag_number,
-    const uint8_t *content, size_t content_size, salts_asn1_mode mode) {
-    salts_asn1_status status;
+    const uint8_t *content, size_t content_size, asn1_mode mode) {
+    asn1_status status;
     if (tag_class == 0u) {
         if (tag_number == 0u) return SALTS_ASN1_INVALID_TAG;
         if ((tag_number == 8u || tag_number == 11u || tag_number == 16u ||
@@ -355,14 +355,14 @@ static salts_asn1_status validate_content_for_encoding(
                                   mode);
 
     {
-        salts_asn1_reader reader;
-        salts_asn1_tlv child;
+        asn1_reader reader;
+        asn1_tlv child;
         const uint8_t *previous = NULL;
         size_t previous_size = 0u;
-        status = salts_asn1_reader_init(&reader, content, content_size, mode);
+        status = asn1_reader_init(&reader, content, content_size, mode);
         if (status != SALTS_ASN1_OK) return status;
         for (;;) {
-            status = salts_asn1_reader_next(&reader, &child);
+            status = asn1_reader_next(&reader, &child);
             if (status == SALTS_ASN1_DONE) return SALTS_ASN1_OK;
             if (status != SALTS_ASN1_OK) return status;
             if (mode == SALTS_ASN1_BER && tag_class == 0u &&
@@ -427,15 +427,15 @@ static size_t encode_length_bytes(size_t length, uint8_t indefinite,
     return 1u + count;
 }
 
-salts_asn1_status salts_asn1_encode_tlv(
+asn1_status asn1_encode_tlv(
     uint8_t tag_class, uint8_t constructed, uint32_t tag_number,
-    const void *content, size_t content_size, salts_asn1_mode mode,
+    const void *content, size_t content_size, asn1_mode mode,
     uint8_t indefinite_length, void *output, size_t output_capacity,
     size_t *written) {
     uint8_t tag_bytes[6];
     uint8_t length_bytes[1u + sizeof(size_t)];
     size_t tag_size, length_size, header_size, eoc_size, required;
-    salts_asn1_status status;
+    asn1_status status;
     uint8_t *destination = (uint8_t *)output;
 
     if (!written || tag_class > 3u || constructed > 1u ||

@@ -23,17 +23,17 @@
 extern "C" {
 #endif
 
-/* Opaque serial handle owned by salts_serial_create()/salts_serial_destroy(). */
-typedef struct salts_serial_t salts_serial_t;
+/* Opaque serial handle owned by serial_create()/serial_destroy(). */
+typedef struct serial_t serial_t;
 
-/* Opaque port-list snapshot owned by salts_serial_port_list_destroy(). */
-typedef struct salts_serial_port_list salts_serial_port_list_t;
+/* Opaque port-list snapshot owned by serial_port_list_destroy(). */
+typedef struct serial_port_list serial_port_list_t;
 
-/* Opaque event set owned by salts_serial_event_set_destroy(). */
-typedef struct salts_serial_event_set salts_serial_event_set_t;
+/* Opaque event set owned by serial_event_set_destroy(). */
+typedef struct serial_event_set serial_event_set_t;
 
 /* Public result codes returned by the SaltsSerial ABI. */
-typedef enum salts_serial_result {
+typedef enum serial_result {
   SALTS_SERIAL_OK = 0,
   SALTS_SERIAL_INVALID_VALUE,
   SALTS_SERIAL_INVALID_STATE,
@@ -41,14 +41,14 @@ typedef enum salts_serial_result {
   SALTS_SERIAL_NO_MEMORY,
   SALTS_SERIAL_NOT_SUPPORTED,
   SALTS_SERIAL_WOULD_BLOCK
-} salts_serial_result_t;
+} serial_result_t;
 
 /* Access requested when opening a serial port. */
-typedef enum salts_serial_mode {
+typedef enum serial_mode {
   SALTS_SERIAL_MODE_READ = 1,
   SALTS_SERIAL_MODE_WRITE = 2,
   SALTS_SERIAL_MODE_READ_WRITE = 3
-} salts_serial_mode_t;
+} serial_mode_t;
 
 /* Parity policy used when configuring an opened port.
  *
@@ -58,45 +58,45 @@ typedef enum salts_serial_mode {
  *   return SALTS_SERIAL_INVALID_VALUE on unsupported platforms.
  * - Portable code should use NONE, ODD, or EVEN.
  */
-typedef enum salts_serial_parity {
+typedef enum serial_parity {
   SALTS_SERIAL_PARITY_INVALID = -1,
   SALTS_SERIAL_PARITY_NONE = 0,
   SALTS_SERIAL_PARITY_ODD = 1,
   SALTS_SERIAL_PARITY_EVEN = 2,
   SALTS_SERIAL_PARITY_MARK = 3,
   SALTS_SERIAL_PARITY_SPACE = 4
-} salts_serial_parity_t;
+} serial_parity_t;
 
 /* Common flow-control presets. */
-typedef enum salts_serial_flowcontrol {
+typedef enum serial_flowcontrol {
   SALTS_SERIAL_FLOWCONTROL_NONE = 0,
   SALTS_SERIAL_FLOWCONTROL_XONXOFF = 1,
   SALTS_SERIAL_FLOWCONTROL_RTSCTS = 2,
   SALTS_SERIAL_FLOWCONTROL_DTRDSR = 3
-} salts_serial_flowcontrol_t;
+} serial_flowcontrol_t;
 
 /* Transport class reported by port metadata. */
-typedef enum salts_serial_transport {
+typedef enum serial_transport {
   SALTS_SERIAL_TRANSPORT_UNKNOWN = 0,
   SALTS_SERIAL_TRANSPORT_NATIVE,
   SALTS_SERIAL_TRANSPORT_USB,
   SALTS_SERIAL_TRANSPORT_BLUETOOTH
-} salts_serial_transport_t;
+} serial_transport_t;
 
-/* Event bits accepted by salts_serial_event_set_add(). */
-typedef enum salts_serial_event {
+/* Event bits accepted by serial_event_set_add(). */
+typedef enum serial_event {
   SALTS_SERIAL_EVENT_RX_READY = 1,
   SALTS_SERIAL_EVENT_TX_READY = 2,
   SALTS_SERIAL_EVENT_ERROR = 4
-} salts_serial_event_t;
+} serial_event_t;
 
 /* Read-only port metadata. String pointers remain valid until the owning
- * salts_serial_port_list_t is destroyed.
+ * serial_port_list_t is destroyed.
  */
-typedef struct salts_serial_port_info {
+typedef struct serial_port_info {
   const char *name;
   const char *description;
-  salts_serial_transport_t transport;
+  serial_transport_t transport;
 
   int has_usb_bus_address;
   int usb_bus;
@@ -110,7 +110,7 @@ typedef struct salts_serial_port_info {
   const char *usb_product;
   const char *usb_serial;
   const char *bluetooth_address;
-} salts_serial_port_info_t;
+} serial_port_info_t;
 
 /* Configuration copied into each handle at creation time.
  *
@@ -124,8 +124,8 @@ typedef struct salts_serial_port_info {
  *
  * THREADING MODEL:
  * - Async mode: one background thread pumps I/O to/from internal SPSC rings.
- * - RX ring: pump produces, salts_serial_read_buffered() consumes (single consumer).
- * - TX ring: salts_serial_write_buffered() produces (single producer), pump consumes.
+ * - RX ring: pump produces, serial_read_buffered() consumes (single consumer).
+ * - TX ring: serial_write_buffered() produces (single producer), pump consumes.
  * - Multiple application readers or writers require external synchronization.
  *
  * USAGE GUIDELINES:
@@ -133,59 +133,59 @@ typedef struct salts_serial_port_info {
  * - poll_interval_ms: smaller = lower latency, higher CPU usage when idle.
  * - Default values (256 bytes, 10ms) balance typical UART speeds (~115200 baud).
  */
-typedef struct salts_serial_config {
+typedef struct serial_config {
   int baudrate;
   int bits;
-  salts_serial_parity_t parity;
+  serial_parity_t parity;
   int stopbits;
-  salts_serial_flowcontrol_t flowcontrol;
+  serial_flowcontrol_t flowcontrol;
   size_t rx_buffer_size;
   size_t tx_buffer_size;
   size_t io_chunk_size;
   unsigned int poll_interval_ms;
-} salts_serial_config_t;
+} serial_config_t;
 
 /* Fill config with portable defaults: 115200 8N1, no flow control. */
-SALTS_SERIAL_API void salts_serial_config_default(salts_serial_config_t *config);
+SALTS_SERIAL_API void serial_config_default(serial_config_t *config);
 
 /* Return a stable static name for a SaltsSerial result code. */
-SALTS_SERIAL_API const char *salts_serial_result_name(salts_serial_result_t result);
+SALTS_SERIAL_API const char *serial_result_name(serial_result_t result);
 
 /* Create a snapshot of ports currently visible to the system. */
-SALTS_SERIAL_API salts_serial_result_t salts_serial_list_ports(salts_serial_port_list_t **ports);
+SALTS_SERIAL_API serial_result_t serial_list_ports(serial_port_list_t **ports);
 
 /* Create a one-port metadata snapshot by system port name.
  *
  * On success, *info points into the returned *ports snapshot and remains valid
- * until salts_serial_port_list_destroy(*ports) is called. Passing NULL for
+ * until serial_port_list_destroy(*ports) is called. Passing NULL for
  * info is allowed when only the port-list snapshot is needed.
  */
-SALTS_SERIAL_API salts_serial_result_t
-salts_serial_port_info_by_name(const char *port_name, salts_serial_port_list_t **ports,
-                               const salts_serial_port_info_t **info);
+SALTS_SERIAL_API serial_result_t
+serial_port_info_by_name(const char *port_name, serial_port_list_t **ports,
+                               const serial_port_info_t **info);
 
 /* Release a port-list snapshot and all string views returned from it. */
-SALTS_SERIAL_API void salts_serial_port_list_destroy(salts_serial_port_list_t *ports);
+SALTS_SERIAL_API void serial_port_list_destroy(serial_port_list_t *ports);
 
 /* Query a port-list snapshot. A NULL result from get means index is out of range. */
-SALTS_SERIAL_API size_t salts_serial_port_list_count(const salts_serial_port_list_t *ports);
-SALTS_SERIAL_API const salts_serial_port_info_t *
-salts_serial_port_list_get(const salts_serial_port_list_t *ports, size_t index);
+SALTS_SERIAL_API size_t serial_port_list_count(const serial_port_list_t *ports);
+SALTS_SERIAL_API const serial_port_info_t *
+serial_port_list_get(const serial_port_list_t *ports, size_t index);
 
 /* Create a closed handle. The supplied config is copied and may be NULL for defaults. */
-SALTS_SERIAL_API salts_serial_result_t salts_serial_create(salts_serial_t **serial,
-                                                          const salts_serial_config_t *config);
+SALTS_SERIAL_API serial_result_t serial_create(serial_t **serial,
+                                                          const serial_config_t *config);
 
 /* Stop async I/O if needed, close the port, and release the handle. */
-SALTS_SERIAL_API void salts_serial_destroy(salts_serial_t *serial);
+SALTS_SERIAL_API void serial_destroy(serial_t *serial);
 
 /* Open a named serial port and apply the handle configuration. */
-SALTS_SERIAL_API salts_serial_result_t salts_serial_open(salts_serial_t *serial,
+SALTS_SERIAL_API serial_result_t serial_open(serial_t *serial,
                                                         const char *port_name,
-                                                        salts_serial_mode_t mode);
+                                                        serial_mode_t mode);
 
 /* Stop async I/O if needed and close the current port. */
-SALTS_SERIAL_API salts_serial_result_t salts_serial_close(salts_serial_t *serial);
+SALTS_SERIAL_API serial_result_t serial_close(serial_t *serial);
 
 /* Blocking read/write calls use the OS serial handle directly. They are valid
  * only while the async pump is stopped.
@@ -194,62 +194,62 @@ SALTS_SERIAL_API salts_serial_result_t salts_serial_close(salts_serial_t *serial
  * - Blocking I/O: simple request-response protocols, low-frequency polling.
  * - Async I/O: continuous streaming, event-driven apps, concurrent operations.
  *
- * CANNOT MIX: salts_serial_read/write are mutually exclusive with async mode.
- * Call salts_serial_stop_async() before using blocking I/O.
+ * CANNOT MIX: serial_read/write are mutually exclusive with async mode.
+ * Call serial_stop_async() before using blocking I/O.
  */
-SALTS_SERIAL_API salts_serial_result_t salts_serial_read(salts_serial_t *serial, void *buf,
+SALTS_SERIAL_API serial_result_t serial_read(serial_t *serial, void *buf,
                                                         size_t count, unsigned int timeout_ms,
                                                         size_t *bytes_read);
-SALTS_SERIAL_API salts_serial_result_t salts_serial_write(salts_serial_t *serial,
+SALTS_SERIAL_API serial_result_t serial_write(serial_t *serial,
                                                          const void *buf, size_t count,
                                                          unsigned int timeout_ms,
                                                          size_t *bytes_written);
 
 /* Start or stop the background pump that moves bytes between the port and SPSC buffers. */
-SALTS_SERIAL_API salts_serial_result_t salts_serial_start_async(salts_serial_t *serial);
-SALTS_SERIAL_API salts_serial_result_t salts_serial_stop_async(salts_serial_t *serial);
+SALTS_SERIAL_API serial_result_t serial_start_async(serial_t *serial);
+SALTS_SERIAL_API serial_result_t serial_stop_async(serial_t *serial);
 
 /* Query async pump state and the last non-OK async pump error. */
-SALTS_SERIAL_API int salts_serial_async_running(const salts_serial_t *serial);
-SALTS_SERIAL_API salts_serial_result_t salts_serial_last_error(const salts_serial_t *serial);
+SALTS_SERIAL_API int serial_async_running(const serial_t *serial);
+SALTS_SERIAL_API serial_result_t serial_last_error(const serial_t *serial);
 
 /* Event sets wait on currently opened SaltsSerial handles.
  * A timeout is reported as SALTS_SERIAL_WOULD_BLOCK.
  *
  * BEHAVIOR: Returns when ANY port in the set has a matching event ready.
  * Only the FIRST ready port's events are returned in the events mask.
- * To wait on all ports, call salts_serial_event_wait_ex() in a loop.
+ * To wait on all ports, call serial_event_wait_ex() in a loop.
  *
  * PLATFORM NOTES:
  * - Windows: Uses WaitCommEvent + WaitForMultipleObjects.
  * - POSIX: Uses poll(2) on file descriptors.
  * - Both return the first signaled port; application must handle fairness.
  *
- * salts_serial_event_wait_ex() additionally returns the SaltsSerial event mask
+ * serial_event_wait_ex() additionally returns the SaltsSerial event mask
  * that caused the wait to complete. The mask may combine multiple
- * SALTS_SERIAL_EVENT_* bits. The legacy salts_serial_event_wait() keeps the
+ * SALTS_SERIAL_EVENT_* bits. The legacy serial_event_wait() keeps the
  * result-only behavior for source compatibility.
  */
-SALTS_SERIAL_API salts_serial_result_t
-salts_serial_event_set_create(salts_serial_event_set_t **event_set);
-SALTS_SERIAL_API void salts_serial_event_set_destroy(salts_serial_event_set_t *event_set);
-SALTS_SERIAL_API salts_serial_result_t
-salts_serial_event_set_add(salts_serial_event_set_t *event_set, const salts_serial_t *serial,
+SALTS_SERIAL_API serial_result_t
+serial_event_set_create(serial_event_set_t **event_set);
+SALTS_SERIAL_API void serial_event_set_destroy(serial_event_set_t *event_set);
+SALTS_SERIAL_API serial_result_t
+serial_event_set_add(serial_event_set_t *event_set, const serial_t *serial,
                            unsigned int events);
-SALTS_SERIAL_API salts_serial_result_t
-salts_serial_event_wait(salts_serial_event_set_t *event_set, unsigned int timeout_ms);
-SALTS_SERIAL_API salts_serial_result_t
-salts_serial_event_wait_ex(salts_serial_event_set_t *event_set, unsigned int timeout_ms,
+SALTS_SERIAL_API serial_result_t
+serial_event_wait(serial_event_set_t *event_set, unsigned int timeout_ms);
+SALTS_SERIAL_API serial_result_t
+serial_event_wait_ex(serial_event_set_t *event_set, unsigned int timeout_ms,
                            unsigned int *events);
 
 /* Buffered byte counts and capacities exclude the reserved SPSC sentinel slot. */
-SALTS_SERIAL_API size_t salts_serial_rx_available(const salts_serial_t *serial);
-SALTS_SERIAL_API size_t salts_serial_tx_available(const salts_serial_t *serial);
-SALTS_SERIAL_API size_t salts_serial_rx_capacity(const salts_serial_t *serial);
-SALTS_SERIAL_API size_t salts_serial_tx_capacity(const salts_serial_t *serial);
+SALTS_SERIAL_API size_t serial_rx_available(const serial_t *serial);
+SALTS_SERIAL_API size_t serial_tx_available(const serial_t *serial);
+SALTS_SERIAL_API size_t serial_rx_capacity(const serial_t *serial);
+SALTS_SERIAL_API size_t serial_tx_capacity(const serial_t *serial);
 
 /* Buffered APIs operate on the handle-owned SPSC queues and are the async data
- * path used with salts_serial_start_async().
+ * path used with serial_start_async().
  *
  * Threading contract per handle:
  * - RX ring: one producer is the async pump, one consumer calls read_buffered.
@@ -257,19 +257,19 @@ SALTS_SERIAL_API size_t salts_serial_tx_capacity(const salts_serial_t *serial);
  * Multiple application readers or multiple application writers require
  * external synchronization.
  *
- * salts_serial_buffer_rx() and salts_serial_drain_tx_buffer() are intended for
+ * serial_buffer_rx() and serial_drain_tx_buffer() are intended for
  * tests and adapters and require the async pump to be stopped.
  */
-SALTS_SERIAL_API salts_serial_result_t salts_serial_buffer_rx(salts_serial_t *serial,
+SALTS_SERIAL_API serial_result_t serial_buffer_rx(serial_t *serial,
                                                              const void *buf, size_t count,
                                                              size_t *bytes_buffered);
-SALTS_SERIAL_API salts_serial_result_t salts_serial_read_buffered(salts_serial_t *serial,
+SALTS_SERIAL_API serial_result_t serial_read_buffered(serial_t *serial,
                                                                  void *buf, size_t count,
                                                                  size_t *bytes_read);
-SALTS_SERIAL_API salts_serial_result_t salts_serial_write_buffered(salts_serial_t *serial,
+SALTS_SERIAL_API serial_result_t serial_write_buffered(serial_t *serial,
                                                                   const void *buf, size_t count,
                                                                   size_t *bytes_buffered);
-SALTS_SERIAL_API salts_serial_result_t salts_serial_drain_tx_buffer(salts_serial_t *serial,
+SALTS_SERIAL_API serial_result_t serial_drain_tx_buffer(serial_t *serial,
                                                                    void *buf, size_t count,
                                                                    size_t *bytes_read);
 

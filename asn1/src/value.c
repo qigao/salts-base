@@ -1,20 +1,20 @@
-#include <asn1_value.h>
+#include <salts/asn1_value.h>
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-struct salts_asn1_value {
+struct asn1_value {
     uint8_t tag_class;
     uint8_t constructed;
     uint32_t tag_number;
     uint8_t *content;
     size_t content_size;
-    struct salts_asn1_value **children;
+    struct asn1_value **children;
     size_t child_count;
     size_t child_capacity;
-    struct salts_asn1_value *parent;
+    struct asn1_value *parent;
 };
 
 static size_t tag_octet_count(uint32_t tag_number) {
@@ -85,8 +85,8 @@ static size_t write_length(uint8_t *out, size_t length, uint8_t indefinite) {
     return 1u + count;
 }
 
-static int value_contains(const salts_asn1_value *root,
-                          const salts_asn1_value *needle, size_t depth) {
+static int value_contains(const asn1_value *root,
+                          const asn1_value *needle, size_t depth) {
     size_t i;
     if (root == needle) return 1;
     if (!root || depth >= SALTS_ASN1_MAX_DEPTH) return 0;
@@ -95,14 +95,14 @@ static int value_contains(const salts_asn1_value *root,
     return 0;
 }
 
-static salts_asn1_status value_height(const salts_asn1_value *value,
+static asn1_status value_height(const asn1_value *value,
                                       size_t depth, size_t *height) {
     size_t i, max_child = 0u;
     if (!value || !height) return SALTS_ASN1_INVALID_ARGUMENT;
     if (depth >= SALTS_ASN1_MAX_DEPTH) return SALTS_ASN1_LIMIT_EXCEEDED;
     for (i = 0u; i < value->child_count; ++i) {
         size_t child_height = 0u;
-        salts_asn1_status status =
+        asn1_status status =
             value_height(value->children[i], depth + 1u, &child_height);
         if (status != SALTS_ASN1_OK) return status;
         if (child_height > max_child) max_child = child_height;
@@ -111,9 +111,9 @@ static salts_asn1_status value_height(const salts_asn1_value *value,
     return SALTS_ASN1_OK;
 }
 
-static salts_asn1_status value_depth_from_root(
-    const salts_asn1_value *value, size_t *depth) {
-    const salts_asn1_value *cursor;
+static asn1_status value_depth_from_root(
+    const asn1_value *value, size_t *depth) {
+    const asn1_value *cursor;
     size_t count = 0u;
     if (!value || !depth) return SALTS_ASN1_INVALID_ARGUMENT;
     cursor = value;
@@ -126,17 +126,17 @@ static salts_asn1_status value_depth_from_root(
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_value_create(
+asn1_status asn1_value_create(
     uint8_t tag_class, uint8_t constructed, uint32_t tag_number,
-    const void *content, size_t content_size, salts_asn1_value **out) {
-    salts_asn1_value *value;
+    const void *content, size_t content_size, asn1_value **out) {
+    asn1_value *value;
     if (!out || tag_class > 3u || constructed > 1u ||
         (!content && content_size != 0u) ||
         (constructed && content_size != 0u) ||
         (tag_class == 0u && tag_number == 0u))
         return SALTS_ASN1_INVALID_ARGUMENT;
     *out = NULL;
-    value = (salts_asn1_value *)calloc(1u, sizeof(*value));
+    value = (asn1_value *)calloc(1u, sizeof(*value));
     if (!value) return SALTS_ASN1_OUT_OF_MEMORY;
     if (!constructed && content_size != 0u) {
         value->content = (uint8_t *)malloc(content_size);
@@ -154,22 +154,22 @@ salts_asn1_status salts_asn1_value_create(
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_value_create_sequence(salts_asn1_value **out) {
-    return salts_asn1_value_create(0u, 1u, 16u, NULL, 0u, out);
+asn1_status asn1_value_create_sequence(asn1_value **out) {
+    return asn1_value_create(0u, 1u, 16u, NULL, 0u, out);
 }
 
-salts_asn1_status salts_asn1_value_create_set(salts_asn1_value **out) {
-    return salts_asn1_value_create(0u, 1u, 17u, NULL, 0u, out);
+asn1_status asn1_value_create_set(asn1_value **out) {
+    return asn1_value_create(0u, 1u, 17u, NULL, 0u, out);
 }
 
-salts_asn1_status salts_asn1_value_create_boolean(int value,
-                                                   salts_asn1_value **out) {
+asn1_status asn1_value_create_boolean(int value,
+                                                   asn1_value **out) {
     uint8_t content = value ? 0xffu : 0u;
-    return salts_asn1_value_create(0u, 0u, 1u, &content, 1u, out);
+    return asn1_value_create(0u, 0u, 1u, &content, 1u, out);
 }
 
-salts_asn1_status salts_asn1_value_create_integer(int64_t value,
-                                                   salts_asn1_value **out) {
+asn1_status asn1_value_create_integer(int64_t value,
+                                                   asn1_value **out) {
     uint8_t encoded[sizeof(value)];
     uint64_t bits = (uint64_t)value;
     size_t i, start = 0u;
@@ -184,16 +184,16 @@ salts_asn1_status salts_asn1_value_create_integer(int64_t value,
         else
             break;
     }
-    return salts_asn1_value_create(0u, 0u, 2u, encoded + start,
+    return asn1_value_create(0u, 0u, 2u, encoded + start,
                                    sizeof(encoded) - start, out);
 }
 
-salts_asn1_status salts_asn1_value_create_unsigned_integer(
-    const void *magnitude, size_t magnitude_size, salts_asn1_value **out) {
+asn1_status asn1_value_create_unsigned_integer(
+    const void *magnitude, size_t magnitude_size, asn1_value **out) {
     const uint8_t *bytes = (const uint8_t *)magnitude;
     uint8_t *encoded;
     size_t prefix, encoded_size;
-    salts_asn1_status status;
+    asn1_status status;
     if (!out || (!magnitude && magnitude_size != 0u))
         return SALTS_ASN1_INVALID_ARGUMENT;
     *out = NULL;
@@ -210,17 +210,17 @@ salts_asn1_status salts_asn1_value_create_unsigned_integer(
     if (prefix != 0u) encoded[0] = 0u;
     if (magnitude_size != 0u)
         memcpy(encoded + prefix, bytes, magnitude_size);
-    status = salts_asn1_value_create(0u, 0u, 2u, encoded, encoded_size, out);
+    status = asn1_value_create(0u, 0u, 2u, encoded, encoded_size, out);
     free(encoded);
     return status;
 }
 
-salts_asn1_status salts_asn1_value_create_bit_string(
+asn1_status asn1_value_create_bit_string(
     const void *data, size_t size, uint8_t unused_bits,
-    salts_asn1_value **out) {
+    asn1_value **out) {
     const uint8_t *bytes = (const uint8_t *)data;
     uint8_t *content;
-    salts_asn1_status status;
+    asn1_status status;
     if (!out || unused_bits > 7u || (!data && size != 0u) ||
         (size == 0u && unused_bits != 0u) ||
         (size != 0u && unused_bits != 0u &&
@@ -232,18 +232,18 @@ salts_asn1_status salts_asn1_value_create_bit_string(
     if (!content) return SALTS_ASN1_OUT_OF_MEMORY;
     content[0] = unused_bits;
     if (size != 0u) memcpy(content + 1u, data, size);
-    status = salts_asn1_value_create(0u, 0u, 3u, content, size + 1u, out);
+    status = asn1_value_create(0u, 0u, 3u, content, size + 1u, out);
     free(content);
     return status;
 }
 
-salts_asn1_status salts_asn1_value_create_octet_string(
-    const void *data, size_t size, salts_asn1_value **out) {
-    return salts_asn1_value_create(0u, 0u, 4u, data, size, out);
+asn1_status asn1_value_create_octet_string(
+    const void *data, size_t size, asn1_value **out) {
+    return asn1_value_create(0u, 0u, 4u, data, size, out);
 }
 
-salts_asn1_status salts_asn1_value_create_null(salts_asn1_value **out) {
-    return salts_asn1_value_create(0u, 0u, 5u, NULL, 0u, out);
+asn1_status asn1_value_create_null(asn1_value **out) {
+    return asn1_value_create(0u, 0u, 5u, NULL, 0u, out);
 }
 
 static size_t encode_subidentifier(uint64_t value, uint8_t *out) {
@@ -261,12 +261,12 @@ static size_t encode_subidentifier(uint64_t value, uint8_t *out) {
     return count;
 }
 
-salts_asn1_status salts_asn1_value_create_oid(
-    const uint32_t *components, size_t count, salts_asn1_value **out) {
+asn1_status asn1_value_create_oid(
+    const uint32_t *components, size_t count, asn1_value **out) {
     uint8_t *content;
     size_t capacity, used = 0u, i;
     uint64_t first;
-    salts_asn1_status status;
+    asn1_status status;
     if (!out || !components || count < 2u || components[0] > 2u ||
         (components[0] < 2u && components[1] > 39u))
         return SALTS_ASN1_INVALID_ARGUMENT;
@@ -279,17 +279,17 @@ salts_asn1_status salts_asn1_value_create_oid(
     used += encode_subidentifier(first, content + used);
     for (i = 2u; i < count; ++i)
         used += encode_subidentifier((uint64_t)components[i], content + used);
-    status = salts_asn1_value_create(0u, 0u, 6u, content, used, out);
+    status = asn1_value_create(0u, 0u, 6u, content, used, out);
     free(content);
     return status;
 }
 
 
-salts_asn1_status salts_asn1_value_add_child(salts_asn1_value *parent,
-                                              salts_asn1_value *child) {
+asn1_status asn1_value_add_child(asn1_value *parent,
+                                              asn1_value *child) {
     size_t parent_depth = 0u, child_height = 0u, next_capacity;
-    salts_asn1_value **children;
-    salts_asn1_status status;
+    asn1_value **children;
+    asn1_status status;
     if (!parent || !child || !parent->constructed || parent == child ||
         child->parent || value_contains(child, parent, 0u))
         return SALTS_ASN1_INVALID_ARGUMENT;
@@ -305,7 +305,7 @@ salts_asn1_status salts_asn1_value_add_child(salts_asn1_value *parent,
         if (next_capacity < parent->child_capacity ||
             next_capacity > SIZE_MAX / sizeof(*children))
             return SALTS_ASN1_LIMIT_EXCEEDED;
-        children = (salts_asn1_value **)realloc(
+        children = (asn1_value **)realloc(
             parent->children, next_capacity * sizeof(*children));
         if (!children) return SALTS_ASN1_OUT_OF_MEMORY;
         parent->children = children;
@@ -316,28 +316,28 @@ salts_asn1_status salts_asn1_value_add_child(salts_asn1_value *parent,
     return SALTS_ASN1_OK;
 }
 
-void salts_asn1_value_free(salts_asn1_value *value) {
+void asn1_value_free(asn1_value *value) {
     size_t i;
     if (!value) return;
     for (i = 0u; i < value->child_count; ++i)
-        salts_asn1_value_free(value->children[i]);
+        asn1_value_free(value->children[i]);
     free(value->children);
     free(value->content);
     free(value);
 }
 
-size_t salts_asn1_value_child_count(const salts_asn1_value *value) {
+size_t asn1_value_child_count(const asn1_value *value) {
     return value ? value->child_count : 0u;
 }
 
-const salts_asn1_value *salts_asn1_value_child_at(
-    const salts_asn1_value *value, size_t index) {
+const asn1_value *asn1_value_child_at(
+    const asn1_value *value, size_t index) {
     if (!value || index >= value->child_count) return NULL;
     return value->children[index];
 }
 
-salts_asn1_status salts_asn1_value_get_tag(
-    const salts_asn1_value *value, uint8_t *tag_class,
+asn1_status asn1_value_get_tag(
+    const asn1_value *value, uint8_t *tag_class,
     uint8_t *constructed, uint32_t *tag_number) {
     if (!value) return SALTS_ASN1_INVALID_ARGUMENT;
     if (tag_class) *tag_class = value->tag_class;
@@ -346,8 +346,8 @@ salts_asn1_status salts_asn1_value_get_tag(
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_value_get_content(
-    const salts_asn1_value *value, const uint8_t **data, size_t *size) {
+asn1_status asn1_value_get_content(
+    const asn1_value *value, const uint8_t **data, size_t *size) {
     if (!value || !data || !size) return SALTS_ASN1_INVALID_ARGUMENT;
     if (value->constructed) return SALTS_ASN1_INVALID_ARGUMENT;
     *data = value->content;
@@ -355,8 +355,8 @@ salts_asn1_status salts_asn1_value_get_content(
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_value_get_integer_i64(
-    const salts_asn1_value *value, int64_t *out) {
+asn1_status asn1_value_get_integer_i64(
+    const asn1_value *value, int64_t *out) {
     size_t start = 0u, size, i;
     uint64_t magnitude = 0u;
     const uint8_t *data;
@@ -400,8 +400,8 @@ salts_asn1_status salts_asn1_value_get_integer_i64(
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_value_get_unsigned_integer(
-    const salts_asn1_value *value, const uint8_t **magnitude,
+asn1_status asn1_value_get_unsigned_integer(
+    const asn1_value *value, const uint8_t **magnitude,
     size_t *magnitude_size) {
     const uint8_t *data;
     size_t size;
@@ -421,8 +421,8 @@ salts_asn1_status salts_asn1_value_get_unsigned_integer(
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_value_get_bit_string(
-    const salts_asn1_value *value, const uint8_t **data, size_t *size,
+asn1_status asn1_value_get_bit_string(
+    const asn1_value *value, const uint8_t **data, size_t *size,
     uint8_t *unused_bits) {
     uint8_t unused;
     if (!value || !data || !size || !unused_bits || value->tag_class != 0u ||
@@ -441,8 +441,8 @@ salts_asn1_status salts_asn1_value_get_bit_string(
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_value_get_boolean(
-    const salts_asn1_value *value, int *out) {
+asn1_status asn1_value_get_boolean(
+    const asn1_value *value, int *out) {
     if (!value || !out || value->tag_class != 0u ||
         value->tag_number != 1u || value->constructed)
         return SALTS_ASN1_INVALID_ARGUMENT;
@@ -451,7 +451,7 @@ salts_asn1_status salts_asn1_value_get_boolean(
     return SALTS_ASN1_OK;
 }
 
-static salts_asn1_status decode_oid_content(
+static asn1_status decode_oid_content(
     const uint8_t *data, size_t size, uint32_t *components,
     size_t capacity, size_t *required_count) {
     size_t pos = 0u, count = 0u;
@@ -507,10 +507,10 @@ static salts_asn1_status decode_oid_content(
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_value_get_oid(
-    const salts_asn1_value *value, uint32_t *components, size_t capacity,
+asn1_status asn1_value_get_oid(
+    const asn1_value *value, uint32_t *components, size_t capacity,
     size_t *required_count) {
-    salts_asn1_status status;
+    asn1_status status;
     size_t count = 0u;
     if (!value || !required_count || value->tag_class != 0u ||
         value->tag_number != 6u || value->constructed ||
@@ -527,12 +527,12 @@ salts_asn1_status salts_asn1_value_get_oid(
 }
 
 
-static salts_asn1_status measure_value(
-    const salts_asn1_value *value, salts_asn1_mode mode,
+static asn1_status measure_value(
+    const asn1_value *value, asn1_mode mode,
     uint8_t use_indefinite, size_t depth,
     size_t *encoded_size, size_t *content_size) {
     size_t content = 0u, total, i, tag_size, length_size, eoc_size;
-    salts_asn1_status status;
+    asn1_status status;
     if (!value || !encoded_size || !content_size ||
         value->tag_class > 3u || value->constructed > 1u ||
         (value->tag_class == 0u && value->tag_number == 0u))
@@ -546,7 +546,7 @@ static salts_asn1_status measure_value(
 
     if (!value->constructed) {
         size_t required = 0u;
-        status = salts_asn1_encode_tlv(
+        status = asn1_encode_tlv(
             value->tag_class, 0u, value->tag_number, value->content,
             value->content_size, mode, 0u, NULL, 0u, &required);
         if (status != SALTS_ASN1_OK) return status;
@@ -579,13 +579,13 @@ static salts_asn1_status measure_value(
     return SALTS_ASN1_OK;
 }
 
-static salts_asn1_status encode_value_into(
-    const salts_asn1_value *value, salts_asn1_mode mode,
+static asn1_status encode_value_into(
+    const asn1_value *value, asn1_mode mode,
     uint8_t use_indefinite, size_t depth, uint8_t *output,
     size_t output_capacity, size_t *written) {
     size_t encoded_size = 0u, content_size = 0u, tag_size, length_size, offset, i;
     uint8_t indefinite;
-    salts_asn1_status status;
+    asn1_status status;
     if (!output || !written) return SALTS_ASN1_INVALID_ARGUMENT;
     status = measure_value(value, mode, use_indefinite, depth,
                            &encoded_size, &content_size);
@@ -620,13 +620,13 @@ static salts_asn1_status encode_value_into(
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_value_encode(
-    const salts_asn1_value *value, salts_asn1_mode mode,
+asn1_status asn1_value_encode(
+    const asn1_value *value, asn1_mode mode,
     uint8_t use_indefinite, void *output, size_t output_capacity,
     size_t *written) {
     uint8_t *temporary;
     size_t required = 0u, content_size = 0u, produced = 0u;
-    salts_asn1_status status;
+    asn1_status status;
     if (!value || !written || use_indefinite > 1u ||
         (!output && output_capacity != 0u))
         return SALTS_ASN1_INVALID_ARGUMENT;
@@ -640,7 +640,7 @@ salts_asn1_status salts_asn1_value_encode(
     if (status == SALTS_ASN1_OK && produced != required)
         status = SALTS_ASN1_MALFORMED;
     if (status == SALTS_ASN1_OK)
-        status = salts_asn1_validate(temporary, produced, mode);
+        status = asn1_validate(temporary, produced, mode);
     if (status != SALTS_ASN1_OK) {
         free(temporary);
         return status;
@@ -655,43 +655,43 @@ salts_asn1_status salts_asn1_value_encode(
     return SALTS_ASN1_OK;
 }
 
-static salts_asn1_status decode_value_node(
-    const salts_asn1_reader *parent, const salts_asn1_tlv *tlv,
-    salts_asn1_value **out) {
-    salts_asn1_value *value = NULL;
-    salts_asn1_status status;
+static asn1_status decode_value_node(
+    const asn1_reader *parent, const asn1_tlv *tlv,
+    asn1_value **out) {
+    asn1_value *value = NULL;
+    asn1_status status;
     if (!parent || !tlv || !out) return SALTS_ASN1_INVALID_ARGUMENT;
     *out = NULL;
-    status = salts_asn1_value_create(
+    status = asn1_value_create(
         tlv->tag_class, tlv->constructed, tlv->tag_number,
         tlv->constructed ? NULL : tlv->content,
         tlv->constructed ? 0u : tlv->content_size, &value);
     if (status != SALTS_ASN1_OK) return status;
     if (tlv->constructed) {
-        salts_asn1_reader children;
-        status = salts_asn1_reader_open_children(parent, tlv, &children);
+        asn1_reader children;
+        status = asn1_reader_open_children(parent, tlv, &children);
         if (status != SALTS_ASN1_OK) {
-            salts_asn1_value_free(value);
+            asn1_value_free(value);
             return status;
         }
         for (;;) {
-            salts_asn1_tlv child_tlv;
-            salts_asn1_value *child = NULL;
-            status = salts_asn1_reader_next(&children, &child_tlv);
+            asn1_tlv child_tlv;
+            asn1_value *child = NULL;
+            status = asn1_reader_next(&children, &child_tlv);
             if (status == SALTS_ASN1_DONE) break;
             if (status != SALTS_ASN1_OK) {
-                salts_asn1_value_free(value);
+                asn1_value_free(value);
                 return status;
             }
             status = decode_value_node(&children, &child_tlv, &child);
             if (status != SALTS_ASN1_OK) {
-                salts_asn1_value_free(value);
+                asn1_value_free(value);
                 return status;
             }
-            status = salts_asn1_value_add_child(value, child);
+            status = asn1_value_add_child(value, child);
             if (status != SALTS_ASN1_OK) {
-                salts_asn1_value_free(child);
-                salts_asn1_value_free(value);
+                asn1_value_free(child);
+                asn1_value_free(value);
                 return status;
             }
         }
@@ -700,19 +700,19 @@ static salts_asn1_status decode_value_node(
     return SALTS_ASN1_OK;
 }
 
-salts_asn1_status salts_asn1_value_decode(
-    const void *data, size_t size, salts_asn1_mode mode,
-    salts_asn1_value **out) {
-    salts_asn1_reader reader;
-    salts_asn1_tlv tlv;
-    salts_asn1_status status;
+asn1_status asn1_value_decode(
+    const void *data, size_t size, asn1_mode mode,
+    asn1_value **out) {
+    asn1_reader reader;
+    asn1_tlv tlv;
+    asn1_status status;
     if (!out) return SALTS_ASN1_INVALID_ARGUMENT;
     *out = NULL;
-    status = salts_asn1_validate(data, size, mode);
+    status = asn1_validate(data, size, mode);
     if (status != SALTS_ASN1_OK) return status;
-    status = salts_asn1_reader_init(&reader, data, size, mode);
+    status = asn1_reader_init(&reader, data, size, mode);
     if (status != SALTS_ASN1_OK) return status;
-    status = salts_asn1_reader_next(&reader, &tlv);
+    status = asn1_reader_next(&reader, &tlv);
     if (status != SALTS_ASN1_OK) return status;
     return decode_value_node(&reader, &tlv, out);
 }

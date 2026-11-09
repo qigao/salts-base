@@ -3,7 +3,8 @@
  * @brief High-performance type-safe formatting implementation
  */
 
-#include "fmt.h"
+#include <salts/fmt.h>
+#include "fmt_lexer.h"
 #include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>

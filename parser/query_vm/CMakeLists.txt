@@ -13,7 +13,7 @@ cmake_config_target(${TARGET_NAME}
 
 install(
   TARGETS ${TARGET_NAME}
-  EXPORT SaltsUtilsTargets
+  EXPORT SaltsBaseTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(FILES include/query_vm.h DESTINATION include/query_vm)
 

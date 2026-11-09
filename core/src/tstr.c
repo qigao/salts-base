@@ -5,7 +5,7 @@
  * API uses snake_case: tstr_len, tstr_cat, tstr_cpy, etc.
  */
 
-#include "tstr.h"
+#include <salts/tstr.h>
 #include "sds.h"
 #include <limits.h>
 #include <stdint.h>

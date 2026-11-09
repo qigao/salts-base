@@ -4,11 +4,11 @@
  *        and JSONPath contains / regex filters.
  */
 
-#include "json_parser.h"
+#include <json_parser.h>
 #include "jsonpath_contains.h"
-#include "re.h"
+#include <salts/re.h>
 #include "tinytest.h"
-#include <cmeta_simd_scan.h>
+#include <salts/scan.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -86,7 +86,7 @@ suite("regex and contains benchmarks") {
       check_null(memchr(buf, 'z', SCAN_BYTES));
     }
     benchmark_bytes("Salts 64KiB first-byte scan", 1000, SCAN_BYTES) {
-      check_null(cmeta_scan_char(buf, buf + SCAN_BYTES, 'z'));
+      check_null(scan_char(buf, buf + SCAN_BYTES, 'z'));
     }
   }
 

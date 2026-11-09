@@ -1,7 +1,7 @@
 #ifndef SALTS_ERROR_H
 #define SALTS_ERROR_H
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 #include <error_codes.h>
 #include <errno.h>
 #include <stdbool.h>

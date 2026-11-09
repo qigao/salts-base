@@ -1,7 +1,7 @@
 /* Original tests from utils/tests/test_re.c blob a4fef94edb32f4225c001550a6d15f86bb455225.
  * Only internal first-byte accelerator identifier changed, no tests removed.
  */
-#include "re.h"
+#include <salts/re.h>
 #include "re_scan.h"
 #include "tinytest.h"
 

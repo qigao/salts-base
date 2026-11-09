@@ -31,20 +31,6 @@
 - 若 skill 缺失或路径失效，先按会话技能目录查找；仍不可用时说明缺失及影响。可继续不依赖它的工作；若必要规范无法核实，先请求补齐，不猜测其内容或擅自安装替代品。
 - 维护规则时：通用专项规范归对应 skill；本文件只保留触发条件、仓库约束和稳定入口。修改全局 skill 需属于用户授权范围。
 
-### 模块路由
-
-| 任务内容 | 使用 skill | 关注边界 |
-| --- | --- | --- |
-| C11 元编程、Schema/Replay、Reflection、Enum/Struct、traits、接口、typed callable、Function ABI、DataDesc/ObjectRef、资源作用域 | `cmeta` | 元数据与运行时归属、跨翻译单元语义、ABI、反射权限与生命周期 |
-| raw/typed 容器、Vec/List/Deque/Map/Set、managed 元素、range/collector | `cstl` | 容器算法、元素生命周期、容量、借用失效 |
-| Stream/Graph、typed operators、lowering、优化、解释或编译执行、Source/Scheduler | `cflow` | 图与执行状态、效果约束、demand、执行所有权 |
-| Publisher/Subscriber/Subscription、WAIT/waker、背压、replay/cache、多播、取消和终止 | `reactive` | demand 与终止协议、retained 值、关闭 |
-| Actor、Machine/Statechart actor、mailbox、retained refs、监督重启、IO Actor | `actor` | 生命周期、代际隔离、消息与 IO 归属 |
-| `coroutine/` 的有界分片协程 executor、await handle、完成竞争、timeout、drain | `executor` | shard 亲和、任务终态、外部完成与销毁 |
-| CNet client/listener、TCP/UDP/Pipe、TLS、WebSocket、DNS、poll、发送接纳与完成 | `cnet` | progress owner、连接句柄、payload、取消和关闭 |
-| Plugin 声明与跨 TU 导出、ABI 校验、loader/registry、lease、停止卸载；插件依赖、隔离或热重载设计 | `plugin-system`；涉及反射与调用契约时加 `cmeta` | 已实现的发布/生命周期协议与扩展设计分开，保留版本与借用边界 |
-
-组合边界：CSTL Stream 使用 `cstl` + `cflow`；改动类型描述符或生成宏时加 `cmeta`；CFlow 自身的 scheduler/executor 使用 `cflow`，只有涉及独立协程 executor 时才加 `executor`。
 
 ### 横向路由
 
@@ -78,7 +64,7 @@
 | 动态模块发布、发现、契约校验与生命周期 | [Plugin](../salts/plugin/README.md) + `plugin-system`；发布方用 `Salts::PluginABI`，宿主运行时用 `Salts::Plugin` |
 | 标准容器与 Stream facade | `cstl`；通过公开 typed/raw 入口复用，不手写已有动态数组、哈希表或双端队列 |
 | buffer、arena/slab/object pool、ring/queue | `memory-design-protocols`；按生命周期、线程拓扑与消费语义选已有原语 |
-| 文件、线程与其他共享能力 | 当前模块公开头文件与 README；文件操作优先复用 [`cmeta_fs.h`](../salts/utils/include/cmeta_fs.h)，线程池等能力先检索既有实现 |
+| 文件、线程与其他共享能力 | 当前模块公开头文件与 README；文件操作优先复用 [`salts_fs.h`](../salts/utils/include/salts_fs.h)，线程池等能力先检索既有实现 |
 
 字符串统一使用 `tstr`/`vstr`，格式化使用本项目 `fmt.h`，日志使用 `tlog`。新代码不以裸缓冲区拼接、直接使用 sds 或引入另一套字符串/格式化库替代这些入口；第三方边界和基础实现内部保留必要的底层操作，不能为了统一形式改坏既有 ABI。
 
@@ -86,26 +72,6 @@
 - `vstr` 不拥有也不延长源存储寿命。跨 callback、挂起、队列或 owner 边界保留内容时，按 `memory-design-protocols` 明确复制或保活协议。
 - 格式化结果、长度、容量、终止与截断按当前 API 契约处理；不得因换用某个函数就省略边界检查。
 - 上述字符串、格式化与日志能力由 `Salts::Core` 提供；容器通过 `Salts::CSTL`，其他能力链接各自模块的公开 target，按当前 CMake 定义核对。
-
-### CMeta：Reflection 与类型语义
-
-- **声明与生成**：复用有限 PP 原语、Schema/Replay、结构体/枚举/flags、traits、接口和 `cmeta_type`。CMeta 提供 Pair/Option/Result 等值类型的声明能力；容器算法与存储归 CSTL，图和执行归 CFlow。
-- **Reflection**：用统一的不可变描述符表示类型、字段、函数签名、接口及数据语义；通过语义校验、相等性和派生查询消费元数据，跨 TU/DSO 不以描述符地址判断类型相等。入口见 [反射查询契约](../salts/cmeta/INSPECTION.md)，不自行维护第二套 RTTI、字段表或签名表。
-- **已有类型接入**：`cmeta_reflect_data` 为已有 C/C++ 类型声明只读字段投影；需要完整字段级值生命周期时才显式使用 `cmeta_reflect_value`。反射可见性不授予写入、构造或执行权限，也不接管原对象所有权；约束见 [CMeta README](../salts/cmeta/README.md)。
-- **对象与调用**：DataDesc、ObjectRef、Function/Invokable 复用同一类型和生命周期契约，支持受约束的对象访问、精确调用及校验后绑定复用。具体入口和 admission 条件由 `cmeta` skill 路由，不将裸函数地址视为已验证调用能力。
-
-### RAII 与资源作用域
-
-- **C 的结构化清理**：优先评估 `cmeta_scope`；它管理显式资源集合，构造失败时回滚，body 正常或提前返回后按逆序清理。运行时描述符走 `cmeta_scope_checked`；这不是任意 C 代码块的自动析构，不能用跨作用域跳转或 `longjmp` 绕过清理。详见 [structured scope](../salts/cmeta/LANGUAGE_REFERENCE.md#structured-scope)。
-- **C++ RAII**：ObjectRef 使用 `cmeta::object_scope`，Plugin lease 使用 `salts::plugin_lease_scope`；复用既有不可复制、显式移动和析构释放契约。通用 C++ owner 设计再使用 `cpp-design-patterns`，不重复包装已有 owner。
-- **释放顺序**：Data/ObjectRef/Plugin 的 cleanup 适配器复用显式清理义务，实际资源权威仍归原 owner。先销毁借用插件代码或数据的对象，再释放 lease，最后停止完成并卸载；scope 不自动延长所有外部借用的生命周期。按 `cmeta`、`plugin-system` 和 `memory-design-protocols` 核对失败与关闭协议。
-
-### Plugin：声明发布与模块生命周期
-
-- **声明和发布分层**：[`cmeta/plugin.h`](../salts/cmeta/include/cmeta/plugin.h) 的 `cmeta_plugin`、`cmeta_provides`、`cmeta_requires` 描述接口能力关系，属于静态反射元数据，不自动加载模块或解析依赖。真正发布 Function/Interface export 使用 [`salts/plugin_decl.h`](../salts/plugin/include/salts/plugin_decl.h) 的显式声明，复用 CMeta 精确签名和 Interface carrier。
-- **导出聚合**：默认使用显式 export 表；需要跨 TU 分片时评估 [`plugin_linker.h`](../salts/plugin/include/salts/plugin_linker.h)，遵守平台支持、实际链接、预期数量及按 ID 查找的契约，不另建 constructor 驱动的全局注册表。
-- **宿主运行时**：[`salts/plugin.h`](../salts/plugin/include/salts/plugin.h) 提供 manifest/ABI/contract 校验、动态加载、registry、启动、lease 获取释放、停止、quiescence 检查和卸载。registry 是模块与 lease 状态的事实源；只有满足终止与无在途使用条件才可卸载。
-- **能力边界**：Plugin 复用 CMeta，但独立于 CFlow；反射查询和描述符复制不持有模块 lease。依赖求解、隔离、热重载及状态迁移须按当前实现核实并单独设计，不能把 skill 的通用方案当作现成运行时功能。
 
 ## 检索与结构理解
 

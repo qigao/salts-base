@@ -38,7 +38,7 @@ ar rcs libtoonc.a toonc.o
 Include in your project:
 
 ```c
-#include "toonc.h"
+#include <toonc.h>
 ```
 
 Link with:
@@ -590,8 +590,8 @@ fclose(out);
 an owned copy, so the source can be released immediately after conversion.
 
 ```c
-#include "json_parser.h"
-#include "toon_json_adapter.h"
+#include <json_parser.h>
+#include <toon_json_adapter.h>
 
 json_value_t *json = NULL;
 toonObject *toon = TOONc_parseString("name: Ada\n");

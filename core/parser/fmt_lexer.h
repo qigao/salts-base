@@ -7,7 +7,8 @@
 #define FMT_LEXER_H
 
 #include <stddef.h>
-#include <vstr.h>
+#include <salts/api.h>
+#include <salts/vstr.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +31,7 @@ typedef enum {
  * @param token_len Set to length of token payload
  * @return Token type
  */
-fmt_token_t fmt_scan(const char **cursor, const char **token_start, size_t *token_len);
+SALTS_API fmt_token_t fmt_scan(const char **cursor, const char **token_start, size_t *token_len);
 
 /**
  * @brief Scan next token, returning a non-owning view for token payload
@@ -38,13 +39,13 @@ fmt_token_t fmt_scan(const char **cursor, const char **token_start, size_t *toke
  * @param token Set to token payload view (inner content for SPECIFIER)
  * @return Token type
  */
-fmt_token_t fmt_scan_v(const char **cursor, vstr *token);
+SALTS_API fmt_token_t fmt_scan_v(const char **cursor, vstr *token);
 
 /**
  * @brief Length-bounded scanner used by internal hot paths.
  * @param end One-past-the-last input byte; no NUL sentinel is consumed.
  */
-fmt_token_t fmt_scan_v_n(const char **cursor, const char *end, vstr *token);
+SALTS_API fmt_token_t fmt_scan_v_n(const char **cursor, const char *end, vstr *token);
 
 #ifdef __cplusplus
 }

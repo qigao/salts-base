@@ -10,7 +10,7 @@
 
 #include "ini_lexer.h"
 #include "ini_grammar_gen.h"
-#include "simd_scan.h"
+#include <salts/scan.h>
 #include <string.h>
 
 int ini_lex(ini_lexer_t *lexer, ini_token_t *token) {
@@ -25,7 +25,7 @@ int ini_lex(ini_lexer_t *lexer, ini_token_t *token) {
     token->length = 0;
 
 lex_start:
-    const char *whitespace_end = salts_simd_skip_horizontal_whitespace(YYCURSOR, YYLIMIT);
+    const char *whitespace_end = scan_skip_sp_tab(YYCURSOR, YYLIMIT);
     if (whitespace_end > YYCURSOR) {
         YYCURSOR = whitespace_end;
         goto lex_start;
@@ -33,7 +33,7 @@ lex_start:
     token_start = YYCURSOR;
 
     if (YYCURSOR < YYLIMIT && (*YYCURSOR == ';' || *YYCURSOR == '#')) {
-        const char *comment_end = salts_simd_find_any4(YYCURSOR + 1, YYLIMIT,
+        const char *comment_end = scan_to_any4(YYCURSOR + 1, YYLIMIT,
                                                         '\r', '\n', '\0', '\0');
         token->type = INI_TOKEN_COMMENT;
         token->value = token_start;
@@ -132,7 +132,7 @@ int ini_lex_value(ini_lexer_t *lexer, ini_token_t *token) {
 
     if (YYCURSOR < YYLIMIT && *YYCURSOR != '\r' && *YYCURSOR != '\n' &&
         *YYCURSOR != ';' && *YYCURSOR != '#') {
-        const char *value_end = salts_simd_find_any5(YYCURSOR, YYLIMIT,
+        const char *value_end = scan_to_any5(YYCURSOR, YYLIMIT,
                                                       '\r', '\n', ';', '#', '\0');
         const char *trimmed_end = value_end;
         while (trimmed_end > token_start &&

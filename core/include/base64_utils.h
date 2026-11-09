@@ -5,7 +5,7 @@
 #ifndef SALTSCORE_BASE64_UTILS_H
 #define SALTSCORE_BASE64_UTILS_H
 
-#include <cmeta_api.h>
+#include <salts_api.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

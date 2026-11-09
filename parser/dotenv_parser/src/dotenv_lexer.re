@@ -1,6 +1,6 @@
 // re2c --lang c
 #include "dotenv_lexer.h"
-#include "simd_scan.h"
+#include <salts/scan.h>
 #include <string.h>
 
 void dotenv_lexer_init(dotenv_lexer_t *lexer, const char *input, size_t length) {
@@ -19,7 +19,7 @@ static int dotenv_lex(dotenv_lexer_t *lexer, dotenv_token_t *token) {
   const char *token_start;
 
 lex_start:
-  const char *whitespace_end = salts_simd_skip_horizontal_whitespace(YYCURSOR, YYLIMIT);
+  const char *whitespace_end = scan_skip_sp_tab(YYCURSOR, YYLIMIT);
   if (whitespace_end > YYCURSOR) {
     YYCURSOR = whitespace_end;
     goto lex_start;
@@ -27,7 +27,7 @@ lex_start:
   token_start = YYCURSOR;
 
   if (YYCURSOR < YYLIMIT && *YYCURSOR == '#') {
-    const char *comment_end = salts_simd_find_any4(YYCURSOR + 1, YYLIMIT,
+    const char *comment_end = scan_to_any4(YYCURSOR + 1, YYLIMIT,
                                                     '\r', '\n', '\0', '\0');
     token->type = DOTENV_TOKEN_COMMENT;
     token->value = token_start;
@@ -110,13 +110,13 @@ static int dotenv_lex_value(dotenv_lexer_t *lexer, dotenv_token_t *token) {
   const char *token_start;
 
   // Skip leading spaces after '='
-  YYCURSOR = salts_simd_skip_horizontal_whitespace(YYCURSOR, YYLIMIT);
+  YYCURSOR = scan_skip_sp_tab(YYCURSOR, YYLIMIT);
 
   token_start = YYCURSOR;
 
   if (YYCURSOR < YYLIMIT && *YYCURSOR != '"' && *YYCURSOR != '\'' &&
       *YYCURSOR != '\r' && *YYCURSOR != '\n' && *YYCURSOR != '#') {
-    const char *value_end = salts_simd_find_any4(YYCURSOR, YYLIMIT,
+    const char *value_end = scan_to_any4(YYCURSOR, YYLIMIT,
                                                   '\r', '\n', '#', '\0');
     const char *trimmed_end = value_end;
     while (trimmed_end > token_start &&

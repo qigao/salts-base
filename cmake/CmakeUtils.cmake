@@ -146,7 +146,8 @@ function(cmake_add_grammar TARGET_NAME)
 endfunction()
 
 # DIRS is required. Relative DIRS/EXCLUDES resolve against the calling source
-# directory. Return absolute files in VAR; track additions/removals at build time.
+# directory. EXCLUDES accepts file paths or glob patterns. Return absolute files
+# in VAR; track additions/removals at build time, including excluded matches.
 function(cmake_add_source VAR)
   set(options RECURSE)
   set(oneValueArgs)
@@ -180,10 +181,17 @@ function(cmake_add_source VAR)
 
   file(${glob_mode} collected LIST_DIRECTORIES false CONFIGURE_DEPENDS ${patterns})
 
+  set(excluded_patterns)
   foreach(excluded IN LISTS ARG_EXCLUDES)
     get_filename_component(excluded "${excluded}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
-    list(REMOVE_ITEM collected "${excluded}")
+    list(APPEND excluded_patterns "${excluded}")
   endforeach()
+  if(excluded_patterns)
+    file(${glob_mode} excluded_files LIST_DIRECTORIES false CONFIGURE_DEPENDS ${excluded_patterns})
+    if(excluded_files)
+      list(REMOVE_ITEM collected ${excluded_files})
+    endif()
+  endif()
 
   set(${VAR} ${collected} PARENT_SCOPE)
 endfunction()

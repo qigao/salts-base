@@ -92,13 +92,13 @@ def main() -> None:
         "#include <stddef.h>",
         "#include <stdint.h>",
         "",
-        "typedef struct salts_unicode_bidi_range {",
+        "typedef struct unicode_bidi_range {",
         "  uint32_t first;",
         "  uint32_t last;",
         "  uint8_t value;",
-        "} salts_unicode_bidi_range;",
+        "} unicode_bidi_range;",
         "",
-        "static const salts_unicode_bidi_range salts_unicode_bidi_ranges[] = {",
+        "static const unicode_bidi_range unicode_bidi_ranges[] = {",
     ]
     for first, last, value in ranges:
         name = VALUE_NAMES[value]
@@ -107,7 +107,7 @@ def main() -> None:
         )
     lines += [
         "};",
-        "#define SALTS_UNICODE_BIDI_RANGES_COUNT (sizeof(salts_unicode_bidi_ranges) / sizeof(salts_unicode_bidi_ranges[0]))",
+        "#define SALTS_UNICODE_BIDI_RANGES_COUNT (sizeof(unicode_bidi_ranges) / sizeof(unicode_bidi_ranges[0]))",
         "",
         "#endif",
         "",

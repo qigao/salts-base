@@ -1,5 +1,5 @@
-#include <salts/markdown.h>
-#include <salts/markdown_html.h>
+#include <markdown.h>
+#include <markdown_html.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -876,13 +876,13 @@ _Static_assert(sizeof(cases)/sizeof(cases[0])==383,
                "Explicit HTML fixture denominator changed");
 
 static int test_golden(const html_fixture *f) {
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     size_t source_bytes=strlen(f->markdown);
-    CHECK(salts_md_parse(f->markdown,source_bytes,256u,
+    CHECK(md_parse(f->markdown,source_bytes,256u,
                         source_bytes+1u,&doc)==SALTS_MD_OK);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
+    const md_rich_document_view v=md_get_document_view(doc);
     size_t need=SIZE_MAX;
-    CHECK(salts_md_render_html(&v,256u,NULL,0u,&need)==SALTS_MD_OK);
+    CHECK(md_render_html(&v,256u,NULL,0u,&need)==SALTS_MD_OK);
     const size_t expect=strlen(f->html);
     CHECK(need==expect);
     char *out=(char *)malloc(need+2u);
@@ -892,18 +892,18 @@ static int test_golden(const html_fixture *f) {
     /* Prove atomic rejection of insufficient output capacity. */
     size_t required=SIZE_MAX;
     if(need) {
-        CHECK(salts_md_render_html(&v,256u,out,need,&required)==
+        CHECK(md_render_html(&v,256u,out,need,&required)==
               SALTS_MD_CAPACITY_EXCEEDED);
         CHECK(required==need);
         for(size_t k=0;k<need+2u;++k)
             CHECK((unsigned char)out[k]==0xa5);
     }
-    CHECK(salts_md_render_html(&v,256u,out,need+1u,&required)==SALTS_MD_OK);
+    CHECK(md_render_html(&v,256u,out,need+1u,&required)==SALTS_MD_OK);
     CHECK(required==need);
     CHECK(!memcmp(out,f->html,need+1u));
     CHECK((unsigned char)out[need+1u]==0xa5);
     free(out);
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return 0;
 }
 
@@ -915,19 +915,19 @@ static int test_gfm_metadata_fails_closed(void) {
         "| A | B |\n| :--- | ---: |\n| a | b |\n",
         "- [x] ready\n"
     };
-    const salts_md_block_kind targets[] = {
+    const md_block_kind targets[] = {
         SALTS_MD_BLOCK_TABLE, SALTS_MD_BLOCK_CHECKBOX
     };
     for(size_t which=0u;which<2u;++which) {
-        salts_md_document *doc=NULL;
+        md_document *doc=NULL;
         const size_t n=strlen(inputs[which]);
-        CHECK(salts_md_parse(inputs[which],n,128u,n+1u,&doc)==SALTS_MD_OK);
-        salts_md_rich_document_view view=salts_md_get_document_view(doc);
+        CHECK(md_parse(inputs[which],n,128u,n+1u,&doc)==SALTS_MD_OK);
+        md_rich_document_view view=md_get_document_view(doc);
         size_t target=SIZE_MAX;
         for(size_t i=0u;i<view.document.block_count;++i)
             if(view.document.blocks[i].kind==targets[which])target=i;
         CHECK(target!=SIZE_MAX);
-        const salts_md_block_metadata span=view.block_metadata[target];
+        const md_block_metadata span=view.block_metadata[target];
         CHECK(span.byte_begin<span.byte_end &&
               span.byte_end<=view.metadata_bytes);
         char *owned=(char*)malloc(view.metadata_bytes);
@@ -937,12 +937,12 @@ static int test_gfm_metadata_fails_closed(void) {
         view.metadata=owned;
         unsigned char out[512];memset(out,0xa5,sizeof(out));
         size_t required=SIZE_MAX;
-        CHECK(salts_md_render_html(&view,128u,(char*)out,sizeof(out),
+        CHECK(md_render_html(&view,128u,(char*)out,sizeof(out),
                                   &required)==SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
         for(size_t i=0u;i<sizeof(out);++i)CHECK(out[i]==0xa5);
         free(owned);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
     }
     return 0;
 }
@@ -961,11 +961,11 @@ static int test_gfm_metadata_fails_closed(void) {
 static int test_gfm_forged_table_shape_fails_closed(void) {
     static const char source[]=
         "| A | B |\n| :--- | ---: |\n| a | b |\n";
-    salts_md_document *owned=NULL;
-    CHECK(salts_md_parse(source,sizeof(source)-1u,128u,sizeof(source),
+    md_document *owned=NULL;
+    CHECK(md_parse(source,sizeof(source)-1u,128u,sizeof(source),
                         &owned)==SALTS_MD_OK);
-    const salts_md_rich_document_view original=salts_md_get_document_view(owned);
-    CHECK(salts_md_rich_document_validate(&original,128u)==SALTS_MD_OK);
+    const md_rich_document_view original=md_get_document_view(owned);
+    CHECK(md_rich_document_validate(&original,128u)==SALTS_MD_OK);
     size_t table=SIZE_MAX,first_cell=SIZE_MAX;
     for(size_t i=1u;i<original.document.block_count;++i) {
         if(original.document.blocks[i].kind==SALTS_MD_BLOCK_TABLE)table=i;
@@ -973,17 +973,17 @@ static int test_gfm_forged_table_shape_fails_closed(void) {
            first_cell==SIZE_MAX)first_cell=i;
     }
     CHECK(table!=SIZE_MAX && first_cell!=SIZE_MAX);
-    const salts_md_block_metadata span=original.block_metadata[table];
+    const md_block_metadata span=original.block_metadata[table];
     CHECK(span.byte_end-span.byte_begin==2u);
     size_t need=SIZE_MAX;
-    CHECK(salts_md_render_html(&original,128u,NULL,0u,&need)==SALTS_MD_OK);
+    CHECK(md_render_html(&original,128u,NULL,0u,&need)==SALTS_MD_OK);
     CHECK(need>0u && need<512u);
 
     /* Shortened and expanded metadata vectors must each fail the same
      * two-pass renderer; no alignment is inferred from cell contents. */
     for(size_t variant=0u;variant<2u;++variant) {
-        salts_md_rich_document_view forged=original;
-        salts_md_block_metadata *meta=(salts_md_block_metadata*)malloc(
+        md_rich_document_view forged=original;
+        md_block_metadata *meta=(md_block_metadata*)malloc(
             original.block_metadata_count*sizeof(*meta));
         CHECK(meta!=NULL);
         memcpy(meta,original.block_metadata,
@@ -1003,7 +1003,7 @@ static int test_gfm_forged_table_shape_fails_closed(void) {
         }
         unsigned char bytes[512];memset(bytes,0x92,sizeof(bytes));
         size_t required=SIZE_MAX;
-        CHECK(salts_md_render_html(&forged,128u,(char*)bytes,
+        CHECK(md_render_html(&forged,128u,(char*)bytes,
                                   sizeof(bytes),&required)==
               SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
@@ -1013,8 +1013,8 @@ static int test_gfm_forged_table_shape_fails_closed(void) {
     /* Reparenting a TABLE_CELL into TABLE preserves its generic preorder,
      * but the typed TABLE/ROW/CELL topology must be rejected. */
     {
-        salts_md_rich_document_view forged=original;
-        salts_md_block *nodes=(salts_md_block*)malloc(
+        md_rich_document_view forged=original;
+        md_block *nodes=(md_block*)malloc(
             original.document.block_count*sizeof(*nodes));
         CHECK(nodes!=NULL);
         memcpy(nodes,original.document.blocks,
@@ -1023,14 +1023,14 @@ static int test_gfm_forged_table_shape_fails_closed(void) {
         forged.document.blocks=nodes;
         unsigned char bytes[512];memset(bytes,0x92,sizeof(bytes));
         size_t required=SIZE_MAX;
-        CHECK(salts_md_render_html(&forged,128u,(char*)bytes,
+        CHECK(md_render_html(&forged,128u,(char*)bytes,
                                   sizeof(bytes),&required)==
               SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
         for(size_t i=0u;i<sizeof(bytes);++i)CHECK(bytes[i]==0x92);
         free(nodes);
     }
-    salts_md_document_destroy(owned);
+    md_document_destroy(owned);
     return 0;
 }
 
@@ -1042,16 +1042,16 @@ static int test_gfm_forged_table_shape_fails_closed(void) {
 static int test_gfm_forged_row_cardinality_fails_closed(void) {
     static const char source[]=
         "| A | B |\n| --- | --- |\n| x | y |\n";
-    salts_md_document *owned=NULL;
-    CHECK(salts_md_parse(source,sizeof(source)-1u,128u,sizeof(source),
+    md_document *owned=NULL;
+    CHECK(md_parse(source,sizeof(source)-1u,128u,sizeof(source),
                         &owned)==SALTS_MD_OK);
-    const salts_md_rich_document_view canonical=salts_md_get_document_view(owned);
-    CHECK(salts_md_rich_document_validate(&canonical,128u)==SALTS_MD_OK);
+    const md_rich_document_view canonical=md_get_document_view(owned);
+    CHECK(md_rich_document_validate(&canonical,128u)==SALTS_MD_OK);
     const size_t count=canonical.document.block_count;
     size_t row=SIZE_MAX,first_cell=SIZE_MAX,second_cell=SIZE_MAX;
     size_t first_text=SIZE_MAX;
     for(size_t i=1u;i<count;++i) {
-        const salts_md_block *node=&canonical.document.blocks[i];
+        const md_block *node=&canonical.document.blocks[i];
         if(node->kind==SALTS_MD_BLOCK_TABLE_ROW && row==SIZE_MAX)row=i;
         if(row!=SIZE_MAX && node->kind==SALTS_MD_BLOCK_TABLE_CELL &&
            node->parent_index==row) {
@@ -1064,7 +1064,7 @@ static int test_gfm_forged_row_cardinality_fails_closed(void) {
     }
     CHECK(row!=SIZE_MAX && first_cell!=SIZE_MAX &&
           second_cell!=SIZE_MAX && first_text!=SIZE_MAX);
-    salts_md_block *copy=(salts_md_block*)malloc(count*sizeof(*copy));
+    md_block *copy=(md_block*)malloc(count*sizeof(*copy));
     CHECK(copy!=NULL);
     for(size_t mode=0u;mode<2u;++mode) {
         memcpy(copy,canonical.document.blocks,count*sizeof(*copy));
@@ -1076,29 +1076,29 @@ static int test_gfm_forged_row_cardinality_fails_closed(void) {
             copy[first_text].kind=SALTS_MD_BLOCK_TABLE_CELL;
             copy[first_text].parent_index=(uint32_t)row;
         }
-        salts_md_rich_document_view forged=canonical;
+        md_rich_document_view forged=canonical;
         forged.document.blocks=copy;
         unsigned char output[2048];memset(output,0xe5,sizeof(output));
         size_t required=SIZE_MAX;
-        CHECK(salts_md_render_html(&forged,128u,(char*)output,
+        CHECK(md_render_html(&forged,128u,(char*)output,
                                   sizeof(output),&required)==
               SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
         for(size_t i=0u;i<sizeof(output);++i)
             CHECK(output[i]==0xe5);
-        CHECK(salts_md_render_html(&forged,128u,NULL,0u,&required)==
+        CHECK(md_render_html(&forged,128u,NULL,0u,&required)==
               SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
     }
     free(copy);
-    salts_md_document_destroy(owned);
+    md_document_destroy(owned);
     return 0;
 }
 
 static int test_gfm_forged_ancestry_fails_closed(void) {
     typedef struct {
         const char *markdown;
-        salts_md_block_kind forged_kind;
+        md_block_kind forged_kind;
     } case_t;
     static const case_t cases[] = {
         {"| A | B |\n| --- | --- |\n| a | b |\n", SALTS_MD_BLOCK_TABLE_ROW},
@@ -1108,15 +1108,15 @@ static int test_gfm_forged_ancestry_fails_closed(void) {
     };
     for(size_t k=0u;k<sizeof(cases)/sizeof(cases[0]);++k) {
         const size_t bytes=strlen(cases[k].markdown);
-        salts_md_document *owned=NULL;
-        CHECK(salts_md_parse(cases[k].markdown,bytes,128u,bytes+1u,
+        md_document *owned=NULL;
+        CHECK(md_parse(cases[k].markdown,bytes,128u,bytes+1u,
                             &owned)==SALTS_MD_OK);
-        salts_md_rich_document_view view=salts_md_get_document_view(owned);
+        md_rich_document_view view=md_get_document_view(owned);
         const size_t count=view.document.block_count;
-        salts_md_block *copy=(salts_md_block*)malloc(
-            count*sizeof(salts_md_block));
+        md_block *copy=(md_block*)malloc(
+            count*sizeof(md_block));
         CHECK(copy!=NULL);
-        memcpy(copy,view.document.blocks,count*sizeof(salts_md_block));
+        memcpy(copy,view.document.blocks,count*sizeof(md_block));
         size_t target=SIZE_MAX;
         for(size_t i=1u;i<count;++i)
             if(copy[i].kind==cases[k].forged_kind) {
@@ -1125,17 +1125,17 @@ static int test_gfm_forged_ancestry_fails_closed(void) {
         CHECK(target!=SIZE_MAX && target>1u);
         copy[target].parent_index=0u;
         view.document.blocks=copy;
-        CHECK(salts_md_rich_document_validate(&view,128u)==SALTS_MD_OK);
+        CHECK(md_rich_document_validate(&view,128u)==SALTS_MD_OK);
         unsigned char out[512];
         memset(out,0xc7,sizeof(out));
         size_t required=SIZE_MAX;
-        CHECK(salts_md_render_html(&view,128u,(char*)out,sizeof(out),
+        CHECK(md_render_html(&view,128u,(char*)out,sizeof(out),
                                   &required)==SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
         for(size_t i=0u;i<sizeof(out);++i)
             CHECK(out[i]==0xc7);
         free(copy);
-        salts_md_document_destroy(owned);
+        md_document_destroy(owned);
     }
     /* A ROOT TABLE may be forged beneath an unrelated PARAGRAPH even when
      * the generic RichDoc preorder remains valid; refuse such owners. */
@@ -1145,12 +1145,12 @@ static int test_gfm_forged_ancestry_fails_closed(void) {
     {
         static const char source[]=
             "intro\n\n| A | B |\n| --- | --- |\n| a | b |\n";
-        salts_md_document *owned=NULL;
-        CHECK(salts_md_parse(source,sizeof(source)-1u,128u,sizeof(source),
+        md_document *owned=NULL;
+        CHECK(md_parse(source,sizeof(source)-1u,128u,sizeof(source),
                             &owned)==SALTS_MD_OK);
-        salts_md_rich_document_view view=salts_md_get_document_view(owned);
+        md_rich_document_view view=md_get_document_view(owned);
         const size_t count=view.document.block_count;
-        salts_md_block *copy=(salts_md_block*)malloc(count*sizeof(*copy));
+        md_block *copy=(md_block*)malloc(count*sizeof(*copy));
         CHECK(copy!=NULL);
         memcpy(copy,view.document.blocks,count*sizeof(*copy));
         size_t paragraph=SIZE_MAX,table=SIZE_MAX;
@@ -1163,29 +1163,29 @@ static int test_gfm_forged_ancestry_fails_closed(void) {
         CHECK(paragraph!=SIZE_MAX && table>paragraph && table<count);
         copy[table].parent_index=(uint32_t)paragraph;
         view.document.blocks=copy;
-        CHECK(salts_md_rich_document_validate(&view,128u)==SALTS_MD_OK);
+        CHECK(md_rich_document_validate(&view,128u)==SALTS_MD_OK);
         unsigned char out[512];
         memset(out,0xc7,sizeof(out));
         size_t required=SIZE_MAX;
-        CHECK(salts_md_render_html(&view,128u,(char*)out,sizeof(out),
+        CHECK(md_render_html(&view,128u,(char*)out,sizeof(out),
                                   &required)==SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
         for(size_t i=0u;i<sizeof(out);++i)
             CHECK(out[i]==0xc7);
         free(copy);
-        salts_md_document_destroy(owned);
+        md_document_destroy(owned);
     }
     /* Canonical list TABLE owner is itself in a typed LIST; forging its
      * ITEM parent to DOCUMENT must fail without a caller-visible write. */
     {
         static const char source[]=
             "- | A | B |\n  | --- | --- |\n  | a | b |\n";
-        salts_md_document *owned=NULL;
-        CHECK(salts_md_parse(source,sizeof(source)-1u,128u,sizeof(source),
+        md_document *owned=NULL;
+        CHECK(md_parse(source,sizeof(source)-1u,128u,sizeof(source),
                             &owned)==SALTS_MD_OK);
-        salts_md_rich_document_view view=salts_md_get_document_view(owned);
+        md_rich_document_view view=md_get_document_view(owned);
         const size_t count=view.document.block_count;
-        salts_md_block *copy=(salts_md_block*)malloc(count*sizeof(*copy));
+        md_block *copy=(md_block*)malloc(count*sizeof(*copy));
         CHECK(copy!=NULL);
         memcpy(copy,view.document.blocks,count*sizeof(*copy));
         size_t item=SIZE_MAX,table=SIZE_MAX;
@@ -1198,15 +1198,15 @@ static int test_gfm_forged_ancestry_fails_closed(void) {
         CHECK(copy[table].parent_index==item);
         copy[item].parent_index=0u;
         view.document.blocks=copy;
-        CHECK(salts_md_rich_document_validate(&view,128u)==SALTS_MD_OK);
+        CHECK(md_rich_document_validate(&view,128u)==SALTS_MD_OK);
         unsigned char out[512];memset(out,0xc7,sizeof(out));
         size_t required=SIZE_MAX;
-        CHECK(salts_md_render_html(&view,128u,(char*)out,sizeof(out),
+        CHECK(md_render_html(&view,128u,(char*)out,sizeof(out),
                                   &required)==SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
         for(size_t i=0u;i<sizeof(out);++i)CHECK(out[i]==0xc7);
         free(copy);
-        salts_md_document_destroy(owned);
+        md_document_destroy(owned);
     }
     return 0;
 }
@@ -1231,11 +1231,11 @@ static int test_gfm_nested_unsafe_url_atomicity(void) {
                    "GFM unsafe nested URL fixture denominator");
     for(size_t k=0u;k<sizeof(inputs)/sizeof(inputs[0]);++k) {
         const size_t bytes=strlen(inputs[k]);
-        salts_md_document *owned=NULL;
-        CHECK(salts_md_parse(inputs[k],bytes,128u,bytes+1u,
+        md_document *owned=NULL;
+        CHECK(md_parse(inputs[k],bytes,128u,bytes+1u,
                             &owned)==SALTS_MD_OK);
-        const salts_md_rich_document_view v=salts_md_get_document_view(owned);
-        CHECK(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(owned);
+        CHECK(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
         bool link_found=false;
         for(size_t i=1u;i<v.document.block_count;++i)
             if(v.document.blocks[i].kind==SALTS_MD_BLOCK_LINK)
@@ -1251,16 +1251,16 @@ static int test_gfm_nested_unsafe_url_atomicity(void) {
         unsigned char output[4096];
         memset(output,0x8d,sizeof(output));
         size_t required=SIZE_MAX;
-        CHECK(salts_md_render_html(&v,128u,(char*)output,
+        CHECK(md_render_html(&v,128u,(char*)output,
                                   sizeof(output),&required)==
               SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
         for(size_t i=0u;i<sizeof(output);++i)
             CHECK(output[i]==0x8d);
-        CHECK(salts_md_render_html(&v,128u,NULL,0u,&required)==
+        CHECK(md_render_html(&v,128u,NULL,0u,&required)==
               SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
-        salts_md_document_destroy(owned);
+        md_document_destroy(owned);
     }
     return 0;
 }
@@ -1271,7 +1271,7 @@ static int test_gfm_nested_unsafe_url_atomicity(void) {
 static int test_gfm_forged_container_chain_fails_closed(void) {
     static const struct {
         const char *source;
-        salts_md_block_kind container;
+        md_block_kind container;
     } samples[] = {
         {"intro\n\n> | A | B |\n> | --- | --- |\n> | a | b |\n",
          SALTS_MD_BLOCK_QUOTE},
@@ -1280,16 +1280,16 @@ static int test_gfm_forged_container_chain_fails_closed(void) {
     };
     for(size_t k=0u;k<sizeof(samples)/sizeof(samples[0]);++k) {
         const size_t n=strlen(samples[k].source);
-        salts_md_document *owned=NULL;
-        CHECK(salts_md_parse(samples[k].source,n,128u,n+1u,
+        md_document *owned=NULL;
+        CHECK(md_parse(samples[k].source,n,128u,n+1u,
                             &owned)==SALTS_MD_OK);
-        salts_md_rich_document_view v=salts_md_get_document_view(owned);
-        CHECK(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+        md_rich_document_view v=md_get_document_view(owned);
+        CHECK(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
         size_t baseline=SIZE_MAX;
-        CHECK(salts_md_render_html(&v,128u,NULL,0u,&baseline)==SALTS_MD_OK);
+        CHECK(md_render_html(&v,128u,NULL,0u,&baseline)==SALTS_MD_OK);
         CHECK(baseline>0u && baseline<512u);
         const size_t count=v.document.block_count;
-        salts_md_block *copy=(salts_md_block*)malloc(count*sizeof(*copy));
+        md_block *copy=(md_block*)malloc(count*sizeof(*copy));
         CHECK(copy!=NULL);
         memcpy(copy,v.document.blocks,count*sizeof(*copy));
         size_t para=SIZE_MAX,container=SIZE_MAX,table=SIZE_MAX;
@@ -1305,19 +1305,19 @@ static int test_gfm_forged_container_chain_fails_closed(void) {
         CHECK(copy[container].parent_index==0u);
         copy[container].parent_index=(uint32_t)para;
         v.document.blocks=copy;
-        CHECK(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+        CHECK(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
         unsigned char out[512];
         memset(out,0x9b,sizeof(out));
         size_t required=SIZE_MAX;
-        CHECK(salts_md_render_html(&v,128u,(char*)out,sizeof(out),
+        CHECK(md_render_html(&v,128u,(char*)out,sizeof(out),
                                   &required)==SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
         for(size_t i=0u;i<sizeof(out);++i)CHECK(out[i]==0x9b);
-        CHECK(salts_md_render_html(&v,128u,NULL,0u,&required)==
+        CHECK(md_render_html(&v,128u,NULL,0u,&required)==
               SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
         free(copy);
-        salts_md_document_destroy(owned);
+        md_document_destroy(owned);
     }
     return 0;
 }
@@ -1342,10 +1342,10 @@ static int test_gfm_mixed_metadata_adversaries(void) {
                    "GFM mixed metadata source denominator");
     for(size_t k=0u;k<3u;++k) {
         const size_t n=strlen(sources[k]);
-        salts_md_document *doc=NULL;
-        CHECK(salts_md_parse(sources[k],n,MAX_BLOCKS,n+1u,&doc)==SALTS_MD_OK);
-        const salts_md_rich_document_view original=salts_md_get_document_view(doc);
-        CHECK(salts_md_rich_document_validate(&original,MAX_BLOCKS)==SALTS_MD_OK);
+        md_document *doc=NULL;
+        CHECK(md_parse(sources[k],n,MAX_BLOCKS,n+1u,&doc)==SALTS_MD_OK);
+        const md_rich_document_view original=md_get_document_view(doc);
+        CHECK(md_rich_document_validate(&original,MAX_BLOCKS)==SALTS_MD_OK);
         const size_t count=original.document.block_count;
         CHECK(count>5u && count<MAX_BLOCKS);
         CHECK(original.metadata_bytes>2u &&
@@ -1355,7 +1355,7 @@ static int test_gfm_mixed_metadata_adversaries(void) {
         size_t item=SIZE_MAX,check=SIZE_MAX,table=SIZE_MAX;
         size_t row=SIZE_MAX,cell=SIZE_MAX,paragraph=SIZE_MAX;
         for(size_t i=1u;i<count;++i) {
-            const salts_md_block_kind kind=original.document.blocks[i].kind;
+            const md_block_kind kind=original.document.blocks[i].kind;
             if(kind==SALTS_MD_BLOCK_TASK_ITEM)item=i;
             if(kind==SALTS_MD_BLOCK_CHECKBOX)check=i;
             if(kind==SALTS_MD_BLOCK_TABLE)table=i;
@@ -1367,31 +1367,31 @@ static int test_gfm_mixed_metadata_adversaries(void) {
         CHECK(item!=SIZE_MAX && check!=SIZE_MAX && table!=SIZE_MAX);
         CHECK(row!=SIZE_MAX && cell!=SIZE_MAX && paragraph!=SIZE_MAX);
         CHECK(check==item+1u && paragraph<table);
-        const salts_md_block_metadata tm=original.block_metadata[table];
-        const salts_md_block_metadata cm=original.block_metadata[check];
+        const md_block_metadata tm=original.block_metadata[table];
+        const md_block_metadata cm=original.block_metadata[check];
         CHECK(tm.byte_end-tm.byte_begin==2u);
         CHECK(cm.byte_end-cm.byte_begin==1u);
         CHECK(tm.byte_end<=original.metadata_bytes &&
               cm.byte_end<=original.metadata_bytes);
         size_t expected=SIZE_MAX;
-        CHECK(salts_md_render_html(&original,MAX_BLOCKS,NULL,0u,
+        CHECK(md_render_html(&original,MAX_BLOCKS,NULL,0u,
                                   &expected)==SALTS_MD_OK);
         CHECK(expected>0u && expected<MAX_HTML);
         unsigned char baseline[MAX_HTML], after[MAX_HTML];
         memset(baseline,0xb1,sizeof(baseline));
         size_t rendered=SIZE_MAX;
-        CHECK(salts_md_render_html(&original,MAX_BLOCKS,(char*)baseline,
+        CHECK(md_render_html(&original,MAX_BLOCKS,(char*)baseline,
                                   sizeof(baseline),&rendered)==SALTS_MD_OK);
         CHECK(rendered==expected);
 
         for(size_t mode=0u;mode<MODES;++mode) {
-            salts_md_block nodes[MAX_BLOCKS];
-            salts_md_block_metadata spans[MAX_BLOCKS];
+            md_block nodes[MAX_BLOCKS];
+            md_block_metadata spans[MAX_BLOCKS];
             char metadata[MAX_METADATA];
             memcpy(nodes,original.document.blocks,count*sizeof(*nodes));
             memcpy(spans,original.block_metadata,count*sizeof(*spans));
             memcpy(metadata,original.metadata,original.metadata_bytes);
-            salts_md_rich_document_view forged=original;
+            md_rich_document_view forged=original;
             forged.document.blocks=nodes;
             forged.block_metadata=spans;
             forged.metadata=metadata;
@@ -1433,19 +1433,19 @@ static int test_gfm_mixed_metadata_adversaries(void) {
             unsigned char guarded[MAX_HTML];
             memset(guarded,0xa6,sizeof(guarded));
             size_t need=SIZE_MAX;
-            const salts_md_status status=salts_md_render_html(
+            const md_status status=md_render_html(
                 &forged,MAX_BLOCKS,(char*)guarded,sizeof(guarded),&need);
             if(status!=SALTS_MD_INVALID_ARGUMENT) {
                 fprintf(stderr,"mixed GFM adversary source=%zu mode=%zu status=%d\n",
                         k,mode,(int)status);
-                salts_md_document_destroy(doc);
+                md_document_destroy(doc);
                 return 1;
             }
             CHECK(need==SIZE_MAX);
             for(size_t j=0u;j<sizeof(guarded);++j)
                 CHECK(guarded[j]==0xa6);
             need=SIZE_MAX;
-            CHECK(salts_md_render_html(&forged,MAX_BLOCKS,NULL,0u,
+            CHECK(md_render_html(&forged,MAX_BLOCKS,NULL,0u,
                                       &need)==SALTS_MD_INVALID_ARGUMENT);
             CHECK(need==SIZE_MAX);
             CHECK(original.raw_markdown_bytes==n &&
@@ -1454,7 +1454,7 @@ static int test_gfm_mixed_metadata_adversaries(void) {
         unsigned char guarded[MAX_HTML];
         memset(guarded,0xa6,sizeof(guarded));
         size_t required=SIZE_MAX;
-        CHECK(salts_md_render_html(&original,count-1u,(char*)guarded,
+        CHECK(md_render_html(&original,count-1u,(char*)guarded,
                                   sizeof(guarded),&required)==
               SALTS_MD_CAPACITY_EXCEEDED);
         CHECK(required==SIZE_MAX);
@@ -1462,10 +1462,10 @@ static int test_gfm_mixed_metadata_adversaries(void) {
 
         memset(after,0xb1,sizeof(after));
         size_t again=SIZE_MAX;
-        CHECK(salts_md_render_html(&original,MAX_BLOCKS,(char*)after,
+        CHECK(md_render_html(&original,MAX_BLOCKS,(char*)after,
                                   sizeof(after),&again)==SALTS_MD_OK);
         CHECK(again==expected && !memcmp(after,baseline,expected+1u));
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
     }
     puts("GFM mixed RichDoc adversaries: 48/48 invalid views refused atomically");
     return 0;
@@ -1483,16 +1483,16 @@ static int test_gfm_deep_illegal_owners_fail_closed(void) {
         ">   | A | B |\n>   | :--- | ---: |\n"
         ">   | left | right |\n";
     enum { MAX_NODES=256, MODES=8, GUARD=2048 };
-    salts_md_document *owned=NULL;
-    CHECK(salts_md_parse(source,sizeof(source)-1u,MAX_NODES,
+    md_document *owned=NULL;
+    CHECK(md_parse(source,sizeof(source)-1u,MAX_NODES,
                         sizeof(source),&owned)==SALTS_MD_OK);
-    const salts_md_rich_document_view original=salts_md_get_document_view(owned);
-    CHECK(salts_md_rich_document_validate(&original,MAX_NODES)==SALTS_MD_OK);
+    const md_rich_document_view original=md_get_document_view(owned);
+    CHECK(md_rich_document_validate(&original,MAX_NODES)==SALTS_MD_OK);
     size_t paragraph=SIZE_MAX,quote=SIZE_MAX,list=SIZE_MAX;
     size_t item=SIZE_MAX,checkbox=SIZE_MAX,table=SIZE_MAX;
     size_t row=SIZE_MAX,cell=SIZE_MAX;
     for(size_t i=1u;i<original.document.block_count;++i) {
-        const salts_md_block_kind kind=original.document.blocks[i].kind;
+        const md_block_kind kind=original.document.blocks[i].kind;
         if(kind==SALTS_MD_BLOCK_PARAGRAPH && paragraph==SIZE_MAX)
             paragraph=i;
         if(kind==SALTS_MD_BLOCK_QUOTE && quote==SIZE_MAX)quote=i;
@@ -1515,19 +1515,19 @@ static int test_gfm_deep_illegal_owners_fail_closed(void) {
     CHECK(original.document.blocks[cell].parent_index==row);
 
     size_t needed=SIZE_MAX;
-    CHECK(salts_md_render_html(&original,MAX_NODES,NULL,0u,
+    CHECK(md_render_html(&original,MAX_NODES,NULL,0u,
                               &needed)==SALTS_MD_OK);
     CHECK(needed>0u && needed<GUARD);
     unsigned char baseline[GUARD];
     memset(baseline,0xcd,sizeof(baseline));
     size_t full=SIZE_MAX;
-    CHECK(salts_md_render_html(&original,MAX_NODES,(char*)baseline,
+    CHECK(md_render_html(&original,MAX_NODES,(char*)baseline,
                               sizeof(baseline),&full)==SALTS_MD_OK);
     CHECK(full==needed);
     const size_t count=original.document.block_count;
     CHECK(count<MAX_NODES);
     for(size_t mode=0u;mode<MODES;++mode) {
-        salts_md_block copy[MAX_NODES];
+        md_block copy[MAX_NODES];
         memcpy(copy,original.document.blocks,count*sizeof(*copy));
         switch(mode) {
         case 0u: copy[quote].parent_index=(uint32_t)paragraph;break;
@@ -1540,23 +1540,23 @@ static int test_gfm_deep_illegal_owners_fail_closed(void) {
         case 7u: copy[cell].parent_index=(uint32_t)item;break;
         default:return 1;
         }
-        salts_md_rich_document_view forged=original;
+        md_rich_document_view forged=original;
         forged.document.blocks=copy;
-        CHECK(salts_md_rich_document_validate(&forged,MAX_NODES)==SALTS_MD_OK);
+        CHECK(md_rich_document_validate(&forged,MAX_NODES)==SALTS_MD_OK);
         unsigned char out[GUARD];
         memset(out,0x94,sizeof(out));
         size_t required=SIZE_MAX;
-        const salts_md_status status=salts_md_render_html(
+        const md_status status=md_render_html(
             &forged,MAX_NODES,(char*)out,sizeof(out),&required);
         if(status!=SALTS_MD_INVALID_ARGUMENT) {
             fprintf(stderr,"GFM deep owner mutation=%zu status=%d\n",
                     mode,(int)status);
-            salts_md_document_destroy(owned);
+            md_document_destroy(owned);
             return 1;
         }
         CHECK(required==SIZE_MAX);
         for(size_t i=0u;i<sizeof(out);++i)CHECK(out[i]==0x94u);
-        CHECK(salts_md_render_html(&forged,MAX_NODES,NULL,0u,
+        CHECK(md_render_html(&forged,MAX_NODES,NULL,0u,
                                   &required)==SALTS_MD_INVALID_ARGUMENT);
         CHECK(required==SIZE_MAX);
         CHECK(original.raw_markdown_bytes==sizeof(source)-1u);
@@ -1565,10 +1565,10 @@ static int test_gfm_deep_illegal_owners_fail_closed(void) {
     unsigned char unchanged[GUARD];
     memset(unchanged,0xcd,sizeof(unchanged));
     size_t again=SIZE_MAX;
-    CHECK(salts_md_render_html(&original,MAX_NODES,(char*)unchanged,
+    CHECK(md_render_html(&original,MAX_NODES,(char*)unchanged,
                               sizeof(unchanged),&again)==SALTS_MD_OK);
     CHECK(again==needed && !memcmp(unchanged,baseline,needed+1u));
-    salts_md_document_destroy(owned);
+    md_document_destroy(owned);
     puts("GFM forged deep quote/list/task/table ancestors: 8/8 rejected");
     return 0;
 }
@@ -1577,9 +1577,9 @@ static int test_unsafe_unsupported(void) {
     /* Balanced-parenthesis destinations are not implemented by the C11 parser
      * yet. Use a syntactically admitted link to test the actual HTML URL gate. */
     const char bad_url[]="[bad](javascript:alert)\n";
-    salts_md_document *doc=NULL;
-    CHECK(salts_md_parse(bad_url,sizeof(bad_url)-1u,64,256,&doc)==SALTS_MD_OK);
-    salts_md_rich_document_view v=salts_md_get_document_view(doc);
+    md_document *doc=NULL;
+    CHECK(md_parse(bad_url,sizeof(bad_url)-1u,64,256,&doc)==SALTS_MD_OK);
+    md_rich_document_view v=md_get_document_view(doc);
     bool found_link=false;
     for(size_t i=0;i<v.document.block_count;++i)
         if(v.document.blocks[i].kind==SALTS_MD_BLOCK_LINK) found_link=true;
@@ -1587,37 +1587,37 @@ static int test_unsafe_unsupported(void) {
     char out[128];
     memset(out,0x4d,sizeof(out));
     size_t needed=0;
-    CHECK(salts_md_render_html(&v,64u,out,sizeof(out),&needed)==
+    CHECK(md_render_html(&v,64u,out,sizeof(out),&needed)==
           SALTS_MD_INVALID_ARGUMENT);
     for(size_t i=0;i<sizeof(out);++i)
         CHECK((unsigned char)out[i]==0x4d);
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
 
     /* A second supported link scheme rejection keeps data: fail-closed. */
     const char data_url[]="[bad](data:text/html)\n";
-    CHECK(salts_md_parse(data_url,sizeof(data_url)-1u,64,256,&doc)==SALTS_MD_OK);
-    v=salts_md_get_document_view(doc);
+    CHECK(md_parse(data_url,sizeof(data_url)-1u,64,256,&doc)==SALTS_MD_OK);
+    v=md_get_document_view(doc);
     found_link=false;
     for(size_t i=0;i<v.document.block_count;++i)
         if(v.document.blocks[i].kind==SALTS_MD_BLOCK_LINK) found_link=true;
     CHECK(found_link);
     memset(out,0x4d,sizeof(out));
-    CHECK(salts_md_render_html(&v,64u,out,sizeof(out),&needed)==
+    CHECK(md_render_html(&v,64u,out,sizeof(out),&needed)==
           SALTS_MD_INVALID_ARGUMENT);
     for(size_t i=0;i<sizeof(out);++i)
         CHECK((unsigned char)out[i]==0x4d);
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
 
     const char image[]="![alt](https://example.org/x.png)\n";
-    CHECK(salts_md_parse(image,sizeof(image)-1u,64,256,&doc)==SALTS_MD_OK);
-    v=salts_md_get_document_view(doc);
-    CHECK(salts_md_render_html(&v,64u,NULL,0u,&needed)==SALTS_MD_OK);
+    CHECK(md_parse(image,sizeof(image)-1u,64,256,&doc)==SALTS_MD_OK);
+    v=md_get_document_view(doc);
+    CHECK(md_render_html(&v,64u,NULL,0u,&needed)==SALTS_MD_OK);
     const char image_html[]=
         "<p><img src=\"https://example.org/x.png\" alt=\"alt\" /></p>\n";
     CHECK(needed==sizeof(image_html)-1u);
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
 
-    CHECK(salts_md_render_html(NULL,64u,NULL,0u,&needed)==
+    CHECK(md_render_html(NULL,64u,NULL,0u,&needed)==
           SALTS_MD_INVALID_ARGUMENT);
     return 0;
 }

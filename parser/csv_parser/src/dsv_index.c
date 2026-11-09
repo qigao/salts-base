@@ -1,12 +1,10 @@
-#include "dsv_index.h"
+#include <dsv_index.h>
 
 #include "csv_grammar_gen.h"
 #include "csv_lexer.h"
-#include <salts/fs.h>
-#include <cmeta_mmap.h>
-#include <tstr.h>
-#include <cstl/hash_map.h>
-#include <cstl/vec.h>
+#include <file/fs.h>
+#include <memory/mmap.h>
+#include <salts/tstr.h>
 
 #include <float.h>
 #include <limits.h>
@@ -50,12 +48,43 @@ typedef struct {
     int64_t covering_int64;
 } dsv_index_file_entry_t;
 
+/* Build-local storage owns entries; configured max_entries bounds admission. */
+typedef struct {
+    dsv_index_file_entry_t *data;
+    size_t count, capacity, limit;
+} dsv_index_entries;
+static int dsv_index_append(dsv_index_entries *entries, const dsv_index_file_entry_t *entry) {
+    if (entries->count == entries->limit) return -1;
+    if (entries->count == entries->capacity) {
+        enum { INITIAL_ENTRY_CAPACITY = 64 };
+        size_t capacity = entries->capacity ? entries->capacity : INITIAL_ENTRY_CAPACITY;
+        if (entries->capacity) capacity = capacity > entries->limit / 2 ? entries->limit : capacity * 2;
+        if (capacity > entries->limit) capacity = entries->limit;
+        dsv_index_file_entry_t *data = realloc(entries->data, capacity * sizeof(*data));
+        if (!data) return -1;
+        entries->data = data;
+        entries->capacity = capacity;
+    }
+    entries->data[entries->count++] = *entry;
+    return 0;
+}
+/* Preserve the version-1 sidecar digest, including its original size_t cast. */
+static size_t dsv_index_source_hash(const void *data, size_t length) {
+    const unsigned char *bytes = data;
+    uint64_t hash = UINT64_C(1469598103934665603);
+    for (size_t i = 0; i < length; ++i) {
+        hash ^= bytes[i];
+        hash *= UINT64_C(1099511628211);
+    }
+    return (size_t)(hash ? hash : 1u);
+}
+
 _Static_assert(sizeof(dsv_index_file_header_t) == 96, "unexpected DSV index header layout");
 _Static_assert(sizeof(dsv_index_file_entry_t) == 104, "unexpected DSV index entry layout");
 
 struct dsv_index_s {
-    cmeta_mmap_t index_mapping;
-    cmeta_mmap_t source_mapping;
+    mmap_t index_mapping;
+    mmap_t source_mapping;
     const dsv_index_file_header_t *header;
     const dsv_index_file_entry_t *entries;
     const char *source_data;
@@ -197,7 +226,7 @@ static int dsv_index_entry_compare(const void *left_ptr, const void *right_ptr) 
     return left->row_offset < right->row_offset ? -1 : 1;
 }
 
-static int dsv_index_finish_row(dsv_index_t *index, vec_t *entries,
+static int dsv_index_finish_row(dsv_index_t *index, dsv_index_entries *entries,
                                 dsv_index_row_builder_t *row, const char *content,
                                 const char *row_start, const char *row_end,
                                 const dsv_index_config_t *config, int *skip_header) {
@@ -209,7 +238,7 @@ static int dsv_index_finish_row(dsv_index_t *index, vec_t *entries,
     if (!row->has_text || !row->has_number ||
         (config->covering_int64_column != DSV_INDEX_NO_COLUMN && !row->has_cover))
         return dsv_index_fail(index, "indexed row is missing a configured column");
-    if (vec_size(entries) >=
+    if (entries->count >=
         (config->max_entries ? config->max_entries : DSV_INDEX_DEFAULT_MAX_ENTRIES))
         return dsv_index_fail(index, "DSV index entry capacity exceeded");
     if (row_start < content || row_end < row_start) return dsv_index_fail(index, "invalid row bounds");
@@ -220,7 +249,7 @@ static int dsv_index_finish_row(dsv_index_t *index, vec_t *entries,
     row->entry.row_length = (uint32_t)row_length;
     if (config->covering_int64_column != DSV_INDEX_NO_COLUMN)
         row->entry.flags |= DSV_INDEX_FLAG_HAS_COVER;
-    if (vec_push(entries, &row->entry) != STL_OK)
+    if (dsv_index_append(entries, &row->entry) != 0)
         return dsv_index_fail(index, "out of memory growing DSV index");
     return 0;
 }
@@ -229,7 +258,7 @@ static int dsv_index_build_internal(dsv_index_t *index, const char *index_path,
                                     const char *content, size_t len,
                                     const dsv_index_config_t *config,
                                     uint64_t source_mtime) {
-    vec_t entries = {0};
+    dsv_index_entries entries = {0};
     csv_lexer_t lexer;
     csv_token_t token;
     dsv_index_row_builder_t row;
@@ -240,7 +269,7 @@ static int dsv_index_build_internal(dsv_index_t *index, const char *index_path,
     int lexer_rc;
     size_t file_size;
     char *file_data = NULL;
-    salts_fs_buf_t file_buffer;
+    fs_buf_t file_buffer;
     dsv_index_file_header_t header;
     tstr temporary_path = NULL;
     int rc = -1;
@@ -251,14 +280,12 @@ static int dsv_index_build_internal(dsv_index_t *index, const char *index_path,
         (config->covering_int64_column != DSV_INDEX_NO_COLUMN &&
          config->covering_int64_column > UINT32_MAX))
         return dsv_index_fail(index, "invalid DSV index build configuration");
-    if (cmeta_mmap_is_open(&index->index_mapping) ||
-        cmeta_mmap_is_open(&index->source_mapping))
+    if (mmap_is_open(&index->index_mapping) ||
+        mmap_is_open(&index->source_mapping))
         return dsv_index_fail(index, "close the DSV index before rebuilding it");
-    if (vec_init_bytes(
-            &entries, sizeof(dsv_index_file_entry_t), _Alignof(dsv_index_file_entry_t),
-            config->max_entries ? config->max_entries : DSV_INDEX_DEFAULT_MAX_ENTRIES) !=
-        STL_OK)
-        return dsv_index_fail(index, "out of memory creating DSV index");
+    entries.limit = config->max_entries ? config->max_entries : DSV_INDEX_DEFAULT_MAX_ENTRIES;
+    if (entries.limit > SIZE_MAX / sizeof(*entries.data))
+        return dsv_index_fail(index, "DSV index entry capacity overflow");
 
     memset(&row, 0, sizeof(row));
     skip_header = config->has_header ? 1 : 0;
@@ -310,11 +337,11 @@ static int dsv_index_build_internal(dsv_index_t *index, const char *index_path,
                                           content + len, config, &skip_header) != 0)
         goto cleanup;
 
-    if (vec_size(&entries) > 1) {
-        qsort(vec_data(&entries), vec_size(&entries),
+    if (entries.count > 1) {
+        qsort(entries.data, entries.count,
               sizeof(dsv_index_file_entry_t), dsv_index_entry_compare);
     }
-    if (!dsv_index_checked_size((uint64_t)vec_size(&entries), &file_size)) {
+    if (!dsv_index_checked_size((uint64_t)entries.count, &file_size)) {
         dsv_index_fail(index, "DSV index file size overflow");
         goto cleanup;
     }
@@ -331,8 +358,8 @@ static int dsv_index_build_internal(dsv_index_t *index, const char *index_path,
     header.entry_size = (uint32_t)sizeof(dsv_index_file_entry_t);
     header.source_size = (uint64_t)len;
     header.source_mtime = source_mtime;
-    header.source_hash = (uint64_t)hash_bytes(content, len, NULL);
-    header.entry_count = (uint64_t)vec_size(&entries);
+    header.source_hash = (uint64_t)dsv_index_source_hash(content, len);
+    header.entry_count = (uint64_t)entries.count;
     header.text_column = (uint32_t)config->text_column;
     header.number_column = (uint32_t)config->number_column;
     header.covering_column = config->covering_int64_column == DSV_INDEX_NO_COLUMN
@@ -341,9 +368,9 @@ static int dsv_index_build_internal(dsv_index_t *index, const char *index_path,
     if (config->covering_int64_column != DSV_INDEX_NO_COLUMN)
         header.flags |= DSV_INDEX_FLAG_HAS_COVER;
     memcpy(file_data, &header, sizeof(header));
-    if (vec_size(&entries) > 0) {
-        memcpy(file_data + sizeof(header), vec_data(&entries),
-               vec_size(&entries) * sizeof(dsv_index_file_entry_t));
+    if (entries.count > 0) {
+        memcpy(file_data + sizeof(header), entries.data,
+               entries.count * sizeof(dsv_index_file_entry_t));
     }
     file_buffer.base = file_data;
     file_buffer.len = file_size;
@@ -357,11 +384,11 @@ static int dsv_index_build_internal(dsv_index_t *index, const char *index_path,
         dsv_index_fail(index, "out of memory creating temporary index path");
         goto cleanup;
     }
-    if (salts_fs_write_file(temporary_path, &file_buffer) != 0) {
+    if (fs_write_file(temporary_path, &file_buffer) != 0) {
         dsv_index_fail(index, "failed writing DSV sidecar index");
         goto cleanup;
     }
-    if (salts_fs_rename(temporary_path, index_path) != 0) {
+    if (fs_rename(temporary_path, index_path) != 0) {
         dsv_index_fail(index, "failed replacing DSV sidecar index");
         goto cleanup;
     }
@@ -369,25 +396,25 @@ static int dsv_index_build_internal(dsv_index_t *index, const char *index_path,
     rc = 0;
 
 cleanup:
-    if (rc != 0 && temporary_path) (void)salts_fs_unlink(temporary_path);
+    if (rc != 0 && temporary_path) (void)fs_unlink(temporary_path);
     tstr_free(temporary_path);
     free(file_data);
-    vec_destroy(&entries);
+    free(entries.data);
     return rc;
 }
 
 dsv_index_t *dsv_index_create(void) {
     dsv_index_t *index = (dsv_index_t *)calloc(1, sizeof(*index));
     if (!index) return NULL;
-    cmeta_mmap_init(&index->index_mapping);
-    cmeta_mmap_init(&index->source_mapping);
+    mmap_init(&index->index_mapping);
+    mmap_init(&index->source_mapping);
     return index;
 }
 
 void dsv_index_close(dsv_index_t *index) {
     if (!index) return;
-    cmeta_mmap_close(&index->index_mapping);
-    cmeta_mmap_close(&index->source_mapping);
+    mmap_close(&index->index_mapping);
+    mmap_close(&index->source_mapping);
     index->header = NULL;
     index->entries = NULL;
     index->source_data = NULL;
@@ -412,20 +439,20 @@ int dsv_index_build_memory(dsv_index_t *index, const char *index_path,
 
 int dsv_index_build_file(dsv_index_t *index, const char *csv_path,
                          const char *index_path, const dsv_index_config_t *config) {
-    cmeta_mmap_t source;
-    salts_fs_stat_t stat;
+    mmap_t source;
+    fs_stat_t stat;
     int rc;
     if (!index || !csv_path || !index_path || !config)
         return dsv_index_fail(index, "invalid DSV index file build arguments");
-    if (salts_fs_stat(csv_path, &stat) != 0 || !stat.is_file)
+    if (fs_stat(csv_path, &stat) != 0 || !stat.is_file)
         return dsv_index_fail(index, "failed to stat source CSV");
-    cmeta_mmap_init(&source);
-    if (cmeta_mmap_open(&source, csv_path, SALTS_MMAP_READ) != 0)
+    mmap_init(&source);
+    if (mmap_open(&source, csv_path, SALTS_MMAP_READ) != 0)
         return dsv_index_fail(index, "failed to map source CSV");
     rc = dsv_index_build_internal(index, index_path,
-                                  (const char *)cmeta_mmap_data(&source),
-                                  cmeta_mmap_size(&source), config, stat.mtime);
-    cmeta_mmap_close(&source);
+                                  (const char *)mmap_data(&source),
+                                  mmap_size(&source), config, stat.mtime);
+    mmap_close(&source);
     return rc;
 }
 
@@ -450,25 +477,25 @@ static int dsv_index_open_internal(dsv_index_t *index, const char *index_path,
     size_t expected_size;
 
     if (!index || !index_path || !content) return dsv_index_fail(index, "invalid DSV index open arguments");
-    if (cmeta_mmap_open(&index->index_mapping, index_path, SALTS_MMAP_READ) != 0)
+    if (mmap_open(&index->index_mapping, index_path, SALTS_MMAP_READ) != 0)
         return dsv_index_fail(index, "failed to map DSV sidecar index");
-    if (cmeta_mmap_size(&index->index_mapping) < sizeof(*header))
+    if (mmap_size(&index->index_mapping) < sizeof(*header))
         return dsv_index_fail(index, "DSV index is truncated");
-    header = (const dsv_index_file_header_t *)cmeta_mmap_data(&index->index_mapping);
+    header = (const dsv_index_file_header_t *)mmap_data(&index->index_mapping);
     if (memcmp(header->magic, DSV_INDEX_MAGIC, sizeof(header->magic)) != 0 ||
         header->version != DSV_INDEX_VERSION ||
         header->endian_marker != DSV_INDEX_ENDIAN_MARKER ||
         header->header_size != sizeof(*header) ||
         header->entry_size != sizeof(dsv_index_file_entry_t) ||
         !dsv_index_checked_size(header->entry_count, &expected_size) ||
-        expected_size != cmeta_mmap_size(&index->index_mapping))
+        expected_size != mmap_size(&index->index_mapping))
         return dsv_index_fail(index, "DSV index format validation failed");
     if (header->source_size != (uint64_t)len)
         return dsv_index_fail(index, "DSV index source size mismatch");
     if (expected_mtime != 0) {
         if (header->source_mtime != expected_mtime)
             return dsv_index_fail(index, "DSV index source mtime mismatch");
-    } else if (header->source_hash != (uint64_t)hash_bytes(content, len, NULL)) {
+    } else if (header->source_hash != (uint64_t)dsv_index_source_hash(content, len)) {
         return dsv_index_fail(index, "DSV index source hash mismatch");
     }
 
@@ -477,7 +504,7 @@ static int dsv_index_open_internal(dsv_index_t *index, const char *index_path,
     index->source_data = content;
     index->source_length = len;
     if (dsv_index_validate_entries(index) != 0) return -1;
-    (void)cmeta_mmap_advise(&index->index_mapping, SALTS_MMAP_RANDOM);
+    (void)mmap_advise(&index->index_mapping, SALTS_MMAP_RANDOM);
     index->error[0] = '\0';
     return 0;
 }
@@ -487,7 +514,7 @@ int dsv_index_open_memory(dsv_index_t *index, const char *index_path,
     if (!index) return -1;
     dsv_index_close(index);
     if (dsv_index_open_internal(index, index_path, content, len, 0) != 0) {
-        cmeta_mmap_close(&index->index_mapping);
+        mmap_close(&index->index_mapping);
         return -1;
     }
     return 0;
@@ -495,22 +522,22 @@ int dsv_index_open_memory(dsv_index_t *index, const char *index_path,
 
 int dsv_index_open_file(dsv_index_t *index, const char *csv_path,
                         const char *index_path) {
-    salts_fs_stat_t stat;
+    fs_stat_t stat;
     if (!index || !csv_path || !index_path)
         return dsv_index_fail(index, "invalid DSV index file open arguments");
     dsv_index_close(index);
-    if (salts_fs_stat(csv_path, &stat) != 0 || !stat.is_file)
+    if (fs_stat(csv_path, &stat) != 0 || !stat.is_file)
         return dsv_index_fail(index, "failed to stat source CSV");
-    if (cmeta_mmap_open(&index->source_mapping, csv_path, SALTS_MMAP_READ) != 0)
+    if (mmap_open(&index->source_mapping, csv_path, SALTS_MMAP_READ) != 0)
         return dsv_index_fail(index, "failed to map source CSV");
     if (dsv_index_open_internal(index, index_path,
-                                (const char *)cmeta_mmap_data(&index->source_mapping),
-                                cmeta_mmap_size(&index->source_mapping), stat.mtime) != 0) {
-        cmeta_mmap_close(&index->index_mapping);
-        cmeta_mmap_close(&index->source_mapping);
+                                (const char *)mmap_data(&index->source_mapping),
+                                mmap_size(&index->source_mapping), stat.mtime) != 0) {
+        mmap_close(&index->index_mapping);
+        mmap_close(&index->source_mapping);
         return -1;
     }
-    (void)cmeta_mmap_advise(&index->source_mapping, SALTS_MMAP_RANDOM);
+    (void)mmap_advise(&index->source_mapping, SALTS_MMAP_RANDOM);
     return 0;
 }
 

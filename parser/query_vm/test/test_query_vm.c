@@ -1,4 +1,4 @@
-#include "query_vm.h"
+#include <query_vm.h>
 #include "tinytest.h"
 
 #include <string.h>

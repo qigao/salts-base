@@ -17,7 +17,7 @@
 #include "ini_types.h"
 #include <stdlib.h>
 #include <string.h>
-#include "tstr.h"
+#include <salts/tstr.h>
 
 static tstr ini_strndup(const char *s, size_t n) {
     return tstr_dup_len(s, n);

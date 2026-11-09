@@ -1,9 +1,9 @@
 #ifndef PARSER_CONTEXT_H
 #define PARSER_CONTEXT_H
 
-#include "memory_pool.h"
-#include "parser_error.h"
-#include "parser_stats.h"
+#include <memory/memory_pool.h>
+#include <parser_error.h>
+#include <parser_stats.h>
 #include <stdint.h>
 
 // Thread-safe parser context

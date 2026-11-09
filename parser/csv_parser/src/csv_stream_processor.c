@@ -1,4 +1,4 @@
-#include "csv_stream_processor.h"
+#include <csv_stream_processor.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "cmeta_buffer.h"
+#include <memory/buffer.h>
 
 /* ── Fast double parser for financial CSV data ────────────────────── */
 /* No scientific notation, no locale, no inf/nan — just [-]digits[.digits].

@@ -6,8 +6,8 @@
 #include <string.h>
 
 #include <cmd_arger.h>
-#include <salts/fs.h>
-#include <tstr.h>
+#include <file/fs.h>
+#include <salts/tstr.h>
 #include <xml_parser/xml_parser.h>
 
 enum {
@@ -25,8 +25,8 @@ typedef struct dashboard_stats {
 } dashboard_stats;
 
 typedef struct render_context {
-    salts_xml_node node;
-    salts_xml_node suite;
+    xml_node node;
+    xml_node suite;
     const dashboard_stats *stats;
 } render_context;
 
@@ -38,38 +38,38 @@ typedef struct template_tag {
     bool unescaped;
 } template_tag;
 
-static salts_xml_string_view empty_view(void) {
-    const salts_xml_string_view view = {NULL, 0u};
+static xml_string_view empty_view(void) {
+    const xml_string_view view = {NULL, 0u};
     return view;
 }
 
-static salts_xml_string_view literal_view(const char *value) {
-    const salts_xml_string_view view = {value, value ? strlen(value) : 0u};
+static xml_string_view literal_view(const char *value) {
+    const xml_string_view view = {value, value ? strlen(value) : 0u};
     return view;
 }
 
-static bool view_equal_bytes(salts_xml_string_view left,
+static bool view_equal_bytes(xml_string_view left,
                              const char *right,
                              size_t right_size) {
     return left.size == right_size &&
            (right_size == 0u || memcmp(left.data, right, right_size) == 0);
 }
 
-static bool node_is_named(salts_xml_node node, const char *name, size_t name_size) {
-    return node.impl != NULL && salts_xml_node_type(node) == SALTS_XML_ELEMENT &&
-           view_equal_bytes(salts_xml_node_qualified_name(node), name, name_size);
+static bool node_is_named(xml_node node, const char *name, size_t name_size) {
+    return node.impl != NULL && xml_node_type(node) == SALTS_XML_ELEMENT &&
+           view_equal_bytes(xml_node_qualified_name(node), name, name_size);
 }
 
-static salts_xml_string_view node_attribute(salts_xml_node node,
+static xml_string_view node_attribute(xml_node node,
                                             const char *name,
                                             size_t name_size) {
-    const size_t attribute_count = salts_xml_node_attribute_count(node);
+    const size_t attribute_count = xml_node_attribute_count(node);
     size_t index;
 
     for (index = 0u; index < attribute_count; ++index) {
-        const salts_xml_attribute attribute = salts_xml_node_attribute_at(node, index);
-        if (view_equal_bytes(salts_xml_attribute_qualified_name(attribute), name, name_size)) {
-            return salts_xml_attribute_value(attribute);
+        const xml_attribute attribute = xml_node_attribute_at(node, index);
+        if (view_equal_bytes(xml_attribute_qualified_name(attribute), name, name_size)) {
+            return xml_attribute_value(attribute);
         }
     }
     return empty_view();
@@ -77,46 +77,46 @@ static salts_xml_string_view node_attribute(salts_xml_node node,
 
 /* XmlParser exposes indexed immutable children; the configured node limit bounds
  * this sibling scan even though repeated child_at calls are quadratic. */
-static size_t named_child_count(salts_xml_node parent,
+static size_t named_child_count(xml_node parent,
                                 const char *name,
                                 size_t name_size) {
-    const size_t child_count = salts_xml_node_child_count(parent);
+    const size_t child_count = xml_node_child_count(parent);
     size_t count = 0u;
     size_t index;
 
     for (index = 0u; index < child_count; ++index) {
-        if (node_is_named(salts_xml_node_child_at(parent, index), name, name_size)) {
+        if (node_is_named(xml_node_child_at(parent, index), name, name_size)) {
             ++count;
         }
     }
     return count;
 }
 
-static salts_xml_node first_named_child(salts_xml_node parent,
+static xml_node first_named_child(xml_node parent,
                                         const char *name,
                                         size_t name_size) {
-    const size_t child_count = salts_xml_node_child_count(parent);
+    const size_t child_count = xml_node_child_count(parent);
     size_t index;
 
     for (index = 0u; index < child_count; ++index) {
-        const salts_xml_node child = salts_xml_node_child_at(parent, index);
+        const xml_node child = xml_node_child_at(parent, index);
         if (node_is_named(child, name, name_size)) return child;
     }
 
     {
-        const salts_xml_node missing = {NULL};
+        const xml_node missing = {NULL};
         return missing;
     }
 }
 
-static salts_xml_node find_test_suite(salts_xml_node root) {
+static xml_node find_test_suite(xml_node root) {
     const char suite_name[] = "testsuite";
 
     if (node_is_named(root, suite_name, sizeof(suite_name) - 1u)) return root;
     return first_named_child(root, suite_name, sizeof(suite_name) - 1u);
 }
 
-static size_t parse_count(salts_xml_string_view value) {
+static size_t parse_count(xml_string_view value) {
     size_t result = 0u;
     size_t index;
 
@@ -129,7 +129,7 @@ static size_t parse_count(salts_xml_string_view value) {
     return result;
 }
 
-static int format_stats(salts_xml_node suite, dashboard_stats *stats) {
+static int format_stats(xml_node suite, dashboard_stats *stats) {
     const size_t total = parse_count(node_attribute(suite, "tests", 5u));
     const size_t failed = parse_count(node_attribute(suite, "failures", 8u));
     const size_t skipped = parse_count(node_attribute(suite, "skipped", 7u));
@@ -147,13 +147,13 @@ static int format_stats(salts_xml_node suite, dashboard_stats *stats) {
     return 0;
 }
 
-static salts_xml_string_view testcase_status(salts_xml_node node) {
+static xml_string_view testcase_status(xml_node node) {
     if (named_child_count(node, "failure", 7u) > 0u) return literal_view("failed");
     if (named_child_count(node, "skipped", 7u) > 0u) return literal_view("skipped");
     return literal_view("passed");
 }
 
-static salts_xml_string_view computed_value(const render_context *context,
+static xml_string_view computed_value(const render_context *context,
                                             const char *name,
                                             size_t name_size) {
     if (context->node.impl == context->suite.impl) {
@@ -168,17 +168,17 @@ static salts_xml_string_view computed_value(const render_context *context,
         if (name_size == 15u && memcmp(name, "pass_percentage", name_size) == 0)
             return literal_view(context->stats->pass_percentage);
         if (name_size == 15u && memcmp(name, "test_suite_name", name_size) == 0) {
-            const salts_xml_string_view suite_name =
+            const xml_string_view suite_name =
                 node_attribute(context->suite, "name", 4u);
             return suite_name.size > 0u ? suite_name : literal_view("Test Results");
         }
         if (name_size == 4u && memcmp(name, "name", name_size) == 0) {
-            const salts_xml_string_view suite_name =
+            const xml_string_view suite_name =
                 node_attribute(context->suite, "name", 4u);
             return suite_name.size > 0u ? suite_name : literal_view("Test Results");
         }
         if (name_size == 9u && memcmp(name, "timestamp", name_size) == 0) {
-            const salts_xml_string_view timestamp =
+            const xml_string_view timestamp =
                 node_attribute(context->suite, "timestamp", 9u);
             return timestamp.size > 0u ? timestamp : literal_view("Unknown");
         }
@@ -206,7 +206,7 @@ static int append_bytes(tstr *output, const char *data, size_t size) {
     return 0;
 }
 
-static int append_html_escaped(tstr *output, salts_xml_string_view value) {
+static int append_html_escaped(tstr *output, xml_string_view value) {
     size_t plain_begin = 0u;
     size_t index;
 
@@ -233,20 +233,20 @@ static int append_html_escaped(tstr *output, salts_xml_string_view value) {
     return append_bytes(output, value.data + plain_begin, value.size - plain_begin);
 }
 
-static int append_node_text(tstr *output, salts_xml_node node, bool escaped) {
-    const size_t child_count = salts_xml_node_child_count(node);
+static int append_node_text(tstr *output, xml_node node, bool escaped) {
+    const size_t child_count = xml_node_child_count(node);
     size_t index;
 
     for (index = 0u; index < child_count; ++index) {
-        if (salts_xml_node_type(salts_xml_node_child_at(node, index)) == SALTS_XML_ELEMENT) {
+        if (xml_node_type(xml_node_child_at(node, index)) == SALTS_XML_ELEMENT) {
             return append_bytes(output, "[object]", 8u);
         }
     }
 
     for (index = 0u; index < child_count; ++index) {
-        const salts_xml_node child = salts_xml_node_child_at(node, index);
-        if (salts_xml_node_type(child) == SALTS_XML_TEXT) {
-            const salts_xml_string_view value = salts_xml_node_value(child);
+        const xml_node child = xml_node_child_at(node, index);
+        if (xml_node_type(child) == SALTS_XML_TEXT) {
+            const xml_string_view value = xml_node_value(child);
             const int result = escaped ? append_html_escaped(output, value)
                                        : append_bytes(output, value.data, value.size);
             if (result != 0) return result;
@@ -260,7 +260,7 @@ static int append_value(tstr *output,
                         const char *name,
                         size_t name_size,
                         bool escaped) {
-    salts_xml_string_view value;
+    xml_string_view value;
 
     if (name_size == 1u && name[0] == '.') {
         return append_node_text(output, context->node, escaped);
@@ -372,7 +372,7 @@ static int render_section(const char *input,
                           bool inverted,
                           tstr *output,
                           unsigned depth) {
-    const size_t child_count = salts_xml_node_child_count(context->node);
+    const size_t child_count = xml_node_child_count(context->node);
     size_t matches = 0u;
     size_t index;
 
@@ -391,12 +391,12 @@ static int render_section(const char *input,
     }
 
     for (index = 0u; index < child_count; ++index) {
-        if (node_is_named(salts_xml_node_child_at(context->node, index), name, name_size)) {
+        if (node_is_named(xml_node_child_at(context->node, index), name, name_size)) {
             ++matches;
         }
     }
     if (matches == 0u) {
-        const salts_xml_string_view attribute = computed_value(context, name, name_size);
+        const xml_string_view attribute = computed_value(context, name, name_size);
         const bool truthy = attribute.size > 0u;
         return truthy != inverted
                    ? render_template_range(input, input_size, context, output, depth)
@@ -405,7 +405,7 @@ static int render_section(const char *input,
     if (inverted) return 0;
 
     for (index = 0u; index < child_count; ++index) {
-        const salts_xml_node child = salts_xml_node_child_at(context->node, index);
+        const xml_node child = xml_node_child_at(context->node, index);
         render_context child_context;
         if (!node_is_named(child, name, name_size)) continue;
         child_context = *context;
@@ -465,14 +465,14 @@ static int render_template_range(const char *input,
     return append_bytes(output, input + cursor, input_size - cursor);
 }
 
-static int load_template(const char *template_path, salts_fs_buf_t *template_buffer) {
-    if (salts_fs_read_file(template_path, template_buffer) == 0) return 0;
+static int load_template(const char *template_path, fs_buf_t *template_buffer) {
+    if (fs_read_file(template_path, template_buffer) == 0) return 0;
     if (strcmp(template_path, "dashboard.html") != 0) {
         fprintf(stderr,
                 "Warning: Could not open template file at: %s. Trying dashboard.html...\n",
                 template_path);
     }
-    return salts_fs_read_file("dashboard.html", template_buffer);
+    return fs_read_file("dashboard.html", template_buffer);
 }
 
 int main(int argc, char **argv) {
@@ -488,11 +488,11 @@ int main(int argc, char **argv) {
         cmd_arger_desc_string_sh((char **)&template_path, "template", "t", "Dashboard template file"),
         cmd_arger_desc_flag(&no_color, "no-color", "Disable terminal colors"),
     };
-    salts_fs_buf_t xml_buffer = {0};
-    salts_fs_buf_t template_buffer = {0};
-    salts_xml_document document = {0};
-    salts_xml_diagnostic diagnostic = {0};
-    salts_xml_node suite;
+    fs_buf_t xml_buffer = {0};
+    fs_buf_t template_buffer = {0};
+    xml_document document = {0};
+    xml_diagnostic diagnostic = {0};
+    xml_node suite;
     dashboard_stats stats;
     render_context context;
     tstr output = NULL;
@@ -509,18 +509,18 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Error: XML input file is required.\n");
         goto cleanup;
     }
-    if (salts_fs_read_file(xml_file, &xml_buffer) != 0) {
+    if (fs_read_file(xml_file, &xml_buffer) != 0) {
         fprintf(stderr, "Error: Could not read XML: %s\n", xml_file);
         goto cleanup;
     }
-    if (salts_xml_parse(&document, xml_buffer.base, xml_buffer.len, NULL, &diagnostic) !=
+    if (xml_parse(&document, xml_buffer.base, xml_buffer.len, NULL, &diagnostic) !=
         SALTS_XML_OK) {
         fprintf(stderr, "Error: Could not parse XML at %u:%u: %s\n",
                 diagnostic.location.line, diagnostic.location.column, diagnostic.message);
         goto cleanup;
     }
 
-    suite = find_test_suite(salts_xml_document_root(&document));
+    suite = find_test_suite(xml_document_root(&document));
     if (!suite.impl) {
         fprintf(stderr, "Error: No testsuite found in XML\n");
         goto cleanup;
@@ -549,8 +549,8 @@ int main(int argc, char **argv) {
     }
 
     {
-        const salts_fs_buf_t output_buffer = salts_fs_buf_init(output, tstr_len(output));
-        if (salts_fs_write_file(output_file, &output_buffer) != 0) {
+        const fs_buf_t output_buffer = fs_buf_init(output, tstr_len(output));
+        if (fs_write_file(output_file, &output_buffer) != 0) {
             fprintf(stderr, "Error: Could not write output file: %s\n", output_file);
             goto cleanup;
         }
@@ -562,8 +562,8 @@ int main(int argc, char **argv) {
 
 cleanup:
     tstr_free(output);
-    salts_xml_document_destroy(&document);
-    salts_fs_buf_free(&template_buffer);
-    salts_fs_buf_free(&xml_buffer);
+    xml_document_destroy(&document);
+    fs_buf_free(&template_buffer);
+    fs_buf_free(&xml_buffer);
     return result;
 }

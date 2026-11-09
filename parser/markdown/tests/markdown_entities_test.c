@@ -1,5 +1,5 @@
-#include <salts/markdown.h>
-#include <salts/markdown_html.h>
+#include <markdown.h>
+#include <markdown_html.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -19,19 +19,19 @@ typedef struct md_entity_fixture {
     size_t emphasis, code_spans;
 } md_entity_fixture;
 
-static size_t count_kind(salts_md_rich_document_view v,
-                         salts_md_block_kind kind) {
+static size_t count_kind(md_rich_document_view v,
+                         md_block_kind kind) {
     size_t count=0u;
     for(size_t i=0u;i<v.document.block_count;++i)
         count+=(v.document.blocks[i].kind==kind);
     return count;
 }
 
-static bool has_text(salts_md_rich_document_view v,const char *needle,
-                     salts_md_block_kind parent) {
+static bool has_text(md_rich_document_view v,const char *needle,
+                     md_block_kind parent) {
     const size_t length=strlen(needle);
     for(size_t i=1u;i<v.document.block_count;++i) {
-        const salts_md_block *node=&v.document.blocks[i];
+        const md_block *node=&v.document.blocks[i];
         if(node->kind!=SALTS_MD_BLOCK_TEXT || node->parent_index>=i ||
            v.document.blocks[node->parent_index].kind!=parent ||
            node->byte_end<node->byte_begin ||
@@ -46,12 +46,12 @@ static bool has_text(salts_md_rich_document_view v,const char *needle,
 
 static int check_entity(const md_entity_fixture *fixture) {
     const size_t raw_bytes=strlen(fixture->source);
-    salts_md_document *owner=NULL;
-    CHECK(salts_md_parse(fixture->source,raw_bytes,256u,raw_bytes+1u,
+    md_document *owner=NULL;
+    CHECK(md_parse(fixture->source,raw_bytes,256u,raw_bytes+1u,
                         &owner)==SALTS_MD_OK);
     CHECK(owner!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(owner);
-    CHECK(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(owner);
+    CHECK(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
     CHECK(v.raw_markdown_bytes==raw_bytes);
     CHECK(memcmp(v.raw_markdown,fixture->source,raw_bytes)==0);
     CHECK(count_kind(v,SALTS_MD_BLOCK_EMPHASIS)==fixture->emphasis);
@@ -65,14 +65,14 @@ static int check_entity(const md_entity_fixture *fixture) {
     /* Decoded semantic TEXT byte ranges index the owned UTF-8 arena, never
      * the raw Markdown source that is held separately for diagnostics. */
     for(size_t i=1u;i<v.document.block_count;++i) {
-        const salts_md_block *node=&v.document.blocks[i];
+        const md_block *node=&v.document.blocks[i];
         CHECK(node->parent_index<i);
         if(node->kind!=SALTS_MD_BLOCK_TEXT) continue;
         CHECK(node->byte_end>=node->byte_begin);
         CHECK(node->byte_end<=v.document.source_bytes);
     }
     size_t required=SIZE_MAX;
-    CHECK(salts_md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
+    CHECK(md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
     const size_t expected=strlen(fixture->html);
     CHECK(required==expected);
     char output[1024];
@@ -80,18 +80,18 @@ static int check_entity(const md_entity_fixture *fixture) {
     memset(output,0xA5,sizeof(output));
     size_t reported=SIZE_MAX;
     if(expected) {
-        CHECK(salts_md_render_html(&v,256u,output,expected,&reported)==
+        CHECK(md_render_html(&v,256u,output,expected,&reported)==
               SALTS_MD_CAPACITY_EXCEEDED);
         CHECK(reported==expected);
         for(size_t i=0u;i<sizeof(output);++i)
             CHECK((unsigned char)output[i]==0xA5u);
     }
-    CHECK(salts_md_render_html(&v,256u,output,expected+1u,&reported)==
+    CHECK(md_render_html(&v,256u,output,expected+1u,&reported)==
           SALTS_MD_OK);
     CHECK(reported==expected);
     CHECK(memcmp(output,fixture->html,expected+1u)==0);
     CHECK((unsigned char)output[expected+1u]==0xA5u);
-    salts_md_document_destroy(owner);
+    md_document_destroy(owner);
     return 0;
 }
 
@@ -99,21 +99,21 @@ static int check_entity(const md_entity_fixture *fixture) {
  * Raw Markdown byte offsets are never reused as decoded metadata offsets. */
 static int check_fence_metadata(const char *source,const char *expected) {
     const size_t n=strlen(source);
-    salts_md_document *doc=NULL;
-    CHECK(salts_md_parse(source,n,256u,n+1u,&doc)==SALTS_MD_OK);
+    md_document *doc=NULL;
+    CHECK(md_parse(source,n,256u,n+1u,&doc)==SALTS_MD_OK);
     CHECK(doc!=NULL);
-    const salts_md_rich_document_view view=salts_md_get_document_view(doc);
-    CHECK(salts_md_rich_document_validate(&view,256u)==SALTS_MD_OK);
+    const md_rich_document_view view=md_get_document_view(doc);
+    CHECK(md_rich_document_validate(&view,256u)==SALTS_MD_OK);
     CHECK(view.raw_markdown_bytes==n);
     CHECK(memcmp(view.raw_markdown,source,n)==0);
     size_t found=0u;
     for(size_t i=1u;i<view.document.block_count;++i) {
-        const salts_md_block *node=&view.document.blocks[i];
+        const md_block *node=&view.document.blocks[i];
         if(node->kind!=SALTS_MD_BLOCK_CODE_FENCE)continue;
         CHECK(node->parent_index<i);
         const char *metadata=NULL;
         size_t length=SIZE_MAX;
-        CHECK(salts_md_rich_document_metadata(&view,i,&metadata,&length)==
+        CHECK(md_rich_document_metadata(&view,i,&metadata,&length)==
               SALTS_MD_OK);
         const size_t want=strlen(expected);
         CHECK(length==want);
@@ -122,7 +122,7 @@ static int check_fence_metadata(const char *source,const char *expected) {
         ++found;
     }
     CHECK(found==1u);
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return 0;
 }
 
@@ -147,17 +147,17 @@ static int test_fence_entities_and_expanding_utf8(void) {
      * must not invalidate owned semantic text spans or metadata. */
     const char expanded[]="&nGt;&nGt;&nLt;&nLt;\n";
     const size_t size=sizeof(expanded)-1u;
-    salts_md_document *doc=NULL;
-    CHECK(salts_md_parse(expanded,size,256u,size+1u,&doc)==SALTS_MD_OK);
+    md_document *doc=NULL;
+    CHECK(md_parse(expanded,size,256u,size+1u,&doc)==SALTS_MD_OK);
     CHECK(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    CHECK(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    CHECK(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
     CHECK(v.document.source_bytes>v.raw_markdown_bytes);
     CHECK(v.raw_markdown_bytes==size);
     CHECK(memcmp(v.raw_markdown,expanded,size)==0);
     CHECK(has_text(v,"≫⃒",SALTS_MD_BLOCK_PARAGRAPH));
     CHECK(has_text(v,"≪⃒",SALTS_MD_BLOCK_PARAGRAPH));
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
 
     char source[512],semantic[512];
     size_t raw=0u,decoded=0u;
@@ -241,8 +241,8 @@ int main(void) {
     }
     if(test_fence_entities_and_expanding_utf8())return 1;
     const char limited[]="*A &ngE; B*\n";
-    salts_md_document *rejected=(salts_md_document*)(uintptr_t)1u;
-    CHECK(salts_md_parse(limited,sizeof(limited)-1u,3u,
+    md_document *rejected=(md_document*)(uintptr_t)1u;
+    CHECK(md_parse(limited,sizeof(limited)-1u,3u,
                         sizeof(limited),&rejected)==SALTS_MD_CAPACITY_EXCEEDED);
     CHECK(rejected==NULL);
 
@@ -257,14 +257,14 @@ int main(void) {
     }
     repeated[used++]='\n';
     CHECK(used<sizeof(repeated));
-    salts_md_document *document=NULL;
-    CHECK(salts_md_parse(repeated,used,128u,used+1u,&document)==SALTS_MD_OK);
+    md_document *document=NULL;
+    CHECK(md_parse(repeated,used,128u,used+1u,&document)==SALTS_MD_OK);
     CHECK(document!=NULL);
-    const salts_md_rich_document_view view=salts_md_get_document_view(document);
-    CHECK(salts_md_rich_document_validate(&view,128u)==SALTS_MD_OK);
+    const md_rich_document_view view=md_get_document_view(document);
+    CHECK(md_rich_document_validate(&view,128u)==SALTS_MD_OK);
     CHECK(view.raw_markdown_bytes==used);
     CHECK(memcmp(view.raw_markdown,repeated,used)==0);
-    salts_md_document_destroy(document);
+    md_document_destroy(document);
     puts("C11 HTML5 entities: 20/20 AST/HTML, fence info, bounded UTF-8 growth and rollback");
     return 0;
 }

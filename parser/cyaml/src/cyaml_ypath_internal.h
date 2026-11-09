@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "query_vm.h"
+#include <query_vm.h>
 
 #define YPATH_MAX_STEPS 64
 #define YPATH_MAX_DEPTH 16

@@ -7,6 +7,7 @@
 #define LOG_PATTERN_LEXER_H
 
 #include <stddef.h>
+#include <salts/api.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -33,10 +34,10 @@ typedef enum {
  * @param token_len Set to length of token (for TEXT tokens)
  * @return Token type
  */
-log_token_t log_pattern_scan(const char **cursor, const char **token_start, size_t *token_len);
+SALTS_API log_token_t log_pattern_scan(const char **cursor, const char **token_start, size_t *token_len);
 
 /** Length-bounded scanner used while compiling a pattern. */
-log_token_t log_pattern_scan_n(const char **cursor, const char *end,
+SALTS_API log_token_t log_pattern_scan_n(const char **cursor, const char *end,
                                const char **token_start, size_t *token_len);
 
 #ifdef __cplusplus

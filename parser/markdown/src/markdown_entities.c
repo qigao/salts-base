@@ -132,7 +132,7 @@ static bool md_decode_named(const char *s,size_t n,size_t *consumed,
     return false;
 }
 
-bool salts_md_decode_character_reference(const char *source,size_t size,
+bool md_decode_character_reference(const char *source,size_t size,
                                         size_t *consumed,char utf8[8],
                                         size_t *output_bytes) {
     if(!source || !consumed || !utf8 || !output_bytes ||

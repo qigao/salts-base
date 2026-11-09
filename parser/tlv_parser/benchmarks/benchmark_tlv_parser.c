@@ -9,12 +9,12 @@
  * - Stream parser (chunked data)
  */
 
-#include "crc32.h"
-#include "endian.h"
-#include "frame.h"
-#include "frame_parser.h"
-#include "memory_pool.h"
-#include "stream_parser.h"
+#include <crc32.h>
+#include <endian.h>
+#include <frame.h>
+#include <frame_parser.h>
+#include <memory/memory_pool.h>
+#include <stream_parser.h>
 #include "tinytest.h"
 #include <stdlib.h>
 #include <string.h>

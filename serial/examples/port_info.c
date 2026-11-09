@@ -1,10 +1,10 @@
-#include "serial.h"
+#include <serial.h>
 
 #include <stdio.h>
 
 /* Example of how to inspect a serial port through the SaltsSerial ABI. */
 
-static const char *transport_name(salts_serial_transport_t transport) {
+static const char *transport_name(serial_transport_t transport) {
   switch (transport) {
   case SALTS_SERIAL_TRANSPORT_NATIVE:
     return "Native";
@@ -18,18 +18,18 @@ static const char *transport_name(salts_serial_transport_t transport) {
 }
 
 int main(int argc, char **argv) {
-  salts_serial_port_list_t *ports = NULL;
-  const salts_serial_port_info_t *info = NULL;
-  salts_serial_result_t result;
+  serial_port_list_t *ports = NULL;
+  const serial_port_info_t *info = NULL;
+  serial_result_t result;
 
   if (argc != 2) {
     printf("Usage: %s <port name>\n", argv[0]);
     return 1;
   }
 
-  result = salts_serial_port_info_by_name(argv[1], &ports, &info);
+  result = serial_port_info_by_name(argv[1], &ports, &info);
   if (result != SALTS_SERIAL_OK) {
-    printf("salts_serial_port_info_by_name() failed: %s\n", salts_serial_result_name(result));
+    printf("serial_port_info_by_name() failed: %s\n", serial_result_name(result));
     return 1;
   }
 
@@ -51,6 +51,6 @@ int main(int argc, char **argv) {
     printf("MAC: %s\n", info->bluetooth_address ? info->bluetooth_address : "");
   }
 
-  salts_serial_port_list_destroy(ports);
+  serial_port_list_destroy(ports);
   return 0;
 }

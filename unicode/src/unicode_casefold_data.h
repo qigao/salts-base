@@ -2,7 +2,7 @@
  * Data license: unicode/data/LICENSE.txt. Do not modify by hand.
  * Authoritative Unicode 17 default C/F mappings; exclude S/T alternates.
  */
-static const uint32_t salts_unicode_casefold_values[] = {
+static const uint32_t unicode_casefold_values[] = {
   0x61u,
   0x62u,
   0x63u,
@@ -1709,7 +1709,7 @@ static const uint32_t salts_unicode_casefold_values[] = {
   0x1e942u,
   0x1e943u,
 };
-static const salts_unicode_fold_mapping salts_unicode_casefold_mappings[] = {
+static const unicode_fold_mapping unicode_casefold_mappings[] = {
   {0x41u, 0u, 1u},
   {0x42u, 1u, 1u},
   {0x43u, 2u, 1u},

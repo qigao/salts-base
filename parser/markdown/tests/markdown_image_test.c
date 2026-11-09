@@ -1,5 +1,5 @@
-#include <salts/markdown.h>
-#include <salts/markdown_html.h>
+#include <markdown.h>
+#include <markdown_html.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,8 +18,8 @@ typedef struct image_fixture {
     const char *expected;
 } image_fixture;
 
-static size_t count_kind(salts_md_rich_document_view v,
-                         salts_md_block_kind kind) {
+static size_t count_kind(md_rich_document_view v,
+                         md_block_kind kind) {
     size_t count=0u;
     for(size_t i=0;i<v.document.block_count;++i)
         count+=(v.document.blocks[i].kind==kind);
@@ -31,12 +31,12 @@ static int verify_image(const image_fixture *f) {
     char *owned=(char*)malloc(n+1u);
     REQUIRE(owned!=NULL);
     memcpy(owned,f->markdown,n+1u);
-    salts_md_document *doc=NULL,*rejected=NULL;
-    REQUIRE(salts_md_parse(owned,n,512u,n+1u,&doc)==SALTS_MD_OK);
+    md_document *doc=NULL,*rejected=NULL;
+    REQUIRE(md_parse(owned,n,512u,n+1u,&doc)==SALTS_MD_OK);
     REQUIRE(doc!=NULL);
     memset(owned,'x',n);free(owned); /* raw source is document-owned */
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    REQUIRE(salts_md_rich_document_validate(&v,512u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    REQUIRE(md_rich_document_validate(&v,512u)==SALTS_MD_OK);
     REQUIRE(v.raw_markdown_bytes==n &&
             !memcmp(v.raw_markdown,f->markdown,n));
     REQUIRE(count_kind(v,SALTS_MD_BLOCK_IMAGE)>0u);
@@ -46,30 +46,30 @@ static int verify_image(const image_fixture *f) {
         REQUIRE(v.document.blocks[i].parent_index==i-1u);
         REQUIRE(v.document.blocks[i-1u].kind==SALTS_MD_BLOCK_IMAGE);
         const char *title=NULL;size_t bytes=SIZE_MAX;
-        REQUIRE(salts_md_rich_document_metadata(&v,i,&title,&bytes)==
+        REQUIRE(md_rich_document_metadata(&v,i,&title,&bytes)==
                 SALTS_MD_OK);
         REQUIRE(title!=NULL || bytes==0u);
     }
     size_t need=SIZE_MAX;
-    REQUIRE(salts_md_render_html(&v,512u,NULL,0u,&need)==SALTS_MD_OK);
+    REQUIRE(md_render_html(&v,512u,NULL,0u,&need)==SALTS_MD_OK);
     REQUIRE(need==expected);
     char *buffer=(char*)malloc(expected+3u);
     REQUIRE(buffer!=NULL);
     memset(buffer,0x5Au,expected+3u);
     size_t counted=SIZE_MAX;
-    REQUIRE(salts_md_render_html(&v,512u,buffer,need,&counted)==
+    REQUIRE(md_render_html(&v,512u,buffer,need,&counted)==
             SALTS_MD_CAPACITY_EXCEEDED);
     REQUIRE(counted==need);
     for(size_t i=0u;i<expected+3u;++i)
         REQUIRE((unsigned char)buffer[i]==0x5Au);
-    REQUIRE(salts_md_render_html(&v,512u,buffer,need+1u,&counted)==SALTS_MD_OK);
+    REQUIRE(md_render_html(&v,512u,buffer,need+1u,&counted)==SALTS_MD_OK);
     REQUIRE(counted==expected &&
             !memcmp(buffer,f->expected,expected+1u));
     REQUIRE((unsigned char)buffer[expected+1u]==0x5Au);
     free(buffer);
     const size_t nodes=v.document.block_count;
-    salts_md_document_destroy(doc);
-    REQUIRE(salts_md_parse(f->markdown,n,nodes-1u,n+1u,
+    md_document_destroy(doc);
+    REQUIRE(md_parse(f->markdown,n,nodes-1u,n+1u,
                           &rejected)==SALTS_MD_CAPACITY_EXCEEDED);
     REQUIRE(rejected==NULL);
     return 0;
@@ -77,12 +77,12 @@ static int verify_image(const image_fixture *f) {
 
 static int test_image_title_and_safety(void) {
     const char src[]="![a\" <b> & c](/i \"T &copy;\")\n";
-    salts_md_document *doc=NULL;
-    REQUIRE(salts_md_parse(src,sizeof(src)-1u,256u,sizeof(src),&doc)==
+    md_document *doc=NULL;
+    REQUIRE(md_parse(src,sizeof(src)-1u,256u,sizeof(src),&doc)==
             SALTS_MD_OK);
     REQUIRE(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    REQUIRE(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    REQUIRE(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
     REQUIRE(count_kind(v,SALTS_MD_BLOCK_IMAGE)==1u);
     REQUIRE(count_kind(v,SALTS_MD_BLOCK_IMAGE_TITLE)==1u);
     size_t image=0u,title=0u;
@@ -92,27 +92,27 @@ static int test_image_title_and_safety(void) {
     }
     REQUIRE(title==image+1u);
     const char *metadata=NULL;size_t bytes=SIZE_MAX;
-    REQUIRE(salts_md_rich_document_metadata(&v,title,&metadata,&bytes)==
+    REQUIRE(md_rich_document_metadata(&v,title,&metadata,&bytes)==
             SALTS_MD_OK);
     const char t[]="T ©";
     REQUIRE(bytes==sizeof(t)-1u && !memcmp(metadata,t,bytes));
     const char expect[]="<p><img src=\"/i\" alt=\"a&quot; &lt;b&gt; &amp; c\" "
                         "title=\"T ©\" /></p>\n";
     size_t need=SIZE_MAX;
-    REQUIRE(salts_md_render_html(&v,256u,NULL,0u,&need)==SALTS_MD_OK);
+    REQUIRE(md_render_html(&v,256u,NULL,0u,&need)==SALTS_MD_OK);
     REQUIRE(need==sizeof(expect)-1u);
     char out[256]={0};size_t actual=SIZE_MAX;
-    REQUIRE(salts_md_render_html(&v,256u,out,sizeof(out),&actual)==SALTS_MD_OK);
+    REQUIRE(md_render_html(&v,256u,out,sizeof(out),&actual)==SALTS_MD_OK);
     REQUIRE(!memcmp(out,expect,sizeof(expect)));
-    salts_md_document_destroy(doc);doc=NULL;
+    md_document_destroy(doc);doc=NULL;
     const char empty[]="![x](/i \"\")\n";
-    REQUIRE(salts_md_parse(empty,sizeof(empty)-1u,128u,sizeof(empty),&doc)==
+    REQUIRE(md_parse(empty,sizeof(empty)-1u,128u,sizeof(empty),&doc)==
             SALTS_MD_OK);
-    const salts_md_rich_document_view e=salts_md_get_document_view(doc);
+    const md_rich_document_view e=md_get_document_view(doc);
     REQUIRE(count_kind(e,SALTS_MD_BLOCK_IMAGE_TITLE)==1u);
-    REQUIRE(salts_md_render_html(&e,128u,out,sizeof(out),&actual)==SALTS_MD_OK);
+    REQUIRE(md_render_html(&e,128u,out,sizeof(out),&actual)==SALTS_MD_OK);
     REQUIRE(!strcmp(out,"<p><img src=\"/i\" alt=\"x\" title=\"\" /></p>\n"));
-    salts_md_document_destroy(doc);doc=NULL;
+    md_document_destroy(doc);doc=NULL;
     const char *const rejected_src[]={
         "![bad](javascript:alert)\n",
         "![bad](data:text/html)\n",
@@ -121,15 +121,15 @@ static int test_image_title_and_safety(void) {
     };
     for(size_t i=0u;i<sizeof(rejected_src)/sizeof(rejected_src[0]);++i) {
         const char *bad=rejected_src[i];const size_t n=strlen(bad);
-        REQUIRE(salts_md_parse(bad,n,128u,n+1u,&doc)==SALTS_MD_OK);
-        const salts_md_rich_document_view view=salts_md_get_document_view(doc);
+        REQUIRE(md_parse(bad,n,128u,n+1u,&doc)==SALTS_MD_OK);
+        const md_rich_document_view view=md_get_document_view(doc);
         REQUIRE(count_kind(view,SALTS_MD_BLOCK_IMAGE)==1u);
         memset(out,0x37,sizeof(out));
-        REQUIRE(salts_md_render_html(&view,128u,out,sizeof(out),&actual)==
+        REQUIRE(md_render_html(&view,128u,out,sizeof(out),&actual)==
                 SALTS_MD_INVALID_ARGUMENT);
         for(size_t j=0u;j<sizeof(out);++j)
             REQUIRE((unsigned char)out[j]==0x37u);
-        salts_md_document_destroy(doc);doc=NULL;
+        md_document_destroy(doc);doc=NULL;
     }
     return 0;
 }
@@ -143,21 +143,21 @@ static int test_document_owner_isolation(void) {
         "<p><img src=\"/first\" alt=\"x\" title=\"ONE\" /></p>\n",
         "<p><img src=\"/second\" alt=\"x\" title=\"TWO\" /></p>\n"
     };
-    salts_md_document *docs[2]={NULL,NULL};
+    md_document *docs[2]={NULL,NULL};
     for(size_t k=0u;k<2u;++k) {
         const size_t n=strlen(markdown[k]);
-        REQUIRE(salts_md_parse(markdown[k],n,128u,n+1u,
+        REQUIRE(md_parse(markdown[k],n,128u,n+1u,
                               &docs[k])==SALTS_MD_OK);
     }
     for(size_t k=0u;k<2u;++k) {
-        const salts_md_rich_document_view v=salts_md_get_document_view(docs[k]);
+        const md_rich_document_view v=md_get_document_view(docs[k]);
         REQUIRE(count_kind(v,SALTS_MD_BLOCK_IMAGE)==1u);
         char out[256];size_t size=SIZE_MAX;
-        REQUIRE(salts_md_render_html(&v,128u,out,sizeof(out),&size)==SALTS_MD_OK);
+        REQUIRE(md_render_html(&v,128u,out,sizeof(out),&size)==SALTS_MD_OK);
         REQUIRE(size==strlen(expected[k]) && !strcmp(out,expected[k]));
     }
-    salts_md_document_destroy(docs[0]);
-    salts_md_document_destroy(docs[1]);
+    md_document_destroy(docs[0]);
+    md_document_destroy(docs[1]);
     return 0;
 }
 

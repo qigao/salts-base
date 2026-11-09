@@ -1,4 +1,4 @@
-#include "json_cserde_writer.h"
+#include <json_cserde_writer.h>
 
 #include <inttypes.h>
 #include <math.h>
@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <vstr.h>
+#include <salts/vstr.h>
 
 typedef struct json_cserde_writer_frame {
   cserde_token_kind begin_kind;

@@ -1,6 +1,6 @@
 # Use the same host re2c binary and Unicode 17 property tables provided by
 # the canonical vcpkg-cache setup-re2c-tools action.  Runtime consumers do
-# not require re2c, ICU, SaltsUtils or external Unicode data files.
+# not require re2c, ICU, SaltsBase or external Unicode data files.
 set(RE2C_UNICODE_PROPERTIES "${RE2C_ROOT}/share/re2c/stdlib/unicode_properties.re")
 set(RE2C_UNICODE_CATEGORIES "${RE2C_ROOT}/share/re2c/stdlib/unicode_categories.re")
 foreach(_table IN ITEMS "${RE2C_UNICODE_PROPERTIES}" "${RE2C_UNICODE_CATEGORIES}")

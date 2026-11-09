@@ -3,7 +3,7 @@
  *
  * Selects PipeWire on Wayland or X11 XShm on X11.
  */
-#include "capture.h"
+#include <capture.h>
 
 #if defined(__linux__) && !defined(__ANDROID__)
 
@@ -77,7 +77,7 @@ typedef struct {
     uint64_t last_frame_time;
 
     /* Parent capture */
-    salts_capture_t *capture;
+    capture_t *capture;
 } screen_ctx_t;
 
 /* =============================================================================
@@ -126,7 +126,7 @@ static void on_stream_param_changed(void *userdata, uint32_t id,
 
 static void on_stream_process(void *userdata) {
     screen_ctx_t *ctx = (screen_ctx_t *)userdata;
-    salts_capture_t *capture = ctx->capture;
+    capture_t *capture = ctx->capture;
     struct pw_buffer *b;
 
     if ((b = pw_stream_dequeue_buffer(ctx->stream)) == NULL) {
@@ -318,7 +318,7 @@ static void pipewire_screen_cleanup(screen_ctx_t *ctx) {
 
 static void *x11_screen_thread(void *arg) {
     screen_ctx_t *ctx = (screen_ctx_t *)arg;
-    salts_capture_t *capture = ctx->capture;
+    capture_t *capture = ctx->capture;
 
     while (ctx->running) {
         uint64_t now = get_timestamp_us();
@@ -479,7 +479,7 @@ static void x11_screen_cleanup(screen_ctx_t *ctx) {
  * Screen Enumeration
  * ============================================================================= */
 
-int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
+int capture_list_screens(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     int count = 0;
@@ -492,7 +492,7 @@ int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
             int screen_count = ScreenCount(display);
 
             for (int i = 0; i < screen_count && count < max_count; i++) {
-                salts_capture_device_t *dev = &devices[count];
+                capture_device_t *dev = &devices[count];
                 memset(dev, 0, sizeof(*dev));
 
                 dev->index = count;
@@ -515,7 +515,7 @@ int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
 
     /* Add default if none found */
     if (count == 0 && max_count > 0) {
-        salts_capture_device_t *dev = &devices[0];
+        capture_device_t *dev = &devices[0];
         memset(dev, 0, sizeof(*dev));
         dev->index = 0;
         dev->type = SALTS_CAPTURE_TYPE_SCREEN;
@@ -532,8 +532,8 @@ int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
  * Screen Capture Implementation
  * ============================================================================= */
 
-salts_capture_t *salts_screen_capture_create(const salts_screen_capture_config_t *config) {
-    salts_capture_t *capture = calloc(1, sizeof(salts_capture_t));
+capture_t *screen_capture_create(const screen_capture_config_t *config) {
+    capture_t *capture = calloc(1, sizeof(capture_t));
     if (!capture) return NULL;
 
     screen_ctx_t *ctx = calloc(1, sizeof(screen_ctx_t));
@@ -582,8 +582,8 @@ salts_capture_t *salts_screen_capture_create(const salts_screen_capture_config_t
     return NULL;
 }
 
-void salts_screen_capture_set_callback(salts_capture_t *capture,
-                                        salts_video_capture_cb cb,
+void screen_capture_set_callback(capture_t *capture,
+                                        video_capture_cb cb,
                                         void *user_data) {
     if (!capture) return;
     capture->video_cb = cb;
@@ -594,7 +594,7 @@ void salts_screen_capture_set_callback(salts_capture_t *capture,
  * Platform Hooks
  * ============================================================================= */
 
-int linux_screen_start(salts_capture_t *capture) {
+int linux_screen_start(capture_t *capture) {
     if (!capture || !capture->platform_ctx) return -1;
     screen_ctx_t *ctx = (screen_ctx_t *)capture->platform_ctx;
 
@@ -613,7 +613,7 @@ int linux_screen_start(salts_capture_t *capture) {
     return -1;
 }
 
-void linux_screen_stop(salts_capture_t *capture) {
+void linux_screen_stop(capture_t *capture) {
     if (!capture || !capture->platform_ctx) return;
     screen_ctx_t *ctx = (screen_ctx_t *)capture->platform_ctx;
 
@@ -631,7 +631,7 @@ void linux_screen_stop(salts_capture_t *capture) {
 #endif
 }
 
-void linux_screen_destroy(salts_capture_t *capture) {
+void linux_screen_destroy(capture_t *capture) {
     if (!capture) return;
 
     linux_screen_stop(capture);

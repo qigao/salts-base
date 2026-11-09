@@ -12,7 +12,7 @@
 
 %include {
 #include "toon_lexer.h"
-#include "toonc.h"
+#include <toonc.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

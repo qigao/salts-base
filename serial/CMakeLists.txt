@@ -1,48 +1,52 @@
 # Public headers and private native implementations have separate source roots.
-cmake_add_source(serial_sources DIRS include src
-  EXCLUDES src/backend_win32.c src/backend_posix.c)
+cmake_add_source(serial_sources DIRS  src EXCLUDES src/backend_*.c)
+cmake_add_source(serial_sources_headers RECURSE DIRS include PATTERNS "*.h" "*.hpp")
+list(APPEND serial_sources ${serial_sources_headers})
 if(WIN32)
-  list(APPEND serial_sources "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_win32.c")
+  cmake_add_source(serial_backend_sources DIRS src PATTERNS "*_win32.c")
 else()
-  list(APPEND serial_sources "${CMAKE_CURRENT_SOURCE_DIR}/src/backend_posix.c")
+  cmake_add_source(serial_backend_sources DIRS src PATTERNS "*_posix.c")
 endif()
+list(APPEND serial_sources ${serial_backend_sources})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${serial_sources})
-add_library(saltscore_serial SHARED ${serial_sources})
-cmake_config_target(saltscore_serial ALIAS Salts::Serial FOLDER "serial")
-target_compile_features(saltscore_serial PUBLIC c_std_11)
-cmake_config_target(saltscore_serial
+add_library(serial SHARED ${serial_sources})
+cmake_config_target(serial ALIAS Salts::Serial FOLDER "serial")
+target_compile_features(serial PUBLIC c_std_11)
+cmake_config_target(serial
   EXPORT_NAME Serial
   VERSION "${PROJECT_VERSION}"
   SOVERSION "${SALTSCORE_NATIVE_SOVERSION}")
-set_target_properties(saltscore_serial PROPERTIES
+set_target_properties(serial PROPERTIES
   C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF DEFINE_SYMBOL SALTS_SERIAL_EXPORTS C_VISIBILITY_PRESET hidden POSITION_INDEPENDENT_CODE ON)
-target_include_directories(saltscore_serial PUBLIC
+target_include_directories(serial PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-target_link_libraries(saltscore_serial PRIVATE
-  Salts::Core Salts::Platform Salts::Concurrency)
+target_link_libraries(serial PRIVATE
+  Salts::Core)
 if(WIN32)
-  target_link_libraries(saltscore_serial PRIVATE setupapi cfgmgr32)
+  target_link_libraries(serial PRIVATE setupapi cfgmgr32)
 endif()
 if(MSVC)
-  target_compile_options(saltscore_serial PRIVATE /wd4996)
-  cmake_config_target(saltscore_serial
-    OUTPUT_NAME "saltscore_serial-${SALTSCORE_NATIVE_SOVERSION}")
+  target_compile_options(serial PRIVATE /wd4996)
+  cmake_config_target(serial
+    OUTPUT_NAME "serial-${SALTSCORE_NATIVE_SOVERSION}")
 elseif(UNIX)
   # Darwin hides the original high-baud termios constants in strict POSIX mode.
-  target_compile_definitions(saltscore_serial PRIVATE
+  target_compile_definitions(serial PRIVATE
     _DEFAULT_SOURCE=1 _POSIX_C_SOURCE=200809L
     $<$<BOOL:${APPLE}>:_DARWIN_C_SOURCE=1>)
 endif()
 
-install(TARGETS saltscore_serial EXPORT SaltsCoreTargets
+install(TARGETS serial EXPORT SaltsBaseTargets
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-install(FILES include/serial.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 if(BUILD_TESTS)
   add_subdirectory(test)
 endif()
-add_subdirectory(examples)
+if(BUILD_EXAMPLES)
+  add_subdirectory(examples)
+endif()

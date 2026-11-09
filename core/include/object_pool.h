@@ -1,7 +1,7 @@
 #ifndef SALTS_OBJECT_POOL_H
 #define SALTS_OBJECT_POOL_H
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 #include <error_codes.h>
 #include <thread.h>
 

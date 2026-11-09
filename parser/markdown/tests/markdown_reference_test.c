@@ -1,5 +1,5 @@
-#include <salts/markdown.h>
-#include <salts/markdown_html.h>
+#include <markdown.h>
+#include <markdown_html.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,8 +17,8 @@ typedef struct reference_fixture {
     const char *markdown,*href,*title,*visible,*html;
 } reference_fixture;
 
-static size_t kind_count(salts_md_rich_document_view v,
-                         salts_md_block_kind kind) {
+static size_t kind_count(md_rich_document_view v,
+                         md_block_kind kind) {
     size_t sum=0u;
     for(size_t i=0u;i<v.document.block_count;++i)
         sum+=(v.document.blocks[i].kind==kind);
@@ -27,12 +27,12 @@ static size_t kind_count(salts_md_rich_document_view v,
 
 static int test_reference(const reference_fixture *f) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     const size_t n=strlen(f->markdown);
-    VERIFY(salts_md_parse(f->markdown,n,128u,n+1u,&doc)==SALTS_MD_OK);
+    VERIFY(md_parse(f->markdown,n,128u,n+1u,&doc)==SALTS_MD_OK);
     VERIFY(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    VERIFY(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    VERIFY(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
     VERIFY(v.raw_markdown_bytes==n);
     VERIFY(!memcmp(v.raw_markdown,f->markdown,n));
     VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==1u);
@@ -40,12 +40,12 @@ static int test_reference(const reference_fixture *f) {
     VERIFY(kind_count(v,SALTS_MD_BLOCK_PARAGRAPH)<=1u);
     bool href_found=false,title_found=!f->title,visible_found=false;
     for(size_t i=1u;i<v.document.block_count;++i) {
-        const salts_md_block *node=&v.document.blocks[i];
+        const md_block *node=&v.document.blocks[i];
         VERIFY(node->parent_index<i);
         if(node->kind==SALTS_MD_BLOCK_LINK ||
            node->kind==SALTS_MD_BLOCK_LINK_TITLE) {
             const char *meta=NULL;size_t size=SIZE_MAX;
-            VERIFY(salts_md_rich_document_metadata(
+            VERIFY(md_rich_document_metadata(
                 &v,i,&meta,&size)==SALTS_MD_OK);
             const char *expect=node->kind==SALTS_MD_BLOCK_LINK?
                                f->href:f->title;
@@ -72,61 +72,61 @@ static int test_reference(const reference_fixture *f) {
     VERIFY(href_found && title_found && visible_found);
     const size_t expected=strlen(f->html);
     size_t need=SIZE_MAX;
-    VERIFY(salts_md_render_html(&v,128u,NULL,0u,&need)==SALTS_MD_OK);
+    VERIFY(md_render_html(&v,128u,NULL,0u,&need)==SALTS_MD_OK);
     VERIFY(need==expected);
     char output[256];
     VERIFY(expected+2u<sizeof(output));
     memset(output,0x31,sizeof(output));
     size_t actual=SIZE_MAX;
-    VERIFY(salts_md_render_html(&v,128u,output,expected,&actual)==
+    VERIFY(md_render_html(&v,128u,output,expected,&actual)==
            SALTS_MD_CAPACITY_EXCEEDED);
     VERIFY(actual==expected);
     for(size_t i=0u;i<sizeof(output);++i)
         VERIFY((unsigned char)output[i]==0x31u);
-    VERIFY(salts_md_render_html(&v,128u,output,expected+1u,&actual)==
+    VERIFY(md_render_html(&v,128u,output,expected+1u,&actual)==
            SALTS_MD_OK);
     VERIFY(actual==expected);
     VERIFY(!memcmp(output,f->html,expected+1u));
     VERIFY((unsigned char)output[expected+1u]==0x31u);
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
 static int test_unsafe(void) {
-    int failure=0;salts_md_document *doc=NULL;
+    int failure=0;md_document *doc=NULL;
     const char source[]="[x][evil]\n\n[evil]: java&#x73;cript:alert\n";
     const size_t n=sizeof(source)-1u;
-    VERIFY(salts_md_parse(source,n,128u,n+1u,&doc)==SALTS_MD_OK);
+    VERIFY(md_parse(source,n,128u,n+1u,&doc)==SALTS_MD_OK);
     VERIFY(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
+    const md_rich_document_view v=md_get_document_view(doc);
     VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==1u);
     char output[128];memset(output,0x39,sizeof(output));
     size_t required=SIZE_MAX;
-    VERIFY(salts_md_render_html(&v,128u,output,sizeof(output),&required)==
+    VERIFY(md_render_html(&v,128u,output,sizeof(output),&required)==
            SALTS_MD_INVALID_ARGUMENT);
     for(size_t i=0u;i<sizeof(output);++i)
         VERIFY((unsigned char)output[i]==0x39u);
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
 static int test_fence(void) {
-    int failure=0;salts_md_document *doc=NULL;
+    int failure=0;md_document *doc=NULL;
     const char source[]=
         TICK TICK TICK "text\n[foo]: /url\n" TICK TICK TICK "\n\n[foo]\n";
     const size_t n=sizeof(source)-1u;
-    VERIFY(salts_md_parse(source,n,128u,n+1u,&doc)==SALTS_MD_OK);
+    VERIFY(md_parse(source,n,128u,n+1u,&doc)==SALTS_MD_OK);
     VERIFY(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    VERIFY(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    VERIFY(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
     VERIFY(kind_count(v,SALTS_MD_BLOCK_CODE_FENCE)==1u);
     VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==0u);
     VERIFY(v.raw_markdown_bytes==n);
     VERIFY(!memcmp(v.raw_markdown,source,n));
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -135,7 +135,7 @@ done:
  * paragraph text remain semantically opaque. Earlier root-only exclusions
  * that were contrary to CommonMark are now positive ownership gates. */
 static int test_container_definition_fences(void) {
-    int failure=0;salts_md_document *doc=NULL;
+    int failure=0;md_document *doc=NULL;
     static const char *const blocked[]={
         "- item\n  [hidden]: /uri\n\n[hidden]\n",
         "> quote\n[hidden]: /uri\n\n[hidden]\n",
@@ -151,14 +151,14 @@ static int test_container_definition_fences(void) {
                    "real container-opaque negative denominator");
     for(size_t i=0u;i<sizeof(blocked)/sizeof(blocked[0]);++i) {
         const size_t n=strlen(blocked[i]);
-        VERIFY(salts_md_parse(blocked[i],n,128u,n+1u,&doc)==SALTS_MD_OK);
+        VERIFY(md_parse(blocked[i],n,128u,n+1u,&doc)==SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==0u);
         VERIFY(v.raw_markdown_bytes==n &&
                !memcmp(v.raw_markdown,blocked[i],n));
-        salts_md_document_destroy(doc);doc=NULL;
+        md_document_destroy(doc);doc=NULL;
     }
     static const struct {
         const char *source,*href;
@@ -177,16 +177,16 @@ static int test_container_definition_fences(void) {
                          sizeof(owner_definitions[0]);++i) {
         const char *source=owner_definitions[i].source;
         const size_t n=strlen(source);
-        VERIFY(salts_md_parse(source,n,256u,n+1u,&doc)==SALTS_MD_OK);
+        VERIFY(md_parse(source,n,256u,n+1u,&doc)==SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==1u);
         bool found=false;
         for(size_t j=1u;j<v.document.block_count;++j) {
             if(v.document.blocks[j].kind!=SALTS_MD_BLOCK_LINK)continue;
             const char *href=NULL;size_t bytes=SIZE_MAX;
-            VERIFY(salts_md_rich_document_metadata(&v,j,&href,&bytes)
+            VERIFY(md_rich_document_metadata(&v,j,&href,&bytes)
                    ==SALTS_MD_OK);
             VERIFY(bytes==strlen(owner_definitions[i].href) &&
                    !memcmp(href,owner_definitions[i].href,bytes));
@@ -195,7 +195,7 @@ static int test_container_definition_fences(void) {
         VERIFY(found);
         VERIFY(v.raw_markdown_bytes==n &&
                !memcmp(v.raw_markdown,source,n));
-        salts_md_document_destroy(doc);doc=NULL;
+        md_document_destroy(doc);doc=NULL;
     }
     /* Root dedent after a blank still releases the active container. */
     static const char *const roots[]={
@@ -204,36 +204,36 @@ static int test_container_definition_fences(void) {
     };
     for(size_t i=0u;i<sizeof(roots)/sizeof(roots[0]);++i) {
         const size_t n=strlen(roots[i]);
-        VERIFY(salts_md_parse(roots[i],n,128u,n+1u,&doc)==SALTS_MD_OK);
+        VERIFY(md_parse(roots[i],n,128u,n+1u,&doc)==SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==1u);
-        salts_md_document_destroy(doc);doc=NULL;
+        md_document_destroy(doc);doc=NULL;
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
 /* List-owned and root definitions share one document map; both become
  * visible to later root references, preserving their individual hrefs. */
 static int test_list_blank_scope(void) {
-    int failure=0;salts_md_document *doc=NULL;
+    int failure=0;md_document *doc=NULL;
     const char source[]=
         "- item\n\n  [hidden]: /bad\n\n[visible]: /good\n\n[hidden] [visible]\n";
     const size_t n=sizeof(source)-1u;
-    VERIFY(salts_md_parse(source,n,256u,n+1u,&doc)==SALTS_MD_OK);
+    VERIFY(md_parse(source,n,256u,n+1u,&doc)==SALTS_MD_OK);
     VERIFY(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    VERIFY(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    VERIFY(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
     VERIFY(v.raw_markdown_bytes==n && !memcmp(v.raw_markdown,source,n));
     VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==2u);
     bool saw_bad=false,saw_good=false;
     for(size_t i=1u;i<v.document.block_count;++i) {
         if(v.document.blocks[i].kind!=SALTS_MD_BLOCK_LINK)continue;
         const char *href=NULL;size_t bytes=SIZE_MAX;
-        VERIFY(salts_md_rich_document_metadata(&v,i,&href,&bytes)
+        VERIFY(md_rich_document_metadata(&v,i,&href,&bytes)
                ==SALTS_MD_OK);
         if(bytes==4u && !memcmp(href,"/bad",4u))saw_bad=true;
         else if(bytes==5u && !memcmp(href,"/good",5u))saw_good=true;
@@ -241,13 +241,13 @@ static int test_list_blank_scope(void) {
     }
     VERIFY(saw_bad && saw_good);
     char html[512];size_t required=SIZE_MAX;
-    VERIFY(salts_md_render_html(&v,256u,html,sizeof(html),&required)==
+    VERIFY(md_render_html(&v,256u,html,sizeof(html),&required)==
            SALTS_MD_OK);
     VERIFY(required<sizeof(html));
     VERIFY(strstr(html,"<a href=\"/bad\">hidden</a>")!=NULL);
     VERIFY(strstr(html,"<a href=\"/good\">visible</a>")!=NULL);
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -255,7 +255,7 @@ done:
  * 129 unique list definitions fail atomically rather than being silently
  * treated as inert root-only syntax. Exact 128 entries still bind. */
 static int test_list_capacity_isolation(void) {
-    int failure=0;salts_md_document *doc=NULL;
+    int failure=0;md_document *doc=NULL;
     char source[8192];
     const char prefix[]="- item\n\n",suffix[]="\n[k0]\n";
     for(size_t count=128u;count<=129u;++count) {
@@ -271,23 +271,23 @@ static int test_list_capacity_isolation(void) {
         VERIFY(used+sizeof(suffix)-1u<sizeof(source));
         memcpy(source+used,suffix,sizeof(suffix)-1u);
         used+=sizeof(suffix)-1u;
-        const salts_md_status status=
-            salts_md_parse(source,used,1024u,used+1u,&doc);
+        const md_status status=
+            md_parse(source,used,1024u,used+1u,&doc);
         if(count==129u) {
             VERIFY(status==SALTS_MD_CAPACITY_EXCEEDED);
             VERIFY(doc==NULL);
         } else {
             VERIFY(status==SALTS_MD_OK && doc!=NULL);
-            const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-            VERIFY(salts_md_rich_document_validate(&v,1024u)==SALTS_MD_OK);
+            const md_rich_document_view v=md_get_document_view(doc);
+            VERIFY(md_rich_document_validate(&v,1024u)==SALTS_MD_OK);
             VERIFY(v.raw_markdown_bytes==used &&
                    !memcmp(v.raw_markdown,source,used));
             VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==1u);
-            salts_md_document_destroy(doc);doc=NULL;
+            md_document_destroy(doc);doc=NULL;
         }
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -296,7 +296,7 @@ done:
  * document ownership and the emitted LINK's copied metadata must agree. */
 static int test_root_rule_owner_release(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     static const char *const sources[]={
         "- item\n* * *\n[key]: /root\n\n[key]\n",
         "- item\n---\n[key]: /root\n\n[key]\n",
@@ -307,10 +307,10 @@ static int test_root_rule_owner_release(void) {
                    "root-rule release test count");
     for(size_t k=0u;k<sizeof(sources)/sizeof(sources[0]);++k) {
         const size_t n=strlen(sources[k]);
-        VERIFY(salts_md_parse(sources[k],n,256u,n+1u,&doc)==SALTS_MD_OK);
+        VERIFY(md_parse(sources[k],n,256u,n+1u,&doc)==SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view view=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&view,256u)==SALTS_MD_OK);
+        const md_rich_document_view view=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&view,256u)==SALTS_MD_OK);
         VERIFY(view.raw_markdown_bytes==n);
         VERIFY(!memcmp(view.raw_markdown,sources[k],n));
         VERIFY(kind_count(view,SALTS_MD_BLOCK_RULE)==1u);
@@ -319,22 +319,22 @@ static int test_root_rule_owner_release(void) {
         for(size_t i=1u;i<view.document.block_count;++i) {
             if(view.document.blocks[i].kind!=SALTS_MD_BLOCK_LINK)continue;
             const char *meta=NULL;size_t bytes=SIZE_MAX;
-            VERIFY(salts_md_rich_document_metadata(
+            VERIFY(md_rich_document_metadata(
                 &view,i,&meta,&bytes)==SALTS_MD_OK);
             VERIFY(meta!=NULL && bytes==5u && !memcmp(meta,"/root",5u));
             copied=true;
         }
         VERIFY(copied);
         char output[512];size_t required=SIZE_MAX;
-        VERIFY(salts_md_render_html(
+        VERIFY(md_render_html(
             &view,256u,output,sizeof(output),&required)==SALTS_MD_OK);
         VERIFY(required<sizeof(output));
         VERIFY(strstr(output,"<a href=\"/root\">key</a>")!=NULL);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         doc=NULL;
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -343,7 +343,7 @@ done:
  * and its metadata is copied into the RichDoc before prepass teardown. */
 static int test_root_atx_owner_release(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     static const char *const cases[]={
         "> quote\n# heading\n[ref]: /uri\n\n[ref]\n",
         "    code\n# heading\n[ref]: /uri\n\n[ref]\n",
@@ -353,24 +353,24 @@ static int test_root_atx_owner_release(void) {
                    "ATX root owner evidence denominator");
     for(size_t k=0u;k<sizeof(cases)/sizeof(cases[0]);++k) {
         const size_t bytes=strlen(cases[k]);
-        VERIFY(salts_md_parse(cases[k],bytes,256u,bytes+1u,&doc)==SALTS_MD_OK);
+        VERIFY(md_parse(cases[k],bytes,256u,bytes+1u,&doc)==SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
         VERIFY(v.raw_markdown_bytes==bytes);
         VERIFY(!memcmp(v.raw_markdown,cases[k],bytes));
         VERIFY(kind_count(v,SALTS_MD_BLOCK_HEADING)==1u);
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==1u);
         bool copied=false;
         for(size_t i=1u;i<v.document.block_count;++i) {
-            const salts_md_block *link=&v.document.blocks[i];
+            const md_block *link=&v.document.blocks[i];
             if(link->kind!=SALTS_MD_BLOCK_LINK)continue;
             VERIFY(link->parent_index<i);
-            const salts_md_block *parent=&v.document.blocks[link->parent_index];
+            const md_block *parent=&v.document.blocks[link->parent_index];
             VERIFY(parent->kind==SALTS_MD_BLOCK_PARAGRAPH);
             VERIFY(parent->parent_index==0u);
             const char *meta=NULL;size_t len=SIZE_MAX;
-            VERIFY(salts_md_rich_document_metadata(
+            VERIFY(md_rich_document_metadata(
                 &v,i,&meta,&len)==SALTS_MD_OK);
             VERIFY(meta && len==4u && !memcmp(meta,"/uri",4u));
             copied=true;
@@ -378,24 +378,24 @@ static int test_root_atx_owner_release(void) {
         VERIFY(copied);
         char html[512];memset(html,0x6b,sizeof(html));
         size_t needed=SIZE_MAX;
-        VERIFY(salts_md_render_html(&v,256u,NULL,0u,&needed)==SALTS_MD_OK);
+        VERIFY(md_render_html(&v,256u,NULL,0u,&needed)==SALTS_MD_OK);
         VERIFY(needed+1u<sizeof(html));
         size_t reported=SIZE_MAX;
-        VERIFY(salts_md_render_html(&v,256u,html,needed,&reported)==
+        VERIFY(md_render_html(&v,256u,html,needed,&reported)==
                SALTS_MD_CAPACITY_EXCEEDED);
         VERIFY(reported==needed);
         for(size_t i=0u;i<sizeof(html);++i)
             VERIFY((unsigned char)html[i]==0x6bu);
-        VERIFY(salts_md_render_html(&v,256u,html,needed+1u,&reported)==
+        VERIFY(md_render_html(&v,256u,html,needed+1u,&reported)==
                SALTS_MD_OK);
         VERIFY(reported==needed);
         VERIFY(strstr(html,"<a href=\"/uri\">ref</a>")!=NULL);
         VERIFY((unsigned char)html[needed+1u]==0x6bu);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         doc=NULL;
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -404,7 +404,7 @@ done:
  * The same root-only prepass and owned RichDoc emitter are under test. */
 static int test_root_fence_owner_release(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     typedef struct fenced_case { const char *source,*html; } fenced_case;
     static const fenced_case cases[]={
         {"> quote\n" TICK TICK TICK "c\n[shadow]: /blocked\n"
@@ -426,24 +426,24 @@ static int test_root_fence_owner_release(void) {
                    "root-fence owner positives");
     for(size_t k=0u;k<sizeof(cases)/sizeof(cases[0]);++k) {
         const size_t n=strlen(cases[k].source);
-        VERIFY(salts_md_parse(cases[k].source,n,256u,n+1u,&doc)==SALTS_MD_OK);
+        VERIFY(md_parse(cases[k].source,n,256u,n+1u,&doc)==SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
         VERIFY(v.raw_markdown_bytes==n);
         VERIFY(!memcmp(v.raw_markdown,cases[k].source,n));
         VERIFY(kind_count(v,SALTS_MD_BLOCK_CODE_FENCE)==1u);
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==1u);
         bool copied=false;
         for(size_t i=1u;i<v.document.block_count;++i) {
-            const salts_md_block *node=&v.document.blocks[i];
+            const md_block *node=&v.document.blocks[i];
             if(node->kind!=SALTS_MD_BLOCK_LINK)continue;
             VERIFY(node->parent_index<i);
-            const salts_md_block *parent=&v.document.blocks[node->parent_index];
+            const md_block *parent=&v.document.blocks[node->parent_index];
             VERIFY(parent->kind==SALTS_MD_BLOCK_PARAGRAPH);
             VERIFY(parent->parent_index==0u);
             const char *meta=NULL;size_t bytes=SIZE_MAX;
-            VERIFY(salts_md_rich_document_metadata(
+            VERIFY(md_rich_document_metadata(
                 &v,i,&meta,&bytes)==SALTS_MD_OK);
             VERIFY(meta && bytes==4u && !memcmp(meta,"/uri",4u));
             copied=true;
@@ -452,25 +452,25 @@ static int test_root_fence_owner_release(void) {
         const size_t expected=strlen(cases[k].html);
         char output[512];size_t required=SIZE_MAX;
         VERIFY(expected+2u<sizeof(output));
-        VERIFY(salts_md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
+        VERIFY(md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
         VERIFY(required==expected);
         memset(output,0x73,sizeof(output));
         size_t actual=SIZE_MAX;
-        VERIFY(salts_md_render_html(&v,256u,output,expected,&actual)==
+        VERIFY(md_render_html(&v,256u,output,expected,&actual)==
                SALTS_MD_CAPACITY_EXCEEDED);
         VERIFY(actual==expected);
         for(size_t i=0u;i<sizeof(output);++i)
             VERIFY((unsigned char)output[i]==0x73u);
-        VERIFY(salts_md_render_html(&v,256u,output,expected+1u,&actual)==
+        VERIFY(md_render_html(&v,256u,output,expected+1u,&actual)==
                SALTS_MD_OK);
         VERIFY(actual==expected);
         VERIFY(!memcmp(output,cases[k].html,expected+1u));
         VERIFY((unsigned char)output[expected+1u]==0x73u);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         doc=NULL;
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -478,7 +478,7 @@ done:
  * quoted or list-owned fake definition remains inert after the fence. */
 static int test_fence_definition_opacity(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     static const char *const sources[]={
         "> quote\n~~~\n[shadow]: /blocked\n~~~\n\n[shadow]\n",
         "> quote\n~~~\n[shadow]: /blocked\n\n[shadow]\n",
@@ -488,18 +488,18 @@ static int test_fence_definition_opacity(void) {
                    "fence-negative owner cases");
     for(size_t k=0u;k<sizeof(sources)/sizeof(sources[0]);++k) {
         const size_t n=strlen(sources[k]);
-        VERIFY(salts_md_parse(sources[k],n,256u,n+1u,&doc)==SALTS_MD_OK);
+        VERIFY(md_parse(sources[k],n,256u,n+1u,&doc)==SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
         VERIFY(v.raw_markdown_bytes==n);
         VERIFY(!memcmp(v.raw_markdown,sources[k],n));
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==0u);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         doc=NULL;
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -509,7 +509,7 @@ done:
  * Require copied href ownership in the final RichDoc, not raw source state. */
 static int test_table_reference_owner(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     typedef struct table_fixture {
         const char *source,*html;
         size_t links,table_links;
@@ -540,31 +540,31 @@ static int test_table_reference_owner(void) {
                    "table/root reference owner denominator");
     for(size_t k=0u;k<sizeof(cases)/sizeof(cases[0]);++k) {
         const size_t bytes=strlen(cases[k].source);
-        VERIFY(salts_md_parse(cases[k].source,bytes,256u,bytes+1u,&doc)==
+        VERIFY(md_parse(cases[k].source,bytes,256u,bytes+1u,&doc)==
                SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
         VERIFY(v.raw_markdown_bytes==bytes);
         VERIFY(!memcmp(v.raw_markdown,cases[k].source,bytes));
         VERIFY(kind_count(v,SALTS_MD_BLOCK_TABLE)==1u);
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==cases[k].links);
         size_t link_count=0u,cell_links=0u;
         for(size_t i=1u;i<v.document.block_count;++i) {
-            const salts_md_block *node=&v.document.blocks[i];
+            const md_block *node=&v.document.blocks[i];
             if(node->kind!=SALTS_MD_BLOCK_LINK)continue;
             VERIFY(node->parent_index<i);
-            const salts_md_block *owner=&v.document.blocks[node->parent_index];
+            const md_block *owner=&v.document.blocks[node->parent_index];
             VERIFY(owner->kind==SALTS_MD_BLOCK_PARAGRAPH ||
                    owner->kind==SALTS_MD_BLOCK_TABLE_CELL);
             if(owner->kind==SALTS_MD_BLOCK_TABLE_CELL) {
                 VERIFY(owner->parent_index<node->parent_index);
-                const salts_md_block *row=&v.document.blocks[owner->parent_index];
+                const md_block *row=&v.document.blocks[owner->parent_index];
                 VERIFY(row->kind==SALTS_MD_BLOCK_TABLE_ROW);
                 ++cell_links;
             } else VERIFY(owner->parent_index==0u);
             const char *meta=NULL;size_t size=SIZE_MAX;
-            VERIFY(salts_md_rich_document_metadata(
+            VERIFY(md_rich_document_metadata(
                 &v,i,&meta,&size)==SALTS_MD_OK);
             VERIFY(meta && size==4u && !memcmp(meta,"/uri",4u));
             ++link_count;
@@ -575,24 +575,24 @@ static int test_table_reference_owner(void) {
         char html[1024];memset(html,0x6a,sizeof(html));
         size_t required=SIZE_MAX;
         VERIFY(expected+2u<sizeof(html));
-        VERIFY(salts_md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
+        VERIFY(md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
         VERIFY(required==expected);
         size_t reported=SIZE_MAX;
-        VERIFY(salts_md_render_html(&v,256u,html,expected,&reported)==
+        VERIFY(md_render_html(&v,256u,html,expected,&reported)==
                SALTS_MD_CAPACITY_EXCEEDED);
         VERIFY(reported==expected);
         for(size_t i=0u;i<sizeof(html);++i)
             VERIFY((unsigned char)html[i]==0x6au);
-        VERIFY(salts_md_render_html(&v,256u,html,expected+1u,&reported)==
+        VERIFY(md_render_html(&v,256u,html,expected+1u,&reported)==
                SALTS_MD_OK);
         VERIFY(reported==expected);
         VERIFY(!memcmp(html,cases[k].html,expected+1u));
         VERIFY((unsigned char)html[expected+1u]==0x6au);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         doc=NULL;
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -601,7 +601,7 @@ done:
  * table row ancestry and the independent output capacity failure atomicity. */
 static int test_table_reference_capacity_isolation(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     char source[8192];
     const char prefix[]="| Key |\n| --- |\n";
     size_t used=sizeof(prefix)-1u;
@@ -618,10 +618,10 @@ static int test_table_reference_capacity_isolation(void) {
     VERIFY(used+sizeof(suffix)-1u<sizeof(source));
     memcpy(source+used,suffix,sizeof(suffix)-1u);
     used+=sizeof(suffix)-1u;
-    VERIFY(salts_md_parse(source,used,1024u,used+1u,&doc)==SALTS_MD_OK);
+    VERIFY(md_parse(source,used,1024u,used+1u,&doc)==SALTS_MD_OK);
     VERIFY(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    VERIFY(salts_md_rich_document_validate(&v,1024u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    VERIFY(md_rich_document_validate(&v,1024u)==SALTS_MD_OK);
     VERIFY(v.raw_markdown_bytes==used);
     VERIFY(!memcmp(v.raw_markdown,source,used));
     VERIFY(kind_count(v,SALTS_MD_BLOCK_TABLE)==1u);
@@ -631,11 +631,11 @@ static int test_table_reference_capacity_isolation(void) {
     bool found=false;
     for(size_t i=1u;i<v.document.block_count;++i) {
         if(v.document.blocks[i].kind!=SALTS_MD_BLOCK_LINK)continue;
-        const salts_md_block *node=&v.document.blocks[i];
+        const md_block *node=&v.document.blocks[i];
         VERIFY(v.document.blocks[node->parent_index].kind==
                SALTS_MD_BLOCK_PARAGRAPH);
         const char *meta=NULL;size_t length=SIZE_MAX;
-        VERIFY(salts_md_rich_document_metadata(
+        VERIFY(md_rich_document_metadata(
             &v,i,&meta,&length)==SALTS_MD_OK);
         VERIFY(meta && length==4u && !memcmp(meta,"/uri",4u));
         found=true;
@@ -643,14 +643,14 @@ static int test_table_reference_capacity_isolation(void) {
     VERIFY(found);
     char html[16384];memset(html,0x59,sizeof(html));
     size_t required=SIZE_MAX,reported=SIZE_MAX;
-    VERIFY(salts_md_render_html(&v,1024u,NULL,0u,&required)==SALTS_MD_OK);
+    VERIFY(md_render_html(&v,1024u,NULL,0u,&required)==SALTS_MD_OK);
     VERIFY(required+2u<sizeof(html));
-    VERIFY(salts_md_render_html(&v,1024u,html,required,&reported)==
+    VERIFY(md_render_html(&v,1024u,html,required,&reported)==
            SALTS_MD_CAPACITY_EXCEEDED);
     VERIFY(reported==required);
     for(size_t i=0u;i<sizeof(html);++i)
         VERIFY((unsigned char)html[i]==0x59u);
-    VERIFY(salts_md_render_html(&v,1024u,html,required+1u,&reported)==
+    VERIFY(md_render_html(&v,1024u,html,required+1u,&reported)==
            SALTS_MD_OK);
     VERIFY(reported==required);
     VERIFY(strstr(html,"<td>[k0]: /blocked</td>")!=NULL);
@@ -659,7 +659,7 @@ static int test_table_reference_capacity_isolation(void) {
     VERIFY(strstr(html,"href=\"/blocked\"")==NULL);
     VERIFY((unsigned char)html[required+1u]==0x59u);
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -669,7 +669,7 @@ done:
  * This is an independent AST/HTML/metadata gate against prepass drift. */
 static int test_table_list_competition(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     typedef struct table_list_fixture {
         const char *source,*html;
         size_t rows,links,table_links,ordered;
@@ -702,11 +702,11 @@ static int test_table_list_competition(void) {
                    "table-versus-list owner denominator");
     for(size_t k=0u;k<sizeof(cases)/sizeof(cases[0]);++k) {
         const size_t bytes=strlen(cases[k].source);
-        VERIFY(salts_md_parse(cases[k].source,bytes,256u,bytes+1u,&doc)==
+        VERIFY(md_parse(cases[k].source,bytes,256u,bytes+1u,&doc)==
                SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
         VERIFY(v.raw_markdown_bytes==bytes);
         VERIFY(!memcmp(v.raw_markdown,cases[k].source,bytes));
         VERIFY(kind_count(v,SALTS_MD_BLOCK_TABLE)==1u);
@@ -715,19 +715,19 @@ static int test_table_list_competition(void) {
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==cases[k].links);
         size_t cell_links=0u;
         for(size_t i=1u;i<v.document.block_count;++i) {
-            const salts_md_block *node=&v.document.blocks[i];
+            const md_block *node=&v.document.blocks[i];
             if(node->kind!=SALTS_MD_BLOCK_LINK)continue;
             VERIFY(node->parent_index<i);
-            const salts_md_block *owner=&v.document.blocks[node->parent_index];
+            const md_block *owner=&v.document.blocks[node->parent_index];
             VERIFY(owner->kind==SALTS_MD_BLOCK_TABLE_CELL ||
                    owner->kind==SALTS_MD_BLOCK_PARAGRAPH);
             if(owner->kind==SALTS_MD_BLOCK_TABLE_CELL) {
-                const salts_md_block *row=&v.document.blocks[owner->parent_index];
+                const md_block *row=&v.document.blocks[owner->parent_index];
                 VERIFY(row->kind==SALTS_MD_BLOCK_TABLE_ROW);
                 ++cell_links;
             } else VERIFY(owner->parent_index==0u);
             const char *meta=NULL;size_t size=SIZE_MAX;
-            VERIFY(salts_md_rich_document_metadata(
+            VERIFY(md_rich_document_metadata(
                 &v,i,&meta,&size)==SALTS_MD_OK);
             VERIFY(meta && size==4u && !memcmp(meta,"/uri",4u));
         }
@@ -736,24 +736,24 @@ static int test_table_list_competition(void) {
         char html[1024];memset(html,0x51,sizeof(html));
         size_t required=SIZE_MAX;
         VERIFY(expected+2u<sizeof(html));
-        VERIFY(salts_md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
+        VERIFY(md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
         VERIFY(required==expected);
         size_t actual=SIZE_MAX;
-        VERIFY(salts_md_render_html(&v,256u,html,expected,&actual)==
+        VERIFY(md_render_html(&v,256u,html,expected,&actual)==
                SALTS_MD_CAPACITY_EXCEEDED);
         VERIFY(actual==expected);
         for(size_t i=0u;i<sizeof(html);++i)
             VERIFY((unsigned char)html[i]==0x51u);
-        VERIFY(salts_md_render_html(&v,256u,html,expected+1u,&actual)==
+        VERIFY(md_render_html(&v,256u,html,expected+1u,&actual)==
                SALTS_MD_OK);
         VERIFY(actual==expected);
         VERIFY(!memcmp(html,cases[k].html,expected+1u));
         VERIFY((unsigned char)html[expected+1u]==0x51u);
-        salts_md_document_destroy(doc);
+        md_document_destroy(doc);
         doc=NULL;
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -762,7 +762,7 @@ done:
  * safe HTML for fenced code, Setext and quoted blocks. */
 static int test_split_reference_block_barriers(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     static const struct {
         const char *source,*html;
     } samples[]={
@@ -780,34 +780,34 @@ static int test_split_reference_block_barriers(void) {
                    "split-definition block barrier cases");
     for(size_t k=0u;k<3u;++k) {
         const size_t n=strlen(samples[k].source);
-        VERIFY(salts_md_parse(samples[k].source,n,128u,n+1u,&doc)==
+        VERIFY(md_parse(samples[k].source,n,128u,n+1u,&doc)==
                SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
         VERIFY(v.raw_markdown_bytes==n);
         VERIFY(!memcmp(v.raw_markdown,samples[k].source,n));
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==0u);
         const size_t expected=strlen(samples[k].html);
         size_t need=SIZE_MAX,reported=SIZE_MAX;
-        VERIFY(salts_md_render_html(&v,128u,NULL,0u,&need)==SALTS_MD_OK);
+        VERIFY(md_render_html(&v,128u,NULL,0u,&need)==SALTS_MD_OK);
         VERIFY(need==expected);
         char out[256];memset(out,0x56,sizeof(out));
         VERIFY(need+2u<sizeof(out));
-        VERIFY(salts_md_render_html(&v,128u,out,need,&reported)==
+        VERIFY(md_render_html(&v,128u,out,need,&reported)==
                SALTS_MD_CAPACITY_EXCEEDED);
         VERIFY(reported==need);
         for(size_t i=0u;i<sizeof(out);++i)
             VERIFY((unsigned char)out[i]==0x56u);
-        VERIFY(salts_md_render_html(&v,128u,out,need+1u,&reported)==
+        VERIFY(md_render_html(&v,128u,out,need+1u,&reported)==
                SALTS_MD_OK);
         VERIFY(reported==need);
         VERIFY(!memcmp(out,samples[k].html,need+1u));
         VERIFY((unsigned char)out[need+1u]==0x56u);
-        salts_md_document_destroy(doc);doc=NULL;
+        md_document_destroy(doc);doc=NULL;
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -815,24 +815,24 @@ done:
  * entire parse on node-budget exhaustion. No partially published RichDoc. */
 static int test_split_reference_capacity_rollback(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     const char sample[]="[foo]:\n/url\n\n[foo]\n";
     const size_t n=sizeof(sample)-1u;
-    VERIFY(salts_md_parse(sample,n,128u,n+1u,&doc)==SALTS_MD_OK);
+    VERIFY(md_parse(sample,n,128u,n+1u,&doc)==SALTS_MD_OK);
     VERIFY(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    VERIFY(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    VERIFY(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
     VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==1u);
     const size_t nodes=v.document.block_count;
     VERIFY(nodes>=4u);
     VERIFY(v.document.blocks[nodes-1u].kind==SALTS_MD_BLOCK_TEXT);
-    salts_md_document_destroy(doc);doc=NULL;
-    salts_md_document *rejected=(salts_md_document*)(uintptr_t)1u;
-    VERIFY(salts_md_parse(sample,n,nodes-1u,n+1u,&rejected)==
+    md_document_destroy(doc);doc=NULL;
+    md_document *rejected=(md_document*)(uintptr_t)1u;
+    VERIFY(md_parse(sample,n,nodes-1u,n+1u,&rejected)==
            SALTS_MD_CAPACITY_EXCEEDED);
     VERIFY(rejected==NULL);
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -841,7 +841,7 @@ done:
  * first two title child metadata in the document-owned RichDoc. */
 static int test_adjacent_split_title_ownership(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     const char sample[]="[foo]: /foo-url \"foo\"\n[bar]: /bar-url\n"
                         "  \"bar\"\n[baz]: /baz-url\n\n"
                         "[foo],\n[bar],\n[baz]\n";
@@ -849,10 +849,10 @@ static int test_adjacent_split_title_ownership(void) {
                           "<a href=\"/bar-url\" title=\"bar\">bar</a>,\n"
                           "<a href=\"/baz-url\">baz</a></p>\n";
     const size_t n=sizeof(sample)-1u;
-    VERIFY(salts_md_parse(sample,n,256u,n+1u,&doc)==SALTS_MD_OK);
+    VERIFY(md_parse(sample,n,256u,n+1u,&doc)==SALTS_MD_OK);
     VERIFY(doc!=NULL);
-    const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-    VERIFY(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+    const md_rich_document_view v=md_get_document_view(doc);
+    VERIFY(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
     VERIFY(v.raw_markdown_bytes==n);
     VERIFY(!memcmp(v.raw_markdown,sample,n));
     VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==3u);
@@ -861,12 +861,12 @@ static int test_adjacent_split_title_ownership(void) {
     const char *const titles[]={"foo","bar"};
     size_t link=0u,title=0u;
     for(size_t i=1u;i<v.document.block_count;++i) {
-        const salts_md_block *node=&v.document.blocks[i];
+        const md_block *node=&v.document.blocks[i];
         if(node->kind!=SALTS_MD_BLOCK_LINK &&
            node->kind!=SALTS_MD_BLOCK_LINK_TITLE)continue;
         VERIFY(node->parent_index<i);
         const char *meta=NULL;size_t bytes=SIZE_MAX;
-        VERIFY(salts_md_rich_document_metadata(
+        VERIFY(md_rich_document_metadata(
             &v,i,&meta,&bytes)==SALTS_MD_OK);
         if(node->kind==SALTS_MD_BLOCK_LINK) {
             VERIFY(link<3u);
@@ -886,21 +886,21 @@ static int test_adjacent_split_title_ownership(void) {
     }
     VERIFY(link==3u && title==2u);
     size_t need=SIZE_MAX,reported=SIZE_MAX;
-    VERIFY(salts_md_render_html(&v,256u,NULL,0u,&need)==SALTS_MD_OK);
+    VERIFY(md_render_html(&v,256u,NULL,0u,&need)==SALTS_MD_OK);
     VERIFY(need==sizeof(expected)-1u);
     char out[512];memset(out,0x75,sizeof(out));
-    VERIFY(salts_md_render_html(&v,256u,out,need,&reported)==
+    VERIFY(md_render_html(&v,256u,out,need,&reported)==
            SALTS_MD_CAPACITY_EXCEEDED);
     VERIFY(reported==need);
     for(size_t i=0u;i<sizeof(out);++i)
         VERIFY((unsigned char)out[i]==0x75u);
-    VERIFY(salts_md_render_html(&v,256u,out,need+1u,&reported)==
+    VERIFY(md_render_html(&v,256u,out,need+1u,&reported)==
            SALTS_MD_OK);
     VERIFY(reported==need);
     VERIFY(!memcmp(out,expected,need+1u));
     VERIFY((unsigned char)out[need+1u]==0x75u);
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -908,7 +908,7 @@ done:
  * They must not change the preceding LINK's optional TITLE metadata. */
 static int test_split_title_rejection(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     static const char *const cases[]={
         "[foo]: /uri\n\"unterminated\n\n[foo]\n",
         "[foo]: /uri\n- item\n\n[foo]\n",
@@ -918,18 +918,18 @@ static int test_split_title_rejection(void) {
                    "root title-negative control count");
     for(size_t k=0u;k<3u;++k) {
         const size_t n=strlen(cases[k]);
-        VERIFY(salts_md_parse(cases[k],n,128u,n+1u,&doc)==SALTS_MD_OK);
+        VERIFY(md_parse(cases[k],n,128u,n+1u,&doc)==SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
         VERIFY(v.raw_markdown_bytes==n);
         VERIFY(!memcmp(v.raw_markdown,cases[k],n));
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==1u);
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK_TITLE)==0u);
-        salts_md_document_destroy(doc);doc=NULL;
+        md_document_destroy(doc);doc=NULL;
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -938,7 +938,7 @@ done:
  * Test the angle-URL and the three adjacent root-definition path. */
 static int test_split_title_last_text_budget(void) {
     int failure=0;
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     static const char *const sources[]={
         "[Foo bar]:\n<my url>\n'title'\n\n[Foo bar]\n",
         "[foo]: /foo-url \"foo\"\n[bar]: /bar-url\n"
@@ -948,10 +948,10 @@ static int test_split_title_last_text_budget(void) {
                    "final split-title LINK TEXT budget cases");
     for(size_t k=0u;k<2u;++k) {
         const size_t n=strlen(sources[k]);
-        VERIFY(salts_md_parse(sources[k],n,128u,n+1u,&doc)==SALTS_MD_OK);
+        VERIFY(md_parse(sources[k],n,128u,n+1u,&doc)==SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,128u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,128u)==SALTS_MD_OK);
         VERIFY(v.raw_markdown_bytes==n);
         VERIFY(!memcmp(v.raw_markdown,sources[k],n));
         const size_t count=v.document.block_count;
@@ -960,14 +960,14 @@ static int test_split_title_last_text_budget(void) {
         const size_t parent=v.document.blocks[count-1u].parent_index;
         VERIFY(parent<count-1u);
         VERIFY(v.document.blocks[parent].kind==SALTS_MD_BLOCK_LINK);
-        salts_md_document_destroy(doc);doc=NULL;
-        salts_md_document *rejected=(salts_md_document*)(uintptr_t)1u;
-        VERIFY(salts_md_parse(sources[k],n,count-1u,n+1u,&rejected)==
+        md_document_destroy(doc);doc=NULL;
+        md_document *rejected=(md_document*)(uintptr_t)1u;
+        VERIFY(md_parse(sources[k],n,count-1u,n+1u,&rejected)==
                SALTS_MD_CAPACITY_EXCEEDED);
         VERIFY(rejected==NULL);
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -991,14 +991,14 @@ static int test_nested_link_precedence(void) {
         {"[x <https://example.com/path>](/outer)\n",
          "<p>[x <a href=\"https://example.com/path\">https://example.com/path</a>](/outer)</p>\n",1u}
     };
-    int failure=0;salts_md_document *doc=NULL;
+    int failure=0;md_document *doc=NULL;
     for(size_t k=0u;k<sizeof(cases)/sizeof(cases[0]);++k) {
         const char *input=cases[k].source;
         const size_t len=strlen(input);
-        VERIFY(salts_md_parse(input,len,256u,len+1u,&doc)==SALTS_MD_OK);
+        VERIFY(md_parse(input,len,256u,len+1u,&doc)==SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==cases[k].expected_links);
         for(size_t i=1u;i<v.document.block_count;++i) {
             if(v.document.blocks[i].kind!=SALTS_MD_BLOCK_LINK)continue;
@@ -1010,27 +1010,27 @@ static int test_nested_link_precedence(void) {
         }
         const size_t bytes=strlen(cases[k].expected);
         size_t required=SIZE_MAX;
-        VERIFY(salts_md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
+        VERIFY(md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
         VERIFY(required==bytes);
         char output[256];memset(output,0x57,sizeof(output));
-        VERIFY(salts_md_render_html(&v,256u,output,required,&required)==
+        VERIFY(md_render_html(&v,256u,output,required,&required)==
                SALTS_MD_CAPACITY_EXCEEDED);
         VERIFY(required==bytes);
         for(size_t i=0u;i<sizeof(output);++i)
             VERIFY((unsigned char)output[i]==0x57u);
-        VERIFY(salts_md_render_html(&v,256u,output,bytes+1u,&required)==
+        VERIFY(md_render_html(&v,256u,output,bytes+1u,&required)==
                SALTS_MD_OK);
         VERIFY(required==bytes &&
                !memcmp(output,cases[k].expected,bytes+1u));
         const size_t nodes=v.document.block_count;
-        salts_md_document_destroy(doc);doc=NULL;
-        salts_md_document *rejected=NULL;
-        VERIFY(salts_md_parse(input,len,nodes-1u,len+1u,&rejected)==
+        md_document_destroy(doc);doc=NULL;
+        md_document *rejected=NULL;
+        VERIFY(md_parse(input,len,nodes-1u,len+1u,&rejected)==
                SALTS_MD_CAPACITY_EXCEEDED);
         VERIFY(rejected==NULL);
     }
 done:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -1053,42 +1053,42 @@ static int test_html_tag_delimiter_opacity(void) {
         {"[foo <bar attr='](baz)'>\n",
          "<p>[foo &lt;bar attr='](baz)'&gt;</p>\n",0u}
     };
-    int failure=0;salts_md_document *doc=NULL,*rejected=NULL;
+    int failure=0;md_document *doc=NULL,*rejected=NULL;
     for(size_t k=0u;k<sizeof(cases)/sizeof(cases[0]);++k) {
         const size_t n=strlen(cases[k].source);
-        VERIFY(salts_md_parse(cases[k].source,n,256u,n+1u,&doc)==SALTS_MD_OK);
+        VERIFY(md_parse(cases[k].source,n,256u,n+1u,&doc)==SALTS_MD_OK);
         VERIFY(doc!=NULL);
-        const salts_md_rich_document_view v=salts_md_get_document_view(doc);
-        VERIFY(salts_md_rich_document_validate(&v,256u)==SALTS_MD_OK);
+        const md_rich_document_view v=md_get_document_view(doc);
+        VERIFY(md_rich_document_validate(&v,256u)==SALTS_MD_OK);
         VERIFY(v.raw_markdown_bytes==n &&
                !memcmp(v.raw_markdown,cases[k].source,n));
         VERIFY(kind_count(v,SALTS_MD_BLOCK_LINK)==cases[k].links);
         VERIFY(kind_count(v,SALTS_MD_BLOCK_IMAGE)==0u);
         const size_t expected=strlen(cases[k].expected);
         size_t required=SIZE_MAX;
-        VERIFY(salts_md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
+        VERIFY(md_render_html(&v,256u,NULL,0u,&required)==SALTS_MD_OK);
         VERIFY(required==expected);
         char out[256];memset(out,0x43,sizeof(out));
         VERIFY(required+2u<sizeof(out));
-        VERIFY(salts_md_render_html(&v,256u,out,required,&required)==
+        VERIFY(md_render_html(&v,256u,out,required,&required)==
                SALTS_MD_CAPACITY_EXCEEDED);
         VERIFY(required==expected);
         for(size_t i=0u;i<sizeof(out);++i)
             VERIFY((unsigned char)out[i]==0x43u);
-        VERIFY(salts_md_render_html(&v,256u,out,expected+1u,&required)==
+        VERIFY(md_render_html(&v,256u,out,expected+1u,&required)==
                SALTS_MD_OK);
         VERIFY(required==expected &&
                !memcmp(out,cases[k].expected,expected+1u));
         const size_t nodes=v.document.block_count;
         VERIFY(nodes>1u);
-        salts_md_document_destroy(doc);doc=NULL;
-        VERIFY(salts_md_parse(cases[k].source,n,nodes-1u,n+1u,
+        md_document_destroy(doc);doc=NULL;
+        VERIFY(md_parse(cases[k].source,n,nodes-1u,n+1u,
                              &rejected)==SALTS_MD_CAPACITY_EXCEEDED);
         VERIFY(rejected==NULL);
     }
 done:
-    salts_md_document_destroy(rejected);
-    salts_md_document_destroy(doc);
+    md_document_destroy(rejected);
+    md_document_destroy(doc);
     return failure;
 }
 
@@ -1212,8 +1212,8 @@ int main(void) {
        test_split_title_rejection() ||
        test_split_title_last_text_budget())return 1;
     const char limited[]="[foo][bar]\n\n[bar]: /url \"title\"\n";
-    salts_md_document *rejected=(salts_md_document*)(uintptr_t)1u;
-    if(salts_md_parse(limited,sizeof(limited)-1u,3u,
+    md_document *rejected=(md_document*)(uintptr_t)1u;
+    if(md_parse(limited,sizeof(limited)-1u,3u,
                      sizeof(limited),&rejected)!=SALTS_MD_CAPACITY_EXCEEDED ||
        rejected!=NULL) {
         fprintf(stderr,"node budget must reject partial reference\n");
@@ -1228,8 +1228,8 @@ int main(void) {
         memcpy(many+used,line,(size_t)len);
         used+=(size_t)len;
     }
-    rejected=(salts_md_document*)(uintptr_t)1u;
-    if(salts_md_parse(many,used,256u,used+1u,&rejected)!=
+    rejected=(md_document*)(uintptr_t)1u;
+    if(md_parse(many,used,256u,used+1u,&rejected)!=
        SALTS_MD_CAPACITY_EXCEEDED || rejected!=NULL) {
         fprintf(stderr,"reference admission must be bounded\n");
         return 1;

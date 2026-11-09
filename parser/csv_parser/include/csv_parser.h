@@ -17,7 +17,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <vstr.h>
+#include <salts/vstr.h>
 
 #ifdef __cplusplus
 extern "C" {

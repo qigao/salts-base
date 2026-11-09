@@ -3,9 +3,9 @@
  * @brief Unit tests for JSON parser
  */
 
-#include "json_parser.h"
+#include <json_parser.h>
 #include "tinytest.h"
-#include <salts/thread.h>
+#include <threads/threads.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2109,16 +2109,16 @@ spec("json_parser") {
 
     it("keeps parser diagnostics local to the calling thread") {
       json_error_thread_probe probe = {0};
-      cmeta_thread_t thread = NULL;
+      sync_thread_t thread = NULL;
       json_value_t *value = json_parse("invalid", 7u);
 
       check_null(value);
       check_not_null(json_get_error());
-      check_equal(cmeta_thread_create(&thread, json_parse_success_on_thread,
+      check_equal(sync_thread_create(&thread, json_parse_success_on_thread,
                                       &probe),
                   0);
-      check_equal(cmeta_thread_join(&thread), 0);
-      cmeta_thread_destroy(&thread);
+      check_equal(sync_thread_join(&thread), 0);
+      sync_thread_destroy(&thread);
       check_equal(probe.status, 0);
       check_not_null(json_get_error());
     }

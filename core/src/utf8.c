@@ -1,4 +1,4 @@
-#include <utf8.h>
+#include <salts/utf8.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -7,7 +7,7 @@ static int cont(unsigned char byte) { return (byte & 0xc0u) == 0x80u; }
 
 /* No decoder state crosses calls: PluginRegistry may borrow its candidate
  * path for only this invocation, and must never cache an unowned pointer. */
-int salts_core_utf8_valid(const char *data, size_t length) {
+int core_utf8_valid(const char *data, size_t length) {
   const unsigned char *s = (const unsigned char *)data;
   size_t i = 0u;
   if (s == NULL) return length == 0u;

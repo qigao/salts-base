@@ -1,4 +1,4 @@
-#include <salts/markdown_html.h>
+#include <markdown_html.h>
 
 #include <limits.h>
 #include <stdbool.h>
@@ -9,12 +9,12 @@
 enum { STUN_HTML_MAX_DEPTH = 64 };
 
 typedef struct stun_html_writer {
-    const salts_md_rich_document_view *doc;
+    const md_rich_document_view *doc;
     char *out;
     size_t length;
     size_t capacity;
-    salts_md_status error;
-    salts_md_html_policy policy;
+    md_status error;
+    md_html_policy policy;
     const uint8_t *table_alignment; /* borrowed TABLE metadata, scoped */
     size_t table_columns;
     size_t table_column;
@@ -81,7 +81,7 @@ static bool html_ascii_equal(const char *bytes, size_t len, const char *key) {
  * scheme and must match the known allowlist. Other colons are relative URL
  * payload. UTF-8 non-ASCII octets are percent encoded only AFTER admission.
  */
-bool salts_md_html_safe_href(const char *s, size_t n) {
+bool md_html_safe_href(const char *s, size_t n) {
     if(!s && n)return false;
     bool seen_separator=false;
     size_t scheme_colon=SIZE_MAX;
@@ -138,14 +138,14 @@ static void html_link_href(stun_html_writer *w,const char *s,size_t n) {
 /* IMAGE src uses a narrower policy than navigable href: mailto is
  * never an image protocol. All decoded control bytes and unknown schemes
  * are already rejected by the canonical full-byte href safety scan. */
-bool salts_md_html_safe_image_src(const char *s,size_t n) {
-    if(!salts_md_html_safe_href(s,n))return false;
+bool md_html_safe_image_src(const char *s,size_t n) {
+    if(!md_html_safe_href(s,n))return false;
     if(n>=7u && s[6]==':' && html_ascii_equal(s,6u,"mailto"))
         return false;
     return true;
 }
 
-bool salts_md_html_safe_title(const char *s,size_t n) {
+bool md_html_safe_title(const char *s,size_t n) {
     if(!s && n)return false;
     for(size_t i=0u;i<n;++i) {
         const unsigned char c=(unsigned char)s[i];
@@ -159,7 +159,7 @@ bool salts_md_html_safe_title(const char *s,size_t n) {
 
 static bool html_metadata(stun_html_writer *w, size_t id,
                           const char **s, size_t *n) {
-    if (salts_md_rich_document_metadata(w->doc,id,s,n)!=SALTS_MD_OK) {
+    if (md_rich_document_metadata(w->doc,id,s,n)!=SALTS_MD_OK) {
         w->error = SALTS_MD_INVALID_ARGUMENT;
         return false;
     }
@@ -167,10 +167,10 @@ static bool html_metadata(stun_html_writer *w, size_t id,
 }
 
 static bool html_list_meta(stun_html_writer *w,size_t id,
-                           salts_md_list_semantics *info) {
-    const salts_md_block *node=&w->doc->document.blocks[id];
+                           md_list_semantics *info) {
+    const md_block *node=&w->doc->document.blocks[id];
     const char *data=NULL;size_t size=0;
-    *info=(salts_md_list_semantics){0};
+    *info=(md_list_semantics){0};
     info->start=node->kind==SALTS_MD_BLOCK_ORDERED_LIST?1u:0u;
     if(!html_metadata(w,id,&data,&size)) return false;
     if(!size) return true; /* existing projected tight lists */
@@ -188,7 +188,7 @@ static bool html_list_meta(stun_html_writer *w,size_t id,
 }
 static bool html_loose_item(stun_html_writer *w,size_t id) {
     const uint32_t parent=w->doc->document.blocks[id].parent_index;
-    salts_md_list_semantics info;
+    md_list_semantics info;
     if(parent>=w->doc->document.block_count ||
        !html_list_meta(w,parent,&info)) {
         w->error=SALTS_MD_INVALID_ARGUMENT;return false;
@@ -201,7 +201,7 @@ static void html_number(stun_html_writer *w,uint32_t v) {
     while(n) html_bytes(w,&digits[--n],1u);
 }
 
-static void html_text(stun_html_writer *w, const salts_md_block *node) {
+static void html_text(stun_html_writer *w, const md_block *node) {
     if (node->byte_end < node->byte_begin ||
         node->byte_end > w->doc->document.source_bytes) {
         w->error = SALTS_MD_INVALID_ARGUMENT;
@@ -222,14 +222,14 @@ static void html_text(stun_html_writer *w, const salts_md_block *node) {
  * runs during sizing and writing; failures remain output-atomic. */
 static void html_image_alt_children(stun_html_writer *w,size_t parent,
                                     size_t *after,size_t depth) {
-    const salts_md_document_view *doc=&w->doc->document;
+    const md_document_view *doc=&w->doc->document;
     if(parent>=doc->block_count || depth>STUN_HTML_MAX_DEPTH) {
         w->error=SALTS_MD_CAPACITY_EXCEEDED;return;
     }
     size_t at=parent+1u;
     while(at<doc->block_count && w->error==SALTS_MD_OK &&
           doc->blocks[at].parent_index==parent) {
-        const salts_md_block_kind kind=doc->blocks[at].kind;
+        const md_block_kind kind=doc->blocks[at].kind;
         if(kind==SALTS_MD_BLOCK_IMAGE_TITLE ||
            kind==SALTS_MD_BLOCK_LINK_TITLE) {
             const bool correct=(at==parent+1u) &&
@@ -280,7 +280,7 @@ static void html_node(stun_html_writer *w, size_t id,
 static void html_children(stun_html_writer *w, size_t id,
                           size_t *next, size_t depth, bool table_header) {
     size_t at=id+1u;
-    const salts_md_document_view *doc=&w->doc->document;
+    const md_document_view *doc=&w->doc->document;
     while(w->error==SALTS_MD_OK && at<doc->block_count &&
           doc->blocks[at].parent_index==id) {
         size_t after=at;
@@ -298,14 +298,14 @@ static void html_children(stun_html_writer *w, size_t id,
  * forged LIST under PARAGRAPH can retain valid immediate TABLE->ITEM->LIST
  * edges and generic preorder IDs. The parser's actual TABLE containers
  * are only DOCUMENT, QUOTE and LIST_ITEM/TASK_ITEM chains. */
-static bool html_table_owner_chain(const salts_md_document_view *doc,
+static bool html_table_owner_chain(const md_document_view *doc,
                                    size_t table) {
     size_t child=table;
     for(size_t hops=0u;child>0u && hops<doc->block_count;++hops) {
         const uint32_t parent=doc->blocks[child].parent_index;
         if(parent>=child)return false;
-        const salts_md_block_kind kind=doc->blocks[child].kind;
-        const salts_md_block_kind owner=doc->blocks[parent].kind;
+        const md_block_kind kind=doc->blocks[child].kind;
+        const md_block_kind owner=doc->blocks[parent].kind;
         switch(kind) {
         case SALTS_MD_BLOCK_TABLE:
         case SALTS_MD_BLOCK_QUOTE:
@@ -331,7 +331,7 @@ static bool html_table_owner_chain(const salts_md_document_view *doc,
 
 static void html_table(stun_html_writer *w, size_t id,
                        size_t *next, size_t depth) {
-    const salts_md_document_view *doc=&w->doc->document;
+    const md_document_view *doc=&w->doc->document;
     /* Validate the entire typed owner chain before HTML sizing/writing. */
     if(!html_table_owner_chain(doc,id)) {
         w->error=SALTS_MD_INVALID_ARGUMENT;return;
@@ -389,14 +389,14 @@ static void html_table(stun_html_writer *w, size_t id,
 
 static void html_node(stun_html_writer *w, size_t id,
                       size_t *next, size_t depth, bool table_header) {
-    const salts_md_document_view *doc=&w->doc->document;
+    const md_document_view *doc=&w->doc->document;
     if (w->error!=SALTS_MD_OK) return;
     if (id>=doc->block_count || depth>STUN_HTML_MAX_DEPTH) {
         w->error=SALTS_MD_CAPACITY_EXCEEDED;
         return;
     }
-    const salts_md_block *node=&doc->blocks[id];
-    const salts_md_block_kind kind=node->kind;
+    const md_block *node=&doc->blocks[id];
+    const md_block_kind kind=node->kind;
     if(kind==SALTS_MD_BLOCK_TABLE) {
         html_table(w,id,next,depth);
         return;
@@ -486,7 +486,7 @@ static void html_node(stun_html_writer *w, size_t id,
     case SALTS_MD_BLOCK_CODE_SPAN: html_str(w,"<code>"); break;
     case SALTS_MD_BLOCK_LINK: {
         if (!html_metadata(w,id,&meta,&meta_length)) return;
-        if(!salts_md_html_safe_href(meta,meta_length)) {
+        if(!md_html_safe_href(meta,meta_length)) {
             w->error=SALTS_MD_INVALID_ARGUMENT;return;
         }
         const char *title=NULL;
@@ -497,7 +497,7 @@ static void html_node(stun_html_writer *w, size_t id,
            doc->blocks[id+1u].kind==SALTS_MD_BLOCK_LINK_TITLE) {
             has_title=true;
             if(!html_metadata(w,id+1u,&title,&title_length))return;
-            if(!salts_md_html_safe_title(title,title_length)) {
+            if(!md_html_safe_title(title,title_length)) {
                 w->error=SALTS_MD_INVALID_ARGUMENT;return;
             }
         }
@@ -514,7 +514,7 @@ static void html_node(stun_html_writer *w, size_t id,
     }
     case SALTS_MD_BLOCK_IMAGE: {
         if(!html_metadata(w,id,&meta,&meta_length))return;
-        if(!salts_md_html_safe_image_src(meta,meta_length)) {
+        if(!md_html_safe_image_src(meta,meta_length)) {
             w->error=SALTS_MD_INVALID_ARGUMENT;return;
         }
         const char *title=NULL;size_t title_length=0u;
@@ -524,7 +524,7 @@ static void html_node(stun_html_writer *w, size_t id,
            doc->blocks[id+1u].kind==SALTS_MD_BLOCK_IMAGE_TITLE) {
             has_title=true;
             if(!html_metadata(w,id+1u,&title,&title_length))return;
-            if(!salts_md_html_safe_title(title,title_length)) {
+            if(!md_html_safe_title(title,title_length)) {
                 w->error=SALTS_MD_INVALID_ARGUMENT;return;
             }
         }
@@ -585,12 +585,12 @@ static void html_node(stun_html_writer *w, size_t id,
         html_str(w,">");
         break;
     case SALTS_MD_BLOCK_LIST: {
-        salts_md_list_semantics info;
+        md_list_semantics info;
         if(!html_list_meta(w,id,&info)) return;
         html_str(w,"<ul>\n");break;
     }
     case SALTS_MD_BLOCK_ORDERED_LIST: {
-        salts_md_list_semantics info;
+        md_list_semantics info;
         if(!html_list_meta(w,id,&info)) return;
         html_str(w,"<ol");
         if(info.start!=1u) {
@@ -691,10 +691,10 @@ static void html_node(stun_html_writer *w, size_t id,
         *next=id+1u; return;
     case SALTS_MD_BLOCK_HARD_LINE_BREAK: {
         if(!html_metadata(w,id,&meta,&meta_length)) return;
-        if(meta_length!=sizeof(salts_md_line_break_semantics)) {
+        if(meta_length!=sizeof(md_line_break_semantics)) {
             w->error=SALTS_MD_INVALID_ARGUMENT;return;
         }
-        salts_md_line_break_semantics info;
+        md_line_break_semantics info;
         memcpy(&info,meta,sizeof(info));
         if((info.origin!=SALTS_MD_LINE_BREAK_TRAILING_SPACES &&
             info.origin!=SALTS_MD_LINE_BREAK_BACKSLASH) ||
@@ -757,15 +757,15 @@ static void html_node(stun_html_writer *w, size_t id,
     *next=child_end;
 }
 
-salts_md_status salts_md_render_html_with_policy(
-    const salts_md_rich_document_view *view,size_t max_nodes,
-    salts_md_html_policy policy,char *buffer,size_t capacity,
+md_status md_render_html_with_policy(
+    const md_rich_document_view *view,size_t max_nodes,
+    md_html_policy policy,char *buffer,size_t capacity,
     size_t *required) {
     if(!required || !view || (!buffer && capacity!=0u) ||
        (policy!=SALTS_MD_HTML_SAFE_APPLICATION &&
         policy!=SALTS_MD_HTML_SPEC_CONFORMANCE))
         return SALTS_MD_INVALID_ARGUMENT;
-    const salts_md_status valid=salts_md_rich_document_validate(view,max_nodes);
+    const md_status valid=md_rich_document_validate(view,max_nodes);
     if(valid!=SALTS_MD_OK) return valid;
 
     /* Dry-run first: validation and exact byte count before any write. */
@@ -794,11 +794,11 @@ salts_md_status salts_md_render_html_with_policy(
 
 /* Public stable production entrypoint: always escapes untrusted markup.
  * Spec conformance is never inferred from source syntax. */
-salts_md_status salts_md_render_html(const salts_md_rich_document_view *view,
+md_status md_render_html(const md_rich_document_view *view,
                                    size_t max_nodes,
                                    char *buffer, size_t capacity,
                                    size_t *required) {
-    return salts_md_render_html_with_policy(
+    return md_render_html_with_policy(
         view,max_nodes,SALTS_MD_HTML_SAFE_APPLICATION,
         buffer,capacity,required);
 }

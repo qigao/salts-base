@@ -43,7 +43,7 @@ int playback_buffer_init(playback_buffer_t *buffer, size_t usable_capacity, size
   if (!storage) {
     return -1;
   }
-  if (!cmeta_spsc_ring_init(&buffer->ring, storage, storage_capacity)) {
+  if (!spsc_ring_init(&buffer->ring, storage, storage_capacity)) {
     free(storage);
     return -1;
   }
@@ -81,7 +81,7 @@ size_t playback_buffer_write(playback_buffer_t *buffer, const void *data, size_t
       candidate = remaining;
     }
     while (candidate != 0u) {
-      destination = cmeta_spsc_ring_write_acquire(&buffer->ring, candidate);
+      destination = spsc_ring_write_acquire(&buffer->ring, candidate);
       if (destination) {
         break;
       }
@@ -92,7 +92,7 @@ size_t playback_buffer_write(playback_buffer_t *buffer, const void *data, size_t
     }
 
     memcpy(destination, source + written, candidate);
-    cmeta_spsc_ring_write_release(&buffer->ring, candidate);
+    spsc_ring_write_release(&buffer->ring, candidate);
     written += candidate;
     remaining -= candidate;
   }
@@ -111,7 +111,7 @@ size_t playback_buffer_read(playback_buffer_t *buffer, void *data, size_t len) {
   remaining = len;
   while (remaining != 0u) {
     size_t available = 0u;
-    uint8_t *source = cmeta_spsc_ring_read_acquire(&buffer->ring, &available);
+    uint8_t *source = spsc_ring_read_acquire(&buffer->ring, &available);
     size_t count;
 
     if (!source) {
@@ -126,7 +126,7 @@ size_t playback_buffer_read(playback_buffer_t *buffer, void *data, size_t len) {
     }
 
     memcpy(destination + total, source, count);
-    cmeta_spsc_ring_read_release(&buffer->ring, count);
+    spsc_ring_read_release(&buffer->ring, count);
     total += count;
     remaining -= count;
   }
@@ -141,13 +141,13 @@ size_t playback_buffer_write_available(const playback_buffer_t *buffer) {
   if (!buffer || !buffer->storage) {
     return 0u;
   }
-  retained = playback_buffer_align_down(cmeta_spsc_ring_read_available(&buffer->ring),
+  retained = playback_buffer_align_down(spsc_ring_read_available(&buffer->ring),
                                         buffer->frame_bytes);
   if (retained >= buffer->usable_capacity) {
     return 0u;
   }
   logical_available = buffer->usable_capacity - retained;
-  physical_available = playback_buffer_align_down(cmeta_spsc_ring_write_available(&buffer->ring),
+  physical_available = playback_buffer_align_down(spsc_ring_write_available(&buffer->ring),
                                                   buffer->frame_bytes);
   return logical_available < physical_available ? logical_available : physical_available;
 }
@@ -156,7 +156,7 @@ size_t playback_buffer_read_available(const playback_buffer_t *buffer) {
   if (!buffer || !buffer->storage) {
     return 0u;
   }
-  return playback_buffer_align_down(cmeta_spsc_ring_read_available(&buffer->ring),
+  return playback_buffer_align_down(spsc_ring_read_available(&buffer->ring),
                                     buffer->frame_bytes);
 }
 
@@ -164,5 +164,5 @@ void playback_buffer_clear(playback_buffer_t *buffer) {
   if (!buffer || !buffer->storage) {
     return;
   }
-  (void)cmeta_spsc_ring_init(&buffer->ring, buffer->storage, buffer->storage_capacity);
+  (void)spsc_ring_init(&buffer->ring, buffer->storage, buffer->storage_capacity);
 }

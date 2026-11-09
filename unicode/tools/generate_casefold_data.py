@@ -7,15 +7,14 @@ import hashlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "data" / "17.0.0" / "CaseFolding.txt"
 OUTPUT = ROOT / "src" / "unicode_casefold_data.h"
 
 
-def generated() -> str:
-    raw = SOURCE.read_text(encoding="utf-8")
+def generated(data_dir: Path) -> str:
+    raw = (data_dir / "CaseFolding.txt").read_text(encoding="utf-8")
     if not raw.startswith("# CaseFolding-17.0.0.txt\n"):
         raise ValueError("Expected Unicode 17.0.0 CaseFolding source")
-    # Same immutable Unicode 17 C/F bytes as the CMake release configure pin.
+    # Same immutable Unicode 17 C/F bytes as data/sources.lock.json.
     # read_text() normalizes CRLF checkout data to LF.
     if hashlib.sha256(raw.encode("utf-8")).hexdigest() != (
         "ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183"
@@ -53,11 +52,11 @@ def generated() -> str:
         " * Data license: unicode/data/LICENSE.txt. Do not modify by hand.",
         " * Authoritative Unicode 17 default C/F mappings; exclude S/T alternates.",
         " */",
-        "static const uint32_t salts_unicode_casefold_values[] = {",
+        "static const uint32_t unicode_casefold_values[] = {",
     ]
     lines.extend(f"  0x{value:x}u," for value in values)
     lines.append("};")
-    lines.append("static const salts_unicode_fold_mapping salts_unicode_casefold_mappings[] = {")
+    lines.append("static const unicode_fold_mapping unicode_casefold_mappings[] = {")
     lines.extend(f"  {{0x{scalar:x}u, {offset}u, {length}u}}," for scalar, offset, length in entries)
     lines.append("};")
     return "\n".join(lines) + "\n"
@@ -65,9 +64,10 @@ def generated() -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--data-dir", type=Path, default=ROOT.parent / "build/unicode-data/17.0.0")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    data = generated()
+    data = generated(args.data_dir)
     if args.check:
         if OUTPUT.read_text(encoding="ascii") != data:
             raise SystemExit("Generated Unicode casefold header differs from source")

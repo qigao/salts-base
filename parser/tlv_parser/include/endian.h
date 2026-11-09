@@ -40,78 +40,78 @@
 
 /* Little Endian <-> Host */
 #if SALTS_IS_LITTLE_ENDIAN
-  #define salts_le16toh(x) (uint16_t)(x)
-  #define salts_le32toh(x) (uint32_t)(x)
-  #define salts_le64toh(x) (uint64_t)(x)
-  #define salts_htole16(x) (uint16_t)(x)
-  #define salts_htole32(x) (uint32_t)(x)
-  #define salts_htole64(x) (uint64_t)(x)
+  #define endian_le16toh(x) (uint16_t)(x)
+  #define endian_le32toh(x) (uint32_t)(x)
+  #define endian_le64toh(x) (uint64_t)(x)
+  #define endian_htole16(x) (uint16_t)(x)
+  #define endian_htole32(x) (uint32_t)(x)
+  #define endian_htole64(x) (uint64_t)(x)
 #else
-  #define salts_le16toh(x) SALTS_BSWAP16((uint16_t)(x))
-  #define salts_le32toh(x) SALTS_BSWAP32((uint32_t)(x))
-  #define salts_le64toh(x) SALTS_BSWAP64((uint64_t)(x))
-  #define salts_htole16(x) SALTS_BSWAP16((uint16_t)(x))
-  #define salts_htole32(x) SALTS_BSWAP32((uint32_t)(x))
-  #define salts_htole64(x) SALTS_BSWAP64((uint64_t)(x))
+  #define endian_le16toh(x) SALTS_BSWAP16((uint16_t)(x))
+  #define endian_le32toh(x) SALTS_BSWAP32((uint32_t)(x))
+  #define endian_le64toh(x) SALTS_BSWAP64((uint64_t)(x))
+  #define endian_htole16(x) SALTS_BSWAP16((uint16_t)(x))
+  #define endian_htole32(x) SALTS_BSWAP32((uint32_t)(x))
+  #define endian_htole64(x) SALTS_BSWAP64((uint64_t)(x))
 #endif
 
 /* Big Endian <-> Host */
 #if SALTS_IS_LITTLE_ENDIAN
-  #define salts_be16toh(x) SALTS_BSWAP16((uint16_t)(x))
-  #define salts_be32toh(x) SALTS_BSWAP32((uint32_t)(x))
-  #define salts_be64toh(x) SALTS_BSWAP64((uint64_t)(x))
-  #define salts_htobe16(x) SALTS_BSWAP16((uint16_t)(x))
-  #define salts_htobe32(x) SALTS_BSWAP32((uint32_t)(x))
-  #define salts_htobe64(x) SALTS_BSWAP64((uint64_t)(x))
+  #define endian_be16toh(x) SALTS_BSWAP16((uint16_t)(x))
+  #define endian_be32toh(x) SALTS_BSWAP32((uint32_t)(x))
+  #define endian_be64toh(x) SALTS_BSWAP64((uint64_t)(x))
+  #define endian_htobe16(x) SALTS_BSWAP16((uint16_t)(x))
+  #define endian_htobe32(x) SALTS_BSWAP32((uint32_t)(x))
+  #define endian_htobe64(x) SALTS_BSWAP64((uint64_t)(x))
 #else
-  #define salts_be16toh(x) (uint16_t)(x)
-  #define salts_be32toh(x) (uint32_t)(x)
-  #define salts_be64toh(x) (uint64_t)(x)
-  #define salts_htobe16(x) (uint16_t)(x)
-  #define salts_htobe32(x) (uint32_t)(x)
-  #define salts_htobe64(x) (uint64_t)(x)
+  #define endian_be16toh(x) (uint16_t)(x)
+  #define endian_be32toh(x) (uint32_t)(x)
+  #define endian_be64toh(x) (uint64_t)(x)
+  #define endian_htobe16(x) (uint16_t)(x)
+  #define endian_htobe32(x) (uint32_t)(x)
+  #define endian_htobe64(x) (uint64_t)(x)
 #endif
 
 /* Compatibility mapping to standard names (le32toh, htole32, etc.) */
 
 #ifndef le16toh
-#define le16toh(x) salts_le16toh(x)
+#define le16toh(x) endian_le16toh(x)
 #endif
 #ifndef le32toh
-#define le32toh(x) salts_le32toh(x)
+#define le32toh(x) endian_le32toh(x)
 #endif
 #ifndef le64toh
-#define le64toh(x) salts_le64toh(x)
+#define le64toh(x) endian_le64toh(x)
 #endif
 
 #ifndef htole16
-#define htole16(x) salts_htole16(x)
+#define htole16(x) endian_htole16(x)
 #endif
 #ifndef htole32
-#define htole32(x) salts_htole32(x)
+#define htole32(x) endian_htole32(x)
 #endif
 #ifndef htole64
-#define htole64(x) salts_htole64(x)
+#define htole64(x) endian_htole64(x)
 #endif
 
 #ifndef be16toh
-#define be16toh(x) salts_be16toh(x)
+#define be16toh(x) endian_be16toh(x)
 #endif
 #ifndef be32toh
-#define be32toh(x) salts_be32toh(x)
+#define be32toh(x) endian_be32toh(x)
 #endif
 #ifndef be64toh
-#define be64toh(x) salts_be64toh(x)
+#define be64toh(x) endian_be64toh(x)
 #endif
 
 #ifndef htobe16
-#define htobe16(x) salts_htobe16(x)
+#define htobe16(x) endian_htobe16(x)
 #endif
 #ifndef htobe32
-#define htobe32(x) salts_htobe32(x)
+#define htobe32(x) endian_htobe32(x)
 #endif
 #ifndef htobe64
-#define htobe64(x) salts_htobe64(x)
+#define htobe64(x) endian_htobe64(x)
 #endif
 
 #endif /* SALTS_ENDIAN_H */

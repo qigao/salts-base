@@ -1,5 +1,5 @@
 #include <tinytest.h>
-#include "toonc.h"
+#include <toonc.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

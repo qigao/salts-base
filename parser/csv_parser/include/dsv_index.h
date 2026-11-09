@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "csv_parser.h"
+#include <csv_parser.h>
 
 #ifdef __cplusplus
 extern "C" {

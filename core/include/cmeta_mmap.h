@@ -15,7 +15,7 @@
 #ifndef SALTS_MMAP_H
 #define SALTS_MMAP_H
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

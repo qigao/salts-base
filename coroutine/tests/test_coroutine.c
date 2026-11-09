@@ -1,9 +1,8 @@
-#include <coro.h>
+#include <salts/coro.h>
 #include <tinytest.h>
-#include <coro_executor.h>
-#include <error_codes.h>
-#include <thread.h>
-#include <platform_thread.h>
+#include <salts/coro_executor.h>
+#include <salts/error_codes.h>
+#include <threads/threads.h>
 
 #include <stdatomic.h>
 
@@ -62,7 +61,7 @@ typedef struct scheduler_worker {
 static int wait_for(atomic_int *flag, scheduler_overlap *overlap) {
   while (!atomic_load_explicit(flag, memory_order_acquire)) {
     if (atomic_load_explicit(&overlap->aborted, memory_order_acquire)) return -1;
-    cmeta_thread_yield();
+    sync_thread_yield();
   }
   return 0;
 }
@@ -109,22 +108,22 @@ static int scheduler_thread_isolation(void) {
   scheduler_overlap overlap;
   scheduler_worker workers[2] = {{&overlap, NULL, 0, 0},
                                  {&overlap, NULL, 1, 0}};
-  salts_platform_thread *threads[2] = {NULL, NULL};
+  thrd_t threads[2] = {NULL, NULL};
   int first = -1, second = -1;
   atomic_init(&overlap.first_entered, 0);
   atomic_init(&overlap.second_entered, 0);
   atomic_init(&overlap.first_checked, 0);
   atomic_init(&overlap.second_done, 0);
   atomic_init(&overlap.aborted, 0);
-  if (salts_platform_thread_create(&threads[0], run_scheduler, &workers[0]))
+  if (thrd_create(&threads[0], run_scheduler, &workers[0]) != thrd_success)
     return -1;
-  if (salts_platform_thread_create(&threads[1], run_scheduler, &workers[1])) {
+  if (thrd_create(&threads[1], run_scheduler, &workers[1]) != thrd_success) {
     atomic_store_explicit(&overlap.aborted, 1, memory_order_release);
-    (void)salts_platform_thread_join(&threads[0], &first);
+    (void)thrd_join(threads[0], &first);
     return -1;
   }
-  if (salts_platform_thread_join(&threads[0], &first)) return -1;
-  if (salts_platform_thread_join(&threads[1], &second)) return -1;
+  if (thrd_join(threads[0], &first) != thrd_success) return -1;
+  if (thrd_join(threads[1], &second) != thrd_success) return -1;
   return first == 0 && second == 0 && coro_current_scheduler() == NULL ? 0 : -1;
 }
 

@@ -2,7 +2,7 @@ set(TARGET_NAME toml_parser)
 
 cmake_add_grammar(TOML
   RE2C_EXECUTABLE "${RE2C_EXECUTABLE}"
-  LEMON_TARGET lemon
+  LEMON_TARGET Lemon::Lemon
   LEMON_TEMPLATE "${LEMPAR}"
   LEXER_RE ${CMAKE_CURRENT_SOURCE_DIR}/parser/toml_lexer.re
   GRAMMAR_Y ${CMAKE_CURRENT_SOURCE_DIR}/parser/toml_grammar.y
@@ -18,6 +18,7 @@ cmake_add_source(SOURCE_FILES RECURSE DIRS ${CMAKE_CURRENT_SOURCE_DIR}/src
 add_library(${TARGET_NAME} STATIC ${SOURCE_FILES} ${TOML_LEXER_GEN}
                                   ${TOML_GRAMMAR_GEN})
 add_dependencies(${TARGET_NAME} ${TOML_LEXER_TARGET} ${TOML_GRAMMAR_TARGET})
+target_link_libraries(${TARGET_NAME} PRIVATE Salts::Core)
 
 cmake_config_target(${TARGET_NAME}
   ALIAS Salts::TomlParser

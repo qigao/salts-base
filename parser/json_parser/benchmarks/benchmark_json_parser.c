@@ -3,9 +3,9 @@
  * @brief TinyTest benchmarks for JSON parser performance
  */
 
-#include "json_parser.h"
+#include <json_parser.h>
 #include "tinytest.h"
-#include <fmt.h>
+#include <salts/fmt.h>
 #include <stdlib.h>
 #include <string.h>
 

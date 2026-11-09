@@ -10,7 +10,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "fmt.h"
+#include <salts/fmt.h>
 #include "tinytest.h"
 
 #define BUFFER_SIZE 512
@@ -38,7 +38,7 @@ typedef struct fmt_arg_legacy_layout {
     size_t sz;
     int b;
     vstr sv;
-    cmeta_timeval_t tv;
+    time_value_t tv;
   } val;
 } fmt_arg_legacy_layout;
 
@@ -195,7 +195,7 @@ spec("FMT Tests") {
       void *ptr = &value;
       const void *const_ptr = &value;
       vstr view = vstr_from_cstr("view");
-      cmeta_timeval_t time_value = {42, 7};
+      time_value_t time_value = {42, 7};
 
       check_equal(FMT_ARG('a').type, FMT_TYPE_INT);
       check_equal(FMT_ARG((char)'a').type, FMT_TYPE_CHAR);
@@ -578,16 +578,16 @@ spec("FMT Tests") {
   }
 
   describe("Time Formatting") {
-    it("should format cmeta_timeval_t with milliseconds") {
+    it("should format time_value_t with milliseconds") {
       char buf[BUFFER_SIZE];
-      cmeta_timeval_t tv;
+      time_value_t tv;
       tv.tv_sec = 1700000000; /* 2023-11-14 22:13:20 UTC */
       tv.tv_usec = 123000;    /* 123ms */
       fmt_arg_t args[] = {fmt_arg_timeval(tv)};
       fmt_print(buf, sizeof(buf), "{}", args, 1);
       check_not_null(strstr(buf, ".123"));
       check_not_null(strstr(buf, "2023"));
-      printf("  cmeta_timeval_t: %s\n", buf);
+      printf("  time_value_t: %s\n", buf);
     }
 
     it("should format time_t without decimal point") {
@@ -611,7 +611,7 @@ spec("FMT Tests") {
 
     it("should use custom strftime modifier") {
       char buf[BUFFER_SIZE];
-      cmeta_timeval_t tv;
+      time_value_t tv;
       tv.tv_sec = 1700000000;
       tv.tv_usec = 500000;
       fmt_arg_t args[] = {fmt_arg_timeval(tv)};
@@ -623,7 +623,7 @@ spec("FMT Tests") {
 
     it("should handle invalid time values deterministically") {
       char buf[BUFFER_SIZE];
-      cmeta_timeval_t tv;
+      time_value_t tv;
       tv.tv_sec = INT64_MAX;
       tv.tv_usec = 0;
       fmt_arg_t args[] = {fmt_arg_timeval(tv)};
@@ -636,9 +636,9 @@ spec("FMT Tests") {
     }
 
 #if FMT_HAS_GENERIC
-    it("should auto-detect cmeta_timeval_t via _Generic") {
+    it("should auto-detect time_value_t via _Generic") {
       char buf[BUFFER_SIZE];
-      cmeta_timeval_t tv;
+      time_value_t tv;
       tv.tv_sec = 1700000000;
       tv.tv_usec = 456000;
       check_equal(FMT_ARG(tv).type, FMT_TYPE_TIME);

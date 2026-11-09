@@ -14,7 +14,7 @@
  * On failure: all outputs remain unchanged; caller retains raw punctuation.
  * This file is private to the Stun C11 Markdown frontend (not a public ABI).
  */
-bool salts_md_decode_character_reference(const char *source, size_t size,
+bool md_decode_character_reference(const char *source, size_t size,
                                         size_t *consumed,
                                         char utf8[8], size_t *output_bytes);
 

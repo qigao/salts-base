@@ -70,7 +70,7 @@ install(TARGETS saltscore_core EXPORT SaltsCoreTargets
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES
   include/bytes.h include/runtime_abi.h include/utf8.h
-  include/base64_utils.h include/vstr.h include/cmeta_api.h
+  include/base64_utils.h include/vstr.h include/salts_api.h
   include/cmeta_buffer.h include/ring_buffer.h include/cmeta_error.h
   include/tstr.h include/str.h include/memory_pool.h include/object_pool.h
   include/bucket_priority_queue.h

@@ -3,13 +3,13 @@
 @implementation SaltsCaptureGuard {
     NSLock *_lock;
     void *_capture;
-    salts_ios_capture_finalizer _finalizer;
+    ios_capture_finalizer _finalizer;
     NSUInteger _references;
     BOOL _acceptingCallbacks;
 }
 
 - (instancetype)initWithCapture:(void *)capture
-                       finalizer:(salts_ios_capture_finalizer)finalizer {
+                       finalizer:(ios_capture_finalizer)finalizer {
     self = [super init];
     if (self) {
         _lock = [[NSLock alloc] init];
@@ -34,7 +34,7 @@
 
 - (void)releaseCapture {
     void *capture = NULL;
-    salts_ios_capture_finalizer finalizer = NULL;
+    ios_capture_finalizer finalizer = NULL;
 
     [_lock lock];
     if (_references > 0 && --_references == 0) {
@@ -49,7 +49,7 @@
 
 - (void)detachOwner {
     void *capture = NULL;
-    salts_ios_capture_finalizer finalizer = NULL;
+    ios_capture_finalizer finalizer = NULL;
 
     [_lock lock];
     if (_acceptingCallbacks) {

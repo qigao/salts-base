@@ -3,6 +3,6 @@
 
 #include <stdint.h>
 
-uint32_t salts_unicode_emoji_properties(uint32_t scalar);
+uint32_t unicode_emoji_properties(uint32_t scalar);
 
 #endif

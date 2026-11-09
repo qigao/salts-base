@@ -4,7 +4,7 @@
  */
 
 #include "xpath/cxxplib.h"
-#include "re.h"
+#include <salts/re.h>
 #include <math.h>
 #include <string.h>
 

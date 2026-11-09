@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <tlog.h>
+#include <salts/tlog.h>
 
 #define BUFFER_COUNT 4
 #define FRAMES_PER_BUFFER 480  /* 10ms @ 48kHz */

@@ -7,8 +7,8 @@
  * for local relative comparison only (no committed cross-machine baseline).
  */
 
-#include "json_parser.h"
-#include <fmt.h>
+#include <json_parser.h>
+#include <salts/fmt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

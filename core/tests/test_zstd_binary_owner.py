@@ -12,7 +12,7 @@ arguments = parser.parse_args()
 root = Path(__file__).resolve().parents[2]
 api = json.loads((root / "tools/migration/original-public-functions.json").read_text())
 expected = set(next(row for row in api["headers"]
-                    if row["path"] == "utils/include/cmeta_zstd.h")["explicit_functions"])
+                    if row["path"] == "utils/include/salts/zstd.h")["explicit_functions"])
 symbols = subprocess.check_output(
     [arguments.nm, "-D", "--defined-only", str(arguments.library)], text=True)
 names = {line.split()[-1].split("@", 1)[0] for line in symbols.splitlines() if line.split()}

@@ -5,7 +5,7 @@
  * Tests parsing speed with various TOON sizes and structures.
  */
 
-#include "toonc.h"
+#include <toonc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

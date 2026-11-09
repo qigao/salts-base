@@ -10,7 +10,7 @@
 #include "xml/cxprinter.h"
 #include "cxxpresolver.h"
 #include "cxxplib.h"
-#include "query_vm.h"
+#include <query_vm.h>
 
 /**Debug**/
 void cxml_xp_debug_expr();

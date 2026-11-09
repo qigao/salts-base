@@ -17,10 +17,10 @@
 #import <string.h>
 #import <dispatch/dispatch.h>
 
-typedef struct salts_screen_ctx_s salts_screen_ctx_t;
+typedef struct screen_ctx_s screen_ctx_t;
 @class SaltsScreenStreamOutput;
 
-struct salts_screen_ctx_s {
+struct screen_ctx_s {
     SCStream *stream;
     SaltsScreenStreamOutput *stream_output;
     dispatch_queue_t capture_queue;
@@ -37,12 +37,12 @@ struct salts_screen_ctx_s {
     uint8_t *frame_buffer;
     size_t frame_buffer_size;
 
-    salts_capture_t *capture;
+    capture_t *capture;
 };
 
 @interface SaltsScreenStreamOutput : NSObject <SCStreamOutput> {
 @public
-    salts_screen_ctx_t *ctx;
+    screen_ctx_t *ctx;
 }
 @end
 
@@ -55,7 +55,7 @@ static uint64_t get_timestamp_us(void) {
     return (time * timebase.numer / timebase.denom) / 1000;
 }
 
-static int ensure_frame_buffer(salts_screen_ctx_t *ctx, size_t required_size) {
+static int ensure_frame_buffer(screen_ctx_t *ctx, size_t required_size) {
     if (!ctx) return -1;
     if (required_size <= ctx->frame_buffer_size) return 0;
 
@@ -124,7 +124,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sample_buffer
         frame_data = ctx->frame_buffer;
     }
 
-    salts_capture_t *capture = ctx->capture;
+    capture_t *capture = ctx->capture;
     if (capture && capture->video_cb && ctx->running) {
         capture->video_cb(capture,
                           frame_data,
@@ -140,7 +140,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sample_buffer
 
 @end
 
-int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
+int capture_list_screens(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     CGDirectDisplayID display_ids[16];
@@ -155,7 +155,7 @@ int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
     for (uint32_t i = 0; i < display_count && count < max_count; ++i) {
         CGDirectDisplayID display_id = display_ids[i];
 
-        salts_capture_device_t *dev = &devices[count];
+        capture_device_t *dev = &devices[count];
         memset(dev, 0, sizeof(*dev));
 
         dev->index = count;
@@ -178,14 +178,14 @@ int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
     return count;
 }
 
-salts_capture_t *salts_screen_capture_create(
-    const salts_screen_capture_config_t *config) {
-    salts_capture_t *capture =
-        (salts_capture_t *)calloc(1, sizeof(salts_capture_t));
+capture_t *screen_capture_create(
+    const screen_capture_config_t *config) {
+    capture_t *capture =
+        (capture_t *)calloc(1, sizeof(capture_t));
     if (!capture) return NULL;
 
-    salts_screen_ctx_t *ctx =
-        (salts_screen_ctx_t *)calloc(1, sizeof(salts_screen_ctx_t));
+    screen_ctx_t *ctx =
+        (screen_ctx_t *)calloc(1, sizeof(screen_ctx_t));
     if (!ctx) {
         free(capture);
         return NULL;
@@ -248,8 +248,8 @@ salts_capture_t *salts_screen_capture_create(
     return capture;
 }
 
-void salts_screen_capture_set_callback(salts_capture_t *capture,
-                                       salts_video_capture_cb cb,
+void screen_capture_set_callback(capture_t *capture,
+                                       video_capture_cb cb,
                                        void *user_data) {
     if (!capture) return;
     capture->video_cb = cb;
@@ -289,9 +289,9 @@ static SCDisplay *find_shareable_display(CGDirectDisplayID display_id) {
     return selected_display;
 }
 
-int macos_screen_start(salts_capture_t *capture) {
+int macos_screen_start(capture_t *capture) {
     if (!capture || !capture->platform_ctx) return -1;
-    salts_screen_ctx_t *ctx = (salts_screen_ctx_t *)capture->platform_ctx;
+    screen_ctx_t *ctx = (screen_ctx_t *)capture->platform_ctx;
 
     SCDisplay *display = find_shareable_display(ctx->display_id);
     if (!display) return -1;
@@ -385,9 +385,9 @@ int macos_screen_start(salts_capture_t *capture) {
     return 0;
 }
 
-void macos_screen_stop(salts_capture_t *capture) {
+void macos_screen_stop(capture_t *capture) {
     if (!capture || !capture->platform_ctx) return;
-    salts_screen_ctx_t *ctx = (salts_screen_ctx_t *)capture->platform_ctx;
+    screen_ctx_t *ctx = (screen_ctx_t *)capture->platform_ctx;
 
     ctx->running = 0;
 
@@ -422,12 +422,12 @@ void macos_screen_stop(salts_capture_t *capture) {
     }
 }
 
-void macos_screen_destroy(salts_capture_t *capture) {
+void macos_screen_destroy(capture_t *capture) {
     if (!capture) return;
 
     macos_screen_stop(capture);
 
-    salts_screen_ctx_t *ctx = (salts_screen_ctx_t *)capture->platform_ctx;
+    screen_ctx_t *ctx = (screen_ctx_t *)capture->platform_ctx;
     if (ctx) {
         free(ctx->frame_buffer);
         ctx->frame_buffer = NULL;

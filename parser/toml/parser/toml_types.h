@@ -6,7 +6,7 @@
 #ifndef TOML_TYPES_H
 #define TOML_TYPES_H
 
-#include "toml.h"
+#include <toml.h>
 #include <stddef.h>
 
 #ifdef __cplusplus

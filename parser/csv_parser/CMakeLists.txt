@@ -2,7 +2,7 @@ set(TARGET_NAME csv_parser)
 
 cmake_add_grammar(CSV
   RE2C_EXECUTABLE "${RE2C_EXECUTABLE}"
-  LEMON_TARGET lemon
+  LEMON_TARGET Lemon::Lemon
   LEMON_TEMPLATE "${LEMPAR}"
   LEXER_RE ${CMAKE_CURRENT_SOURCE_DIR}/parser/csv_lexer.re
   GRAMMAR_Y ${CMAKE_CURRENT_SOURCE_DIR}/parser/csv_grammar.y
@@ -10,7 +10,7 @@ cmake_add_grammar(CSV
 
 cmake_add_grammar(DSV_FILTER_EXPR
   RE2C_EXECUTABLE "${RE2C_EXECUTABLE}"
-  LEMON_TARGET lemon
+  LEMON_TARGET Lemon::Lemon
   LEMON_TEMPLATE "${LEMPAR}"
   LEXER_RE ${CMAKE_CURRENT_SOURCE_DIR}/parser/dsv_filter_expr_lexer.re
   GRAMMAR_Y ${CMAKE_CURRENT_SOURCE_DIR}/parser/dsv_filter_expr_grammar.y
@@ -46,7 +46,6 @@ find_path(SIMDE_INCLUDE_DIRS "simde/arm/neon.h")
 target_include_directories(${TARGET_NAME} PRIVATE ${SIMDE_INCLUDE_DIRS})
 
 target_link_libraries(${TARGET_NAME}
-  PRIVATE CMeta::CSTL
   PUBLIC Salts::Core)
 
 target_link_libraries(${TARGET_NAME} PUBLIC Salts::QueryVM)

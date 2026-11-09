@@ -1,33 +1,18 @@
 {
-  "name": "salts-utils",
+  "name": "salts-base",
   "version-semver": "0.1.0",
+  "builtin-baseline": "b1b19307e2d2ec1eefbdb7ea069de7d4bcd31f01",
   "dependencies": [
+    "simde",
+    "zstd",
+    "miniaudio",
     {
-      "name": "pkgconf",
-      "host": true
+      "name": "libyuv",
+      "platform": "windows | android | linux"
     },
     {
-      "name": "simde"
-    },
-    "lua",
-    "quickjs-ng",
-    {
-      "name": "zstd"
-    },
-    "media": {
-      "description": "One static Media owner for Capture and PCM Playback",
-      "dependencies": [
-        "miniaudio",
-        {
-          "name": "libyuv",
-          "platform": "windows | android | linux"
-        },
-        {
-          "name": "libjpeg-turbo",
-          "platform": "windows"
-        }
-      ]
+      "name": "libjpeg-turbo",
+      "platform": "windows | android | linux"
     }
-  ],
-  "builtin-baseline": "b1b19307e2d2ec1eefbdb7ea069de7d4bcd31f01"
+  ]
 }

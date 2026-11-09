@@ -15,7 +15,7 @@
 //!   results_query [file] improvements       List improvements from this run
 //!   results_query [file] broken             List all failures with regression dates
 
-#include "cyaml.h"
+#include <cyaml.h>
 #define TEST_RESULTS_IMPL
 #include "test_results.h"
 

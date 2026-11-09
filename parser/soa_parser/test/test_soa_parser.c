@@ -3,7 +3,7 @@
  * Tests for Struct-of-Arrays columnar data parser
  */
 
-#include "soa_parser.h"
+#include <soa_parser.h>
 #include "tinytest.h"
 #include <stdlib.h>
 #include <string.h>

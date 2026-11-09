@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-#include "../toonc.h"
+#include <toonc.h>
 
 int main(void) {
     printf("\n--- Example 4: Programmatic Object Creation ---\n");

@@ -18,18 +18,18 @@
 #include <dirent.h>
 
 #include "serial_internal.h"
-#include "tstr.h"
+#include <salts/tstr.h>
 
-struct salts_port_handle {
+struct serial_native_handle {
   int fd;
   char port_name[256];
-  salts_serial_mode_t mode;
+  serial_mode_t mode;
 };
 
 #define MAX_EVENT_PORTS 64
 
-struct salts_serial_event_set_impl {
-  salts_port_handle_t *ports[MAX_EVENT_PORTS];
+struct serial_event_set_impl {
+  serial_native_handle_t *ports[MAX_EVENT_PORTS];
   unsigned int event_masks[MAX_EVENT_PORTS];
   struct pollfd fds[MAX_EVENT_PORTS];
   size_t count;
@@ -74,7 +74,7 @@ static speed_t baudrate_to_speed(int baudrate) {
   }
 }
 
-static salts_serial_result_t posix_list_ports(salts_serial_port_info_vec_t *vec) {
+static serial_result_t posix_list_ports(serial_port_info_vec_t *vec) {
   DIR *dir;
   struct dirent *entry;
 
@@ -91,7 +91,7 @@ static salts_serial_result_t posix_list_ports(salts_serial_port_info_vec_t *vec)
       char full_path[512];
       snprintf(full_path, sizeof(full_path), "/dev/%s", entry->d_name);
 
-      salts_serial_port_info_storage_t storage;
+      serial_port_info_storage_t storage;
       memset(&storage, 0, sizeof(storage));
 
       storage.name = tstr_dup(full_path);
@@ -106,8 +106,8 @@ static salts_serial_result_t posix_list_ports(salts_serial_port_info_vec_t *vec)
       }
 
       {
-        salts_serial_result_t status = salts_serial_port_info_vec_t_push(vec, storage);
-        salts_serial_port_info_storage_destroy(&storage);
+        serial_result_t status = serial_port_info_vec_t_push(vec, storage);
+        serial_port_info_storage_destroy(&storage);
         if (status != SALTS_SERIAL_OK) {
           closedir(dir);
           return status;
@@ -120,8 +120,8 @@ static salts_serial_result_t posix_list_ports(salts_serial_port_info_vec_t *vec)
   return SALTS_SERIAL_OK;
 }
 
-static salts_serial_result_t posix_get_port_info(const char *port_name,
-                                                  salts_serial_port_info_storage_t *storage) {
+static serial_result_t posix_get_port_info(const char *port_name,
+                                                  serial_port_info_storage_t *storage) {
   if (!port_name || !storage) return SALTS_SERIAL_INVALID_VALUE;
   memset(storage, 0, sizeof(*storage));
 
@@ -131,11 +131,11 @@ static salts_serial_result_t posix_get_port_info(const char *port_name,
   return SALTS_SERIAL_OK;
 }
 
-static salts_serial_result_t posix_open(salts_port_handle_t **handle_out, const char *port_name,
-                                         salts_serial_mode_t mode) {
+static serial_result_t posix_open(serial_native_handle_t **handle_out, const char *port_name,
+                                         serial_mode_t mode) {
   int flags = O_NOCTTY | O_NONBLOCK;
   int fd;
-  salts_port_handle_t *handle;
+  serial_native_handle_t *handle;
 
   if (!handle_out || !port_name) return SALTS_SERIAL_INVALID_VALUE;
   *handle_out = NULL;
@@ -160,7 +160,7 @@ static salts_serial_result_t posix_open(salts_port_handle_t **handle_out, const 
     return SALTS_SERIAL_IO_FAILED;
   }
 
-  handle = (salts_port_handle_t *)calloc(1, sizeof(*handle));
+  handle = (serial_native_handle_t *)calloc(1, sizeof(*handle));
   if (!handle) {
     close(fd);
     return SALTS_SERIAL_NO_MEMORY;
@@ -174,7 +174,7 @@ static salts_serial_result_t posix_open(salts_port_handle_t **handle_out, const 
   return SALTS_SERIAL_OK;
 }
 
-static void posix_close(salts_port_handle_t *handle) {
+static void posix_close(serial_native_handle_t *handle) {
   if (!handle) return;
   if (handle->fd >= 0) {
     close(handle->fd);
@@ -182,8 +182,8 @@ static void posix_close(salts_port_handle_t *handle) {
   free(handle);
 }
 
-static salts_serial_result_t posix_configure(salts_port_handle_t *handle,
-                                              const salts_serial_config_t *config) {
+static serial_result_t posix_configure(serial_native_handle_t *handle,
+                                              const serial_config_t *config) {
   struct termios options;
   speed_t speed;
 
@@ -255,7 +255,7 @@ static salts_serial_result_t posix_configure(salts_port_handle_t *handle,
   return SALTS_SERIAL_OK;
 }
 
-static salts_serial_result_t posix_blocking_read(salts_port_handle_t *handle, void *buf,
+static serial_result_t posix_blocking_read(serial_native_handle_t *handle, void *buf,
                                                   size_t count, unsigned int timeout_ms,
                                                   size_t *bytes_read) {
   struct pollfd pfd;
@@ -283,7 +283,7 @@ static salts_serial_result_t posix_blocking_read(salts_port_handle_t *handle, vo
   return SALTS_SERIAL_OK;
 }
 
-static salts_serial_result_t posix_blocking_write(salts_port_handle_t *handle, const void *buf,
+static serial_result_t posix_blocking_write(serial_native_handle_t *handle, const void *buf,
                                                    size_t count, unsigned int timeout_ms,
                                                    size_t *bytes_written) {
   struct pollfd pfd;
@@ -311,7 +311,7 @@ static salts_serial_result_t posix_blocking_write(salts_port_handle_t *handle, c
   return SALTS_SERIAL_OK;
 }
 
-static salts_serial_result_t posix_nonblocking_read(salts_port_handle_t *handle, void *buf,
+static serial_result_t posix_nonblocking_read(serial_native_handle_t *handle, void *buf,
                                                      size_t count, size_t *bytes_read) {
   ssize_t res;
 
@@ -328,7 +328,7 @@ static salts_serial_result_t posix_nonblocking_read(salts_port_handle_t *handle,
   return SALTS_SERIAL_OK;
 }
 
-static salts_serial_result_t posix_nonblocking_write(salts_port_handle_t *handle, const void *buf,
+static serial_result_t posix_nonblocking_write(serial_native_handle_t *handle, const void *buf,
                                                       size_t count, size_t *bytes_written) {
   ssize_t res;
 
@@ -345,23 +345,23 @@ static salts_serial_result_t posix_nonblocking_write(salts_port_handle_t *handle
   return SALTS_SERIAL_OK;
 }
 
-static salts_serial_result_t posix_new_event_set(salts_serial_event_set_impl_t **set_out) {
-  salts_serial_event_set_impl_t *set;
+static serial_result_t posix_new_event_set(serial_event_set_impl_t **set_out) {
+  serial_event_set_impl_t *set;
 
   if (!set_out) return SALTS_SERIAL_INVALID_VALUE;
-  set = (salts_serial_event_set_impl_t *)calloc(1, sizeof(*set));
+  set = (serial_event_set_impl_t *)calloc(1, sizeof(*set));
   if (!set) return SALTS_SERIAL_NO_MEMORY;
 
   *set_out = set;
   return SALTS_SERIAL_OK;
 }
 
-static void posix_free_event_set(salts_serial_event_set_impl_t *set) {
+static void posix_free_event_set(serial_event_set_impl_t *set) {
   free(set);
 }
 
-static salts_serial_result_t posix_add_port_events(salts_serial_event_set_impl_t *set,
-                                                    salts_port_handle_t *handle,
+static serial_result_t posix_add_port_events(serial_event_set_impl_t *set,
+                                                    serial_native_handle_t *handle,
                                                     unsigned int events) {
   short poll_events = 0;
 
@@ -382,7 +382,7 @@ static salts_serial_result_t posix_add_port_events(salts_serial_event_set_impl_t
   return SALTS_SERIAL_OK;
 }
 
-static salts_serial_result_t posix_wait(salts_serial_event_set_impl_t *set,
+static serial_result_t posix_wait(serial_event_set_impl_t *set,
                                          unsigned int timeout_ms, unsigned int *events_out) {
   int poll_res;
   size_t i;
@@ -410,7 +410,7 @@ static salts_serial_result_t posix_wait(salts_serial_event_set_impl_t *set,
   return SALTS_SERIAL_WOULD_BLOCK;
 }
 
-static const salts_serial_backend_ops_t posix_backend_ops = {
+static const serial_backend_ops_t posix_backend_ops = {
     posix_list_ports,
     posix_get_port_info,
     posix_open,
@@ -426,7 +426,7 @@ static const salts_serial_backend_ops_t posix_backend_ops = {
     posix_wait,
 };
 
-const salts_serial_backend_ops_t *salts_serial_get_native_backend(void) {
+const serial_backend_ops_t *serial_get_native_backend(void) {
   return &posix_backend_ops;
 }
 

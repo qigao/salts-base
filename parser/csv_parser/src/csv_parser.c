@@ -3,17 +3,17 @@
  * @brief CSV Parser Implementation (RFC 4180)
  */
 
-#include "csv_parser.h"
+#include <csv_parser.h>
 #include "csv_types.h"
 #include "csv_lexer.h"
 #include "csv_grammar_gen.h"
-#include <fmt.h>
+#include <salts/fmt.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-#include <memory_pool.h>
+#include <memory/memory_pool.h>
 #ifdef _MSC_VER
 static __declspec(thread) char g_error_msg[256] = {0};
 #else
@@ -112,9 +112,6 @@ csv_doc_t *csv_doc_new_arena(csv_arena_t *arena) {
     if (!doc) return NULL;
     memset(doc, 0, sizeof(csv_doc_t));
     doc->arena = arena;
-    if (vec_init_bytes(&doc->row_index, sizeof(csv_row_node_t *),
-                             _Alignof(csv_row_node_t *), SIZE_MAX) != STL_OK)
-        return NULL;
     return doc;
 }
 
@@ -154,7 +151,18 @@ void csv_row_add_field(csv_arena_t *arena, csv_row_node_t *row,
 
 int csv_doc_add_row(csv_doc_t *doc, csv_row_node_t *row) {
     if (!doc || !row) return -1;
-    if (vec_push(&doc->row_index, &row) != STL_OK) return -1;
+    const size_t limit = SIZE_MAX / sizeof(*doc->row_index);
+    if (doc->row_count == limit) return -1;
+    if (doc->row_count == doc->row_capacity) {
+        enum { INITIAL_ROW_CAPACITY = 64 };
+        size_t capacity = doc->row_capacity ? doc->row_capacity : INITIAL_ROW_CAPACITY;
+        if (doc->row_capacity) capacity = capacity > limit / 2 ? limit : capacity * 2;
+        csv_row_node_t **rows = realloc(doc->row_index, capacity * sizeof(*rows));
+        if (!rows) return -1;
+        doc->row_index = rows;
+        doc->row_capacity = capacity;
+    }
+    doc->row_index[doc->row_count++] = row;
 
     row->next = NULL;
     if (doc->rows_tail) {
@@ -163,7 +171,6 @@ int csv_doc_add_row(csv_doc_t *doc, csv_row_node_t *row) {
         doc->rows = row;
     }
     doc->rows_tail = row;
-    doc->row_count = vec_size(&doc->row_index);
 
     if (row->field_count > doc->column_count) {
         doc->column_count = row->field_count;
@@ -181,16 +188,13 @@ static csv_field_node_t *get_field_at(csv_row_node_t *row, size_t col) {
 }
 
 static csv_row_node_t *get_row_at(const csv_doc_t *doc, size_t row_idx) {
-    const csv_row_node_t *const *entry;
-    if (!doc) return NULL;
-    /* The index is derived while rows are appended and is invalidated with the document. */
-    entry = (const csv_row_node_t *const *)vec_at_const(&doc->row_index, row_idx);
-    return entry ? (csv_row_node_t *)*entry : NULL;
+    return doc && row_idx < doc->row_count ? doc->row_index[row_idx] : NULL;
 }
 
 struct csv_cursor_s {
     const csv_doc_t *doc;
-    vec_t fields;
+    vstr *fields;
+    size_t fields_capacity;
     csv_row_node_t *current_row_node;
     csv_field_node_t *current_fields;
     size_t current_field_count;
@@ -205,11 +209,6 @@ csv_cursor_t *csv_cursor_new(const csv_doc_t *doc, size_t first_row) {
     if (!doc || first_row > doc->row_count) return NULL;
     cursor = (csv_cursor_t *)calloc(1, sizeof(*cursor));
     if (!cursor) return NULL;
-    if (vec_init_bytes(&cursor->fields, sizeof(vstr), _Alignof(vstr),
-                             doc->column_count) != STL_OK) {
-        free(cursor);
-        return NULL;
-    }
     cursor->doc = doc;
     cursor->next_row = first_row;
     cursor->current_row = (size_t)-1;
@@ -219,7 +218,7 @@ csv_cursor_t *csv_cursor_new(const csv_doc_t *doc, size_t first_row) {
 
 void csv_cursor_free(csv_cursor_t *cursor) {
     if (!cursor) return;
-    vec_destroy(&cursor->fields);
+    free(cursor->fields);
     free(cursor);
 }
 
@@ -232,7 +231,6 @@ int csv_cursor_rewind(csv_cursor_t *cursor, size_t first_row) {
     cursor->current_field_count = 0;
     cursor->fields_valid = 0;
     cursor->error = 0;
-    vec_clear(&cursor->fields);
     return 0;
 }
 
@@ -246,7 +244,6 @@ int csv_cursor_next(csv_cursor_t *cursor) {
         cursor->current_fields = NULL;
         cursor->current_field_count = 0;
         cursor->fields_valid = 0;
-        vec_clear(&cursor->fields);
         return 0;
     }
 
@@ -262,7 +259,6 @@ int csv_cursor_next(csv_cursor_t *cursor) {
     cursor->current_fields = field;
     cursor->current_field_count = row->field_count;
     cursor->fields_valid = 0;
-    vec_clear(&cursor->fields);
     return 1;
 }
 
@@ -284,18 +280,26 @@ const vstr *csv_cursor_fields(const csv_cursor_t *cursor, size_t *field_count) {
         return NULL;
     }
     if (!cursor->fields_valid) {
-        if (vec_resize(&mutable_cursor->fields, cursor->current_field_count) !=
-            STL_OK) {
-            mutable_cursor->error = 1;
-            if (field_count) *field_count = 0;
-            return NULL;
+        if (cursor->current_field_count > cursor->fields_capacity) {
+            if (cursor->current_field_count > SIZE_MAX / sizeof(vstr)) {
+                mutable_cursor->error = 1;
+                if (field_count) *field_count = 0;
+                return NULL;
+            }
+            vstr *fields = realloc(mutable_cursor->fields, cursor->current_field_count * sizeof(vstr));
+            if (!fields) {
+                mutable_cursor->error = 1;
+                if (field_count) *field_count = 0;
+                return NULL;
+            }
+            mutable_cursor->fields = fields;
+            mutable_cursor->fields_capacity = cursor->current_field_count;
         }
-        views = (vstr *)vec_data(&mutable_cursor->fields);
+        views = mutable_cursor->fields;
         field = cursor->current_fields;
-        for (index = 0; index < vec_size(&cursor->fields); ++index) {
+        for (index = 0; index < cursor->current_field_count; ++index) {
             if (!field) {
                 mutable_cursor->error = 1;
-                vec_clear(&mutable_cursor->fields);
                 if (field_count) *field_count = 0;
                 return NULL;
             }
@@ -304,9 +308,9 @@ const vstr *csv_cursor_fields(const csv_cursor_t *cursor, size_t *field_count) {
         }
         mutable_cursor->fields_valid = 1;
     }
-    if (field_count) *field_count = vec_size(&cursor->fields);
-    if (vec_empty(&cursor->fields)) return NULL;
-    return (const vstr *)vec_data_const(&cursor->fields);
+    if (field_count) *field_count = cursor->current_field_count;
+    if (cursor->current_field_count == 0) return NULL;
+    return cursor->fields;
 }
 
 vstr csv_cursor_field_v(const csv_cursor_t *cursor, size_t col) {
@@ -546,7 +550,7 @@ csv_doc_t *csv_parse_opts(const char *content, size_t len, const csv_options_t *
         int ret;
         if (!current_row) {
             fmt_text(g_error_msg, sizeof(g_error_msg), "Out of memory parsing CSV rows");
-            vec_destroy(&doc->row_index);
+            free(doc->row_index);
             csv_arena_free(arena);
             return NULL;
         }
@@ -570,7 +574,7 @@ csv_doc_t *csv_parse_opts(const char *content, size_t len, const csv_options_t *
                     if (current_row->field_count > 0) {
                         if (csv_doc_add_row(doc, current_row) != 0) {
                             fmt_text(g_error_msg, sizeof(g_error_msg), "Out of memory indexing CSV rows");
-                            vec_destroy(&doc->row_index);
+                            free(doc->row_index);
                             csv_arena_free(arena);
                             return NULL;
                         }
@@ -578,7 +582,7 @@ csv_doc_t *csv_parse_opts(const char *content, size_t len, const csv_options_t *
                     current_row = csv_row_new_arena(arena);
                     if (!current_row) {
                         fmt_text(g_error_msg, sizeof(g_error_msg), "Out of memory parsing CSV rows");
-                        vec_destroy(&doc->row_index);
+                        free(doc->row_index);
                         csv_arena_free(arena);
                         return NULL;
                     }
@@ -590,7 +594,7 @@ csv_doc_t *csv_parse_opts(const char *content, size_t len, const csv_options_t *
         if (current_row && current_row->field_count > 0) {
             if (csv_doc_add_row(doc, current_row) != 0) {
                 fmt_text(g_error_msg, sizeof(g_error_msg), "Out of memory indexing CSV rows");
-                vec_destroy(&doc->row_index);
+                free(doc->row_index);
                 csv_arena_free(arena);
                 return NULL;
             }
@@ -598,7 +602,7 @@ csv_doc_t *csv_parse_opts(const char *content, size_t len, const csv_options_t *
 
         if (ret < 0) {
             fmt(g_error_msg, sizeof(g_error_msg), "{}", lexer.error);
-            vec_destroy(&doc->row_index);
+            free(doc->row_index);
             csv_arena_free(arena);
             return NULL;
         }
@@ -606,7 +610,7 @@ csv_doc_t *csv_parse_opts(const char *content, size_t len, const csv_options_t *
         csv_dom_scan_ctx_t scan = { doc, arena, NULL };
         if (csv_scan_opts(content, len, &normalized, csv_dom_scan_field, csv_dom_scan_row_end,
                           &scan, g_error_msg, sizeof(g_error_msg)) != 0) {
-            vec_destroy(&doc->row_index);
+            free(doc->row_index);
             csv_arena_free(arena);
             return NULL;
         }
@@ -616,13 +620,8 @@ csv_doc_t *csv_parse_opts(const char *content, size_t len, const csv_options_t *
     if (normalized.has_header && doc->rows) {
         doc->header = doc->rows;
         doc->rows = doc->rows->next;
-        if (vec_erase(&doc->row_index, 0, NULL) != STL_OK) {
-            fmt_text(g_error_msg, sizeof(g_error_msg), "Failed to index CSV header");
-            vec_destroy(&doc->row_index);
-            csv_arena_free(arena);
-            return NULL;
-        }
-        doc->row_count = vec_size(&doc->row_index);
+        --doc->row_count;
+        memmove(doc->row_index, doc->row_index + 1, doc->row_count * sizeof(*doc->row_index));
         if (!doc->rows) doc->rows_tail = NULL;
     }
 
@@ -668,7 +667,7 @@ csv_doc_t *csv_parse_file_opts(const char *filename, const csv_options_t *opts) 
 
 void csv_free(csv_doc_t *doc) {
     if (!doc) return;
-    vec_destroy(&doc->row_index);
+    free(doc->row_index);
     csv_arena_free(doc->arena);
 }
 

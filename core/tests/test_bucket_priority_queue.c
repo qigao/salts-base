@@ -1,4 +1,4 @@
-#include "bucket_priority_queue.h"
+#include <queue/bucket_priority_queue.h>
 #include "tinytest.h"
 
 #include <stdbool.h>

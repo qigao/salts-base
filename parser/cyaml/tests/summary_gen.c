@@ -6,7 +6,7 @@
 #endif
 #endif
 
-#include "cyaml.h"
+#include <cyaml.h>
 #define TEST_RESULTS_IMPL
 #include "test_results.h"
 

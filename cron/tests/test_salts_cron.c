@@ -1,5 +1,5 @@
 #include <tinytest.h>
-#include "salts_cron.h"
+#include "cron.h"
 
 #include <stdio.h>
 #include <string.h>

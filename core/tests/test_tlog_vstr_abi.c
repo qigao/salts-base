@@ -1,4 +1,4 @@
-#include "tlog.h"
+#include <salts/tlog.h>
 #include "tinytest.h"
 #include <stddef.h>
 #include <string.h>
@@ -16,7 +16,7 @@ static void capture_view(char *dst, size_t dst_size, size_t *dst_len, vstr value
   *dst_len = n;
 }
 
-static void capture_views(const cmeta_log_entry_t *entry, void *user_data) {
+static void capture_views(const log_entry_t *entry, void *user_data) {
   (void)user_data;
   capture_view(captured_component, sizeof(captured_component), &captured_component_len,
                entry->component);
@@ -27,10 +27,10 @@ static void capture_views(const cmeta_log_entry_t *entry, void *user_data) {
 
 spec("TLog vstr ABI contract") {
   it("exposes seven-field view-native reflection") {
-    const tlog_struct_desc *meta = cmeta_log_entry_t_meta();
+    const tlog_struct_desc *meta = log_entry_t_meta();
     const char *names[] = {"level", "timestamp_ms", "thread_id", "component",
                            "file", "line", "message"};
-    const char *types[] = {"cmeta_log_level_t", "uint64_t", "uint32_t", "vstr",
+    const char *types[] = {"log_level_t", "uint64_t", "uint32_t", "vstr",
                            "vstr", "int", "vstr"};
 
     check_not_null(meta);
@@ -47,13 +47,13 @@ spec("TLog vstr ABI contract") {
     const char file_raw[] = {'f', '.', 'c'};
     const char message_raw[] = {'h', 'e', 'l', 'l', 'o'};
     tlog_t *logger = tlog_create(NULL);
-    cmeta_log_sink_t *sink = cmeta_sink_callback_create(capture_views, NULL);
+    log_sink_t *sink = sink_callback_create(capture_views, NULL);
 
     check_not_null(logger);
     check_not_null(sink);
     check_equal(tlog_add_sink(logger, sink), 0);
 
-    cmeta_log_str(logger, SALTS_LOG_LEVEL_INFO,
+    log_str(logger, SALTS_LOG_LEVEL_INFO,
                   vstr_from_buf(component_raw, sizeof(component_raw)),
                   vstr_from_buf(file_raw, sizeof(file_raw)), 17,
                   vstr_from_buf(message_raw, sizeof(message_raw)));
@@ -77,13 +77,13 @@ spec("TLog vstr ABI contract") {
     const char expected_file[] = {'a', '.', 'c'};
     const char expected_message[] = {'b', 'e', 'f', 'o', 'r', 'e'};
     tlog_t *logger = tlog_create(NULL);
-    cmeta_log_sink_t *sink = cmeta_sink_callback_create(capture_views, NULL);
+    log_sink_t *sink = sink_callback_create(capture_views, NULL);
 
     check_not_null(logger);
     check_not_null(sink);
     check_equal(tlog_add_sink(logger, sink), 0);
 
-    cmeta_log_str(logger, SALTS_LOG_LEVEL_INFO,
+    log_str(logger, SALTS_LOG_LEVEL_INFO,
                   vstr_from_buf(component_raw, sizeof(component_raw)),
                   vstr_from_buf(file_raw, sizeof(file_raw)), 3,
                   vstr_from_buf(message_raw, sizeof(message_raw)));
@@ -103,13 +103,13 @@ spec("TLog vstr ABI contract") {
     const char pattern_raw[] = {'[', '{', '}', ']'};
     fmt_arg_t arg = fmt_arg_int(42);
     tlog_t *logger = tlog_create(NULL);
-    cmeta_log_sink_t *sink = cmeta_sink_callback_create(capture_views, NULL);
+    log_sink_t *sink = sink_callback_create(capture_views, NULL);
 
     check_not_null(logger);
     check_not_null(sink);
     check_equal(tlog_add_sink(logger, sink), 0);
 
-    cmeta_log_typed(logger, SALTS_LOG_LEVEL_INFO,
+    log_typed(logger, SALTS_LOG_LEVEL_INFO,
                     vstr_from_buf("typed", 5), (vstr){NULL, 0}, 0,
                     vstr_from_buf(pattern_raw, sizeof(pattern_raw)), &arg, 1U);
     tlog_flush(logger);

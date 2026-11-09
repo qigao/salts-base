@@ -12,7 +12,7 @@ target_compile_features(saltscore_tinytest PUBLIC c_std_11)
 target_include_directories(saltscore_tinytest PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-install(TARGETS saltscore_tinytest EXPORT SaltsCoreTargets
+install(TARGETS saltscore_tinytest EXPORT SaltsBaseTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(FILES include/tinytest.h include/tinytest.hpp
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

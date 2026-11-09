@@ -1,8 +1,8 @@
 #ifndef STREAM_PARSER_H
 #define STREAM_PARSER_H
 
-#include "frame.h"
-#include "parser_error.h"
+#include <frame.h>
+#include <parser_error.h>
 #include <stddef.h>
 #include <stdint.h>
 

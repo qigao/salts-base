@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "toml.h"
+#include <toml.h>
 
 int failed = 0;
 

@@ -1,7 +1,7 @@
 #ifndef SALTS_MEM_H
 #define SALTS_MEM_H
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 #ifdef __cplusplus
   #include <atomic>
   #define ATOMIC_SIZE_T std::atomic<size_t>

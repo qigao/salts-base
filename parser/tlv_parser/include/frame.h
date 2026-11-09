@@ -1,10 +1,10 @@
 #ifndef FRAME_H
 #define FRAME_H
 
-#include "crc32.h"  // New
-#include "endian.h" // Your provided endianness code
-#include "memory_pool.h"
-#include "parser_error.h"
+#include <crc32.h>  // New
+#include <endian.h> // Your provided endianness code
+#include <memory/memory_pool.h>
+#include <parser_error.h>
 #include <stddef.h>
 #include <stdint.h>
 

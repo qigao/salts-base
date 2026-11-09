@@ -3,14 +3,14 @@
  * It verifies every node and source/metadata byte, not just parse success.
  * It is NOT a full CommonMark/GFM HTML conformance runner.
  */
-#include <salts/markdown.h>
+#include <markdown.h>
 
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
 typedef struct {
-    salts_md_block_kind kind;
+    md_block_kind kind;
     uint32_t parent;
     uint32_t level;
     const char *text;  /* required only for TEXT nodes */
@@ -112,17 +112,17 @@ static int same_bytes(const char *actual, size_t actual_len,
 }
 
 static int check_fixture(const fixture *f) {
-    salts_md_document *doc = NULL;
+    md_document *doc = NULL;
     const size_t size = strlen(f->markdown);
-    const salts_md_status rc = salts_md_parse(
+    const md_status rc = md_parse(
         f->markdown, size, 256u, size + 1u, &doc);
     if (rc != SALTS_MD_OK || doc == NULL) {
         fprintf(stderr, "%s: parse rc=%d, doc=%p\n",f->name,(int)rc,(void *)doc);
         return 1;
     }
-    const salts_md_rich_document_view view = salts_md_get_document_view(doc);
+    const md_rich_document_view view = md_get_document_view(doc);
     int failed = 0;
-    if (salts_md_rich_document_validate(&view,256u) != SALTS_MD_OK ||
+    if (md_rich_document_validate(&view,256u) != SALTS_MD_OK ||
         view.raw_markdown_bytes != size ||
         memcmp(view.raw_markdown, f->markdown, size) != 0 ||
         view.document.block_count != f->count) {
@@ -132,7 +132,7 @@ static int check_fixture(const fixture *f) {
         goto finish;
     }
     for (size_t i = 0; i < f->count; ++i) {
-        const salts_md_block *got = &view.document.blocks[i];
+        const md_block *got = &view.document.blocks[i];
         const expected_node *exp = &f->nodes[i];
         if (got->kind != exp->kind ||
             got->parent_index != exp->parent ||
@@ -161,7 +161,7 @@ static int check_fixture(const fixture *f) {
         }
         const char *metadata = NULL;
         size_t length = SIZE_MAX;
-        if(salts_md_rich_document_metadata(&view,i,&metadata,&length)
+        if(md_rich_document_metadata(&view,i,&metadata,&length)
                 != SALTS_MD_OK) {
             fprintf(stderr,"%s: node %zu metadata lookup failed\n",f->name,i);
             failed=1;
@@ -171,7 +171,7 @@ static int check_fixture(const fixture *f) {
         if((got->kind==SALTS_MD_BLOCK_LIST ||
             got->kind==SALTS_MD_BLOCK_ORDERED_LIST) &&
            exp->metadata==NULL) {
-            salts_md_list_semantics info={0};
+            md_list_semantics info={0};
             if(metadata && length==sizeof(info)) {
                 memcpy(&info,metadata,sizeof(info));
                 const bool ordered=got->kind==SALTS_MD_BLOCK_ORDERED_LIST;
@@ -188,7 +188,7 @@ static int check_fixture(const fixture *f) {
         }
     }
 finish:
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failed;
 }
 

@@ -2,7 +2,7 @@
   "version": 6,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 25,
+    "minor": 27,
     "patch": 0
   },
   "include": [
@@ -16,7 +16,7 @@
       "hidden": true,
       "environment": {
         "PATH": "${sourceDir}/build/${presetName}/bin${pathListSep}$env{VCPKG_INSTALLED_DIR}/$env{VCPKG_TARGET_TRIPLET}/$env{VCPKG_CONFIGURATION_SUBDIR}bin${pathListSep}$env{VCPKG_INSTALLED_DIR}/$env{VCPKG_TARGET_TRIPLET}/bin${pathListSep}$penv{PATH}",
-        "LD_LIBRARY_PATH": "$env{VCPKG_INSTALLED_DIR}/$env{VCPKG_TARGET_TRIPLET}/$env{VCPKG_CONFIGURATION_SUBDIR}lib${pathListSep}$env{VCPKG_INSTALLED_DIR}/$env{VCPKG_TARGET_TRIPLET}/lib${pathListSep}$penv{LD_LIBRARY_PATH}"
+        "LD_LIBRARY_PATH": "${sourceDir}/build/${presetName}/bin${pathListSep}$env{VCPKG_INSTALLED_DIR}/$env{VCPKG_TARGET_TRIPLET}/$env{VCPKG_CONFIGURATION_SUBDIR}lib${pathListSep}$env{VCPKG_INSTALLED_DIR}/$env{VCPKG_TARGET_TRIPLET}/lib${pathListSep}$penv{LD_LIBRARY_PATH}"
       }
     },
     {
@@ -25,8 +25,7 @@
       "inherits": [
         "ISNative",
         "base",
-        "release-mode",
-        "selected-toolchain"
+        "release-mode"
       ],
       "cacheVariables": {
         "BUILD_TESTS": "ON"
@@ -58,7 +57,7 @@
         "release-mode"
       ],
       "cacheVariables": {
-        "ANDROID_ABI": "$env{SALTSCORE_ANDROID_ABI}"
+        "CMAKE_ANDROID_ARCH_ABI": "$env{ANDROID_ABI}"
       }
     }
   ]

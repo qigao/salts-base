@@ -1,7 +1,7 @@
 /* #181 bounded root blockquote lazy-continuation conformance.
  * Official example IDs remain independently gated against spec.txt. */
-#include <salts/markdown.h>
-#include <salts/markdown_html.h>
+#include <markdown.h>
+#include <markdown_html.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,13 +46,13 @@ _Static_assert(sizeof(cases)/sizeof(cases[0])==15u,
                "Quote continuation fixture count changed");
 
 static int check_fixture(const quote_fixture *f) {
-    salts_md_document *doc=NULL;
+    md_document *doc=NULL;
     const size_t len=strlen(f->markdown);
-    if(salts_md_parse(f->markdown,len,256u,len+1u,&doc)!=SALTS_MD_OK ||
+    if(md_parse(f->markdown,len,256u,len+1u,&doc)!=SALTS_MD_OK ||
        !doc) {fprintf(stderr,"%s: failed parse\n",f->name);return 1;}
-    const salts_md_rich_document_view view=salts_md_get_document_view(doc);
+    const md_rich_document_view view=md_get_document_view(doc);
     int failed=0;size_t quoted=0,needed=0;
-    if(salts_md_rich_document_validate(&view,256u)!=SALTS_MD_OK ||
+    if(md_rich_document_validate(&view,256u)!=SALTS_MD_OK ||
        view.raw_markdown_bytes!=len ||
        memcmp(view.raw_markdown,f->markdown,len)!=0) failed=1;
     for(size_t i=0;i<view.document.block_count&&!failed;++i) {
@@ -61,7 +61,7 @@ static int check_fixture(const quote_fixture *f) {
         if(view.document.blocks[i].parent_index!=0u) failed=1;
     }
     if(quoted!=f->quote_count) failed=1;
-    if(!failed && salts_md_render_html(&view,256u,NULL,0u,&needed)
+    if(!failed && md_render_html(&view,256u,NULL,0u,&needed)
             !=SALTS_MD_OK) failed=1;
     if(!failed && needed!=strlen(f->html)) failed=1;
     if(!failed) {
@@ -70,13 +70,13 @@ static int check_fixture(const quote_fixture *f) {
         else {
             memset(output,0xa5,needed+2u);
             size_t measured=0;
-            if(salts_md_render_html(&view,256u,output,needed,&measured)
+            if(md_render_html(&view,256u,output,needed,&measured)
                     !=SALTS_MD_CAPACITY_EXCEEDED || measured!=needed)
                 failed=1;
             for(size_t k=0;k<needed+2u;++k)
                 if((unsigned char)output[k]!=0xa5u) failed=1;
             if(!failed &&
-               salts_md_render_html(&view,256u,output,needed+1u,&measured)
+               md_render_html(&view,256u,output,needed+1u,&measured)
                    !=SALTS_MD_OK) failed=1;
             if(!failed && (measured!=needed ||
                memcmp(output,f->html,needed+1u)!=0 ||
@@ -89,7 +89,7 @@ static int check_fixture(const quote_fixture *f) {
             free(output);
         }
     }
-    salts_md_document_destroy(doc);
+    md_document_destroy(doc);
     return failed;
 }
 int main(void) {

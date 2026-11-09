@@ -11,7 +11,7 @@
 
 #include "miniaudio.h"
 
-#include "capture.h"
+#include <capture.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -28,13 +28,13 @@ typedef struct {
     ma_context context;
     int context_initialized;
 
-    salts_audio_capture_config_t config;
-    salts_capture_t *capture;
+    audio_capture_config_t config;
+    capture_t *capture;
 
     /* PRIVATE C11 callback admission gate. The public capture->state is a
      * control-plane field (plain enum) and must never be read by the native
      * miniaudio callback concurrently with start/stop writes. This private
-     * atomic does not change the published salts_capture_t ABI. */
+     * atomic does not change the published capture_t ABI. */
     atomic_bool callback_admitted;
 
     /* Monotonic sample counter for timestamp derivation, owned per device. */
@@ -59,7 +59,7 @@ static void audio_capture_callback(ma_device *pDevice, void *pOutput,
                               memory_order_acquire)) return;
     /* Hosts install callbacks before start and do not mutate their callback
      * registration while a native device callback is in flight. */
-    salts_audio_capture_cb cb = ctx->capture->audio_cb;
+    audio_capture_cb cb = ctx->capture->audio_cb;
     if (!cb) return;
 
     size_t bytes_per_sample = (ctx->config.bits_per_sample == 32) ? 4 : 2;
@@ -77,7 +77,7 @@ static void audio_capture_callback(ma_device *pDevice, void *pOutput,
  * Device Enumeration
  * ============================================================================= */
 
-int salts_capture_list_audio_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_audio_devices(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     ma_context context;
@@ -98,7 +98,7 @@ int salts_capture_list_audio_devices(salts_capture_device_t *devices, int max_co
 
     int count = 0;
     for (ma_uint32 i = 0; i < capture_count && count < max_count; i++) {
-        salts_capture_device_t *dev = &devices[count];
+        capture_device_t *dev = &devices[count];
         memset(dev, 0, sizeof(*dev));
 
         dev->index = count;
@@ -122,8 +122,8 @@ int salts_capture_list_audio_devices(salts_capture_device_t *devices, int max_co
  * Audio Capture Creation
  * ============================================================================= */
 
-salts_capture_t *salts_audio_capture_create(const char *device_id,
-                                             const salts_audio_capture_config_t *config) {
+capture_t *audio_capture_create(const char *device_id,
+                                             const audio_capture_config_t *config) {
     if (config &&
         ((config->sample_rate != 8000 && config->sample_rate != 16000 &&
           config->sample_rate != 24000 && config->sample_rate != 48000) ||
@@ -133,7 +133,7 @@ salts_capture_t *salts_audio_capture_create(const char *device_id,
         return NULL;
     }
 
-    salts_capture_t *capture = (salts_capture_t *)calloc(1, sizeof(salts_capture_t));
+    capture_t *capture = (capture_t *)calloc(1, sizeof(capture_t));
     if (!capture) return NULL;
 
     miniaudio_capture_ctx_t *ctx = (miniaudio_capture_ctx_t *)calloc(1, sizeof(miniaudio_capture_ctx_t));
@@ -229,8 +229,8 @@ salts_capture_t *salts_audio_capture_create(const char *device_id,
  * Callback Setup
  * ============================================================================= */
 
-void salts_audio_capture_set_callback(salts_capture_t *capture,
-                                       salts_audio_capture_cb cb,
+void audio_capture_set_callback(capture_t *capture,
+                                       audio_capture_cb cb,
                                        void *user_data) {
     if (!capture) return;
     capture->audio_cb = cb;
@@ -241,7 +241,7 @@ void salts_audio_capture_set_callback(salts_capture_t *capture,
  * Platform Hooks (called from capture dispatcher)
  * ============================================================================= */
 
-int miniaudio_audio_start(salts_capture_t *capture) {
+int miniaudio_audio_start(capture_t *capture) {
     if (!capture || !capture->platform_ctx) return -1;
     miniaudio_capture_ctx_t *ctx = (miniaudio_capture_ctx_t *)capture->platform_ctx;
 
@@ -260,7 +260,7 @@ int miniaudio_audio_start(salts_capture_t *capture) {
     return SALTS_CAPTURE_OK;
 }
 
-void miniaudio_audio_stop(salts_capture_t *capture) {
+void miniaudio_audio_stop(capture_t *capture) {
     if (!capture || !capture->platform_ctx) return;
     miniaudio_capture_ctx_t *ctx = (miniaudio_capture_ctx_t *)capture->platform_ctx;
 
@@ -272,7 +272,7 @@ void miniaudio_audio_stop(salts_capture_t *capture) {
     ma_device_stop(&ctx->device);
 }
 
-void miniaudio_audio_destroy(salts_capture_t *capture) {
+void miniaudio_audio_destroy(capture_t *capture) {
     if (!capture) return;
 
     miniaudio_capture_ctx_t *ctx = (miniaudio_capture_ctx_t *)capture->platform_ctx;
@@ -292,29 +292,29 @@ void miniaudio_audio_destroy(salts_capture_t *capture) {
 }
 
 #if defined(__linux__) && !defined(__ANDROID__)
-int linux_audio_start(salts_capture_t *capture) {
+int linux_audio_start(capture_t *capture) {
     return miniaudio_audio_start(capture);
 }
 
-void linux_audio_stop(salts_capture_t *capture) {
+void linux_audio_stop(capture_t *capture) {
     miniaudio_audio_stop(capture);
 }
 
-void linux_audio_destroy(salts_capture_t *capture) {
+void linux_audio_destroy(capture_t *capture) {
     miniaudio_audio_destroy(capture);
 }
 #endif
 
 #if defined(__APPLE__) && defined(__MACH__)
-int coreaudio_start(salts_capture_t *capture) {
+int coreaudio_start(capture_t *capture) {
     return miniaudio_audio_start(capture);
 }
 
-void coreaudio_stop(salts_capture_t *capture) {
+void coreaudio_stop(capture_t *capture) {
     miniaudio_audio_stop(capture);
 }
 
-void coreaudio_destroy(salts_capture_t *capture) {
+void coreaudio_destroy(capture_t *capture) {
     miniaudio_audio_destroy(capture);
 }
 #endif

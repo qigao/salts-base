@@ -1,19 +1,19 @@
 /**
  * iOS Screen Capture Implementation
  *
- * Uses ReplayKit and emits contiguous NV12 frames through salts_video_capture_cb.
+ * Uses ReplayKit and emits contiguous NV12 frames through video_capture_cb.
  */
 
 #import <Foundation/Foundation.h>
 #import <ReplayKit/ReplayKit.h>
 #import "capture_ios_guard.h"
-#include "capture.h"
+#include <capture.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
 typedef struct {
-    salts_capture_t base;
+    capture_t base;
     RPScreenRecorder *recorder;
     uint8_t *frame_buffer;
     size_t frame_buffer_size;
@@ -77,7 +77,7 @@ static uint8_t *copy_nv12_frame(ios_screen_capture_t *cap,
     return cap->frame_buffer;
 }
 
-int ios_screen_start(salts_capture_t *capture) {
+int ios_screen_start(capture_t *capture) {
     ios_screen_capture_t *cap = (ios_screen_capture_t *)capture;
 
     @autoreleasepool {
@@ -124,7 +124,7 @@ int ios_screen_start(salts_capture_t *capture) {
                 if (frame) {
                     CMTime pts = CMSampleBufferGetPresentationTimeStamp(sample_buffer);
                     uint64_t timestamp = (uint64_t)(CMTimeGetSeconds(pts) * 1000000.0);
-                    cap_ref->base.video_cb((salts_capture_t *)cap_ref, frame, len,
+                    cap_ref->base.video_cb((capture_t *)cap_ref, frame, len,
                                            width, height, timestamp,
                                            cap_ref->base.user_data);
                 }
@@ -140,7 +140,7 @@ int ios_screen_start(salts_capture_t *capture) {
                     cap_ref->is_running = 0;
                     cap_ref->base.state = SALTS_CAPTURE_STATE_ERROR;
                     if (cap_ref->base.state_cb) {
-                        cap_ref->base.state_cb((salts_capture_t *)cap_ref,
+                        cap_ref->base.state_cb((capture_t *)cap_ref,
                                                cap_ref->base.state,
                                                cap_ref->base.user_data);
                     }
@@ -154,7 +154,7 @@ int ios_screen_start(salts_capture_t *capture) {
     }
 }
 
-void ios_screen_stop(salts_capture_t *capture) {
+void ios_screen_stop(capture_t *capture) {
     ios_screen_capture_t *cap = (ios_screen_capture_t *)capture;
 
     @autoreleasepool {
@@ -171,7 +171,7 @@ void ios_screen_stop(salts_capture_t *capture) {
     }
 }
 
-void ios_screen_destroy(salts_capture_t *capture) {
+void ios_screen_destroy(capture_t *capture) {
     ios_screen_capture_t *cap = (ios_screen_capture_t *)capture;
 
     @autoreleasepool {
@@ -184,7 +184,7 @@ void ios_screen_destroy(salts_capture_t *capture) {
     }
 }
 
-salts_capture_t *salts_screen_capture_create(const salts_screen_capture_config_t *config) {
+capture_t *screen_capture_create(const screen_capture_config_t *config) {
     (void)config;
 
     @autoreleasepool {
@@ -209,6 +209,6 @@ salts_capture_t *salts_screen_capture_create(const salts_screen_capture_config_t
             return NULL;
         }
 
-        return (salts_capture_t *)cap;
+        return (capture_t *)cap;
     }
 }

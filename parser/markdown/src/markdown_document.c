@@ -1,14 +1,14 @@
-#include <salts/markdown.h>
+#include <markdown.h>
 #include <limits.h>
 #include <stdint.h>
 
-static bool valid_block_kind(salts_md_block_kind kind) {
+static bool valid_block_kind(md_block_kind kind) {
     return kind >= SALTS_MD_BLOCK_DOCUMENT &&
            kind <= SALTS_MD_BLOCK_URI_AUTOLINK;
 }
 
-salts_md_status salts_md_document_validate(
-    const salts_md_document_view *view, size_t max_blocks) {
+md_status md_document_validate(
+    const md_document_view *view, size_t max_blocks) {
     if (!view || !view->blocks || !view->block_count ||
         (!view->source && view->source_bytes))
         return SALTS_MD_INVALID_ARGUMENT;
@@ -16,7 +16,7 @@ salts_md_status salts_md_document_validate(
         view->block_count > UINT32_MAX)
         return SALTS_MD_CAPACITY_EXCEEDED;
     for (size_t i = 0; i < view->block_count; ++i) {
-        const salts_md_block *block = &view->blocks[i];
+        const md_block *block = &view->blocks[i];
         if (!block->stable_id || !valid_block_kind(block->kind) ||
             (i == 0 ? block->parent_index != SALTS_MD_PARENT_NONE
                     : block->parent_index >= i) ||
@@ -50,17 +50,17 @@ salts_md_status salts_md_document_validate(
     return SALTS_MD_OK;
 }
 
-salts_md_status salts_md_document_visit(
-    const salts_md_document_view *view, size_t max_blocks,
-    salts_md_document_visit_fn visit, void *context) {
+md_status md_document_visit(
+    const md_document_view *view, size_t max_blocks,
+    md_document_visit_fn visit, void *context) {
     if (!visit) return SALTS_MD_INVALID_ARGUMENT;
-    const salts_md_status status = salts_md_document_validate(view, max_blocks);
+    const md_status status = md_document_validate(view, max_blocks);
     if (status != SALTS_MD_OK) return status;
     for (size_t i = 0; i < view->block_count; ++i) {
-        const salts_md_block *block = &view->blocks[i];
+        const md_block *block = &view->blocks[i];
         const char *span = view->source
             ? view->source + block->byte_begin : NULL;
-        const salts_md_status result = visit(
+        const md_status result = visit(
             block, span, block->byte_end - block->byte_begin, context);
         if (result != SALTS_MD_OK) return result;
     }
@@ -69,18 +69,18 @@ salts_md_status salts_md_document_visit(
 
 /* A RichDoc contains exact semantic text ranges and a separate borrowed
  * metadata byte arena. Both must remain valid throughout a traversal. */
-salts_md_status salts_md_rich_document_validate(
-    const salts_md_rich_document_view *view, size_t max_blocks) {
+md_status md_rich_document_validate(
+    const md_rich_document_view *view, size_t max_blocks) {
     if (!view || view->block_metadata_count != view->document.block_count ||
         !view->block_metadata ||
         (!view->metadata && view->metadata_bytes) ||
         (!view->raw_markdown && view->raw_markdown_bytes))
         return SALTS_MD_INVALID_ARGUMENT;
-    salts_md_status status =
-        salts_md_document_validate(&view->document, max_blocks);
+    md_status status =
+        md_document_validate(&view->document, max_blocks);
     if (status != SALTS_MD_OK) return status;
     for (size_t i=0; i<view->block_metadata_count; ++i) {
-        const salts_md_block_metadata *m = &view->block_metadata[i];
+        const md_block_metadata *m = &view->block_metadata[i];
         if (m->byte_begin > m->byte_end ||
             m->byte_end > view->metadata_bytes)
             return SALTS_MD_INVALID_ARGUMENT;
@@ -88,14 +88,14 @@ salts_md_status salts_md_rich_document_validate(
     return SALTS_MD_OK;
 }
 
-salts_md_status salts_md_rich_document_metadata(
-    const salts_md_rich_document_view *view, size_t node_index,
+md_status md_rich_document_metadata(
+    const md_rich_document_view *view, size_t node_index,
     const char **out_bytes, size_t *out_length) {
     if (!view || !out_bytes || !out_length ||
         node_index >= view->block_metadata_count ||
         !view->block_metadata)
         return SALTS_MD_INVALID_ARGUMENT;
-    const salts_md_block_metadata range = view->block_metadata[node_index];
+    const md_block_metadata range = view->block_metadata[node_index];
     if (range.byte_begin > range.byte_end ||
         range.byte_end > view->metadata_bytes ||
         (!view->metadata && view->metadata_bytes))

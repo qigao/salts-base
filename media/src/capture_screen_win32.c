@@ -25,7 +25,7 @@
 #include <stdio.h>
 
 #endif /* _WIN32 */
-#include "capture.h"
+#include <capture.h>
 
 #ifdef _WIN32
 
@@ -74,7 +74,7 @@ static void wide_to_utf8_screen(const WCHAR *wide, char *utf8, size_t utf8_len) 
     WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8, (int)utf8_len, NULL, NULL);
 }
 
-int salts_capture_list_gpu_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_gpu_devices(capture_device_t *devices, int max_count) {
     IDXGIFactory1 *factory = NULL;
     HRESULT hr;
     UINT adapter_index;
@@ -88,7 +88,7 @@ int salts_capture_list_gpu_devices(salts_capture_device_t *devices, int max_coun
     for (adapter_index = 0; count < max_count; ++adapter_index) {
         IDXGIAdapter1 *adapter = NULL;
         DXGI_ADAPTER_DESC1 desc;
-        salts_capture_device_t *dev;
+        capture_device_t *dev;
 
         hr = IDXGIFactory1_EnumAdapters1(factory, adapter_index, &adapter);
         if (hr == DXGI_ERROR_NOT_FOUND) break;
@@ -225,7 +225,7 @@ static void cleanup_dxgi(dxgi_screen_capture_ctx_t *ctx) {
  * ============================================================================= */
 
 static DWORD WINAPI dxgi_screen_capture_thread(LPVOID param) {
-    salts_capture_t *capture = (salts_capture_t *)param;
+    capture_t *capture = (capture_t *)param;
     dxgi_screen_capture_ctx_t *ctx = (dxgi_screen_capture_ctx_t *)capture->platform_ctx;
 
     capture->state = SALTS_CAPTURE_STATE_RUNNING;
@@ -334,7 +334,7 @@ static DWORD WINAPI dxgi_screen_capture_thread(LPVOID param) {
  * Screen Enumeration
  * ============================================================================= */
 
-int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
+int capture_list_screens(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     HRESULT hr;
@@ -358,7 +358,7 @@ int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
             DXGI_OUTPUT_DESC desc;
             hr = IDXGIOutput_GetDesc(output, &desc);
             if (SUCCEEDED(hr)) {
-                salts_capture_device_t *dev = &devices[count];
+                capture_device_t *dev = &devices[count];
                 memset(dev, 0, sizeof(*dev));
 
                 dev->index = count;
@@ -390,8 +390,8 @@ int salts_capture_list_screens(salts_capture_device_t *devices, int max_count) {
  * Screen Capture Implementation
  * ============================================================================= */
 
-salts_capture_t *salts_screen_capture_create(const salts_screen_capture_config_t *config) {
-    salts_capture_t *capture = (salts_capture_t *)calloc(1, sizeof(salts_capture_t));
+capture_t *screen_capture_create(const screen_capture_config_t *config) {
+    capture_t *capture = (capture_t *)calloc(1, sizeof(capture_t));
     if (!capture) return NULL;
 
     dxgi_screen_capture_ctx_t *ctx = (dxgi_screen_capture_ctx_t *)calloc(1, sizeof(dxgi_screen_capture_ctx_t));
@@ -415,22 +415,22 @@ salts_capture_t *salts_screen_capture_create(const salts_screen_capture_config_t
 
     /* Initialize DXGI */
     if (init_dxgi(ctx) != 0) {
-        salts_capture_destroy(capture);
+        capture_destroy(capture);
         return NULL;
     }
 
     /* Create stop event */
     ctx->stop_event = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (!ctx->stop_event) {
-        salts_capture_destroy(capture);
+        capture_destroy(capture);
         return NULL;
     }
 
     return capture;
 }
 
-void salts_screen_capture_set_callback(salts_capture_t *capture,
-                                         salts_video_capture_cb cb,
+void screen_capture_set_callback(capture_t *capture,
+                                         video_capture_cb cb,
                                          void *user_data) {
     if (!capture) return;
     capture->video_cb = cb;
@@ -441,7 +441,7 @@ void salts_screen_capture_set_callback(salts_capture_t *capture,
  * Hooks for centralized dispatcher
  * ============================================================================= */
 
-int dxgi_screen_start(salts_capture_t *capture) {
+int dxgi_screen_start(capture_t *capture) {
     dxgi_screen_capture_ctx_t *ctx = (dxgi_screen_capture_ctx_t *)capture->platform_ctx;
 
     ResetEvent(ctx->stop_event);
@@ -452,7 +452,7 @@ int dxgi_screen_start(salts_capture_t *capture) {
     return ctx->capture_thread ? 0 : -1;
 }
 
-void dxgi_screen_stop(salts_capture_t *capture) {
+void dxgi_screen_stop(capture_t *capture) {
     dxgi_screen_capture_ctx_t *ctx = (dxgi_screen_capture_ctx_t *)capture->platform_ctx;
 
     ctx->running = 0;
@@ -465,7 +465,7 @@ void dxgi_screen_stop(salts_capture_t *capture) {
     }
 }
 
-void dxgi_screen_destroy(salts_capture_t *capture) {
+void dxgi_screen_destroy(capture_t *capture) {
     dxgi_screen_capture_ctx_t *ctx = (dxgi_screen_capture_ctx_t *)capture->platform_ctx;
     if (!ctx) return;
 

@@ -12,7 +12,7 @@
 #ifndef tlog_h
 #define tlog_h
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>

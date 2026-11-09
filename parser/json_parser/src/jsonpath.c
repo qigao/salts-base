@@ -3,15 +3,15 @@
  * @brief JSONPath parser and matcher for json_value_t trees
  */
 
-#include "json_parser.h"
+#include <json_parser.h>
 #include "json_types.h"
 #include "json_unicode.h"
 #include "jsonpath_grammar_gen.h"
 #include "jsonpath_types.h"
 #include "jsonpath_contains.h"
 #include "jsonpath_utf8.h"
-#include "query_vm.h"
-#include "re.h"
+#include <query_vm.h>
+#include <salts/re.h>
 #include <ctype.h>
 #include <limits.h>
 #include <stdarg.h>

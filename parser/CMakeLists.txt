@@ -1,7 +1,4 @@
-message(STATUS "JSON Parser generation enabled")
-message(STATUS "  re2c: ${RE2C_EXECUTABLE}")
-message(STATUS "  lemon: in-tree target")
-message(STATUS "Parser module enabled")
+
 # =============================================================================
 # Submodules (must be added first so we can link to them)
 # =============================================================================
@@ -23,8 +20,10 @@ add_subdirectory(datetime_parser)
 add_subdirectory(cyaml)
 add_subdirectory(selector)
 add_subdirectory(markdown)
+add_subdirectory(uri)
 
 set(SALTS_PARSER_TARGETS
+  uri
   ini_parser
   json_parser
   json_cserde_adapter
@@ -46,33 +45,6 @@ set(SALTS_PARSER_TARGETS ${SALTS_PARSER_TARGETS} PARENT_SCOPE)
 
 install(
   TARGETS ${SALTS_PARSER_TARGETS}
-  EXPORT SaltsUtilsTargets
+  EXPORT SaltsBaseTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-set(SALTS_PARSER_FLAT_INCLUDE_DIRS
-  ini_parser/include
-  json_parser/include
-  xml_parser/include
-  csv_parser/include
-  tlv_parser/include
-  ltv_parser/include
-  modbus_parser/include
-  soa_parser/include
-  dotenv_parser/include
-  cmd_parser/include
-  toml/include
-  datetime_parser/include)
-
-foreach(parser_include_dir IN LISTS SALTS_PARSER_FLAT_INCLUDE_DIRS)
-  install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${parser_include_dir}/"
-    DESTINATION include
-    FILES_MATCHING PATTERN "*.h")
-endforeach()
-
-install(
-  FILES toon/toonc.h toon/adapter/toon_json_adapter.h
-  DESTINATION include)
-install(
-  FILES cyaml/adapter/cyaml_json_adapter.h
-  DESTINATION include/cyaml)

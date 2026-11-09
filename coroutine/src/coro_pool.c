@@ -3,7 +3,7 @@
  * @brief Generic bounded coroutine reuse pool.
  */
 
-#include "coro_pool.h"
+#include <salts/coro_pool.h>
 #include <assert.h>
 #include <stdlib.h>
 

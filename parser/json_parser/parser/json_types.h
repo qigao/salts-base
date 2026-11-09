@@ -6,8 +6,8 @@
 #ifndef JSON_TYPES_H
 #define JSON_TYPES_H
 
-#include "json_parser.h"
-#include "object_pool.h"
+#include <json_parser.h>
+#include <memory/object_pool.h>
 
 #ifdef __cplusplus
 extern "C" {

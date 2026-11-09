@@ -8,7 +8,7 @@
 #endif
 #endif
 
-#include "cyaml.h"
+#include <cyaml.h>
 #include "cyaml_utf8.h"
 #include <ctype.h>
 #include "compat/dirent.h"

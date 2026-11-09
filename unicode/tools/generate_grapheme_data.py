@@ -121,7 +121,7 @@ def git_blob_sha(text: str) -> str:
 
 
 def emit_array(name: str, entries: list[tuple[int, int, str]]) -> list[str]:
-    lines = [f"static const salts_unicode_grapheme_range {name}[] = {{"]
+    lines = [f"static const unicode_grapheme_range {name}[] = {{"]
     for first, last, value in entries:
         lines.append(f"  {{0x{first:06X}u, 0x{last:06X}u, {value}}},")
     lines.append("};")
@@ -160,11 +160,11 @@ def main() -> None:
         "#include <stddef.h>",
         "#include <stdint.h>",
         "",
-        "typedef struct salts_unicode_grapheme_range {",
+        "typedef struct unicode_grapheme_range {",
         "  uint32_t first;",
         "  uint32_t last;",
         "  uint8_t value;",
-        "} salts_unicode_grapheme_range;",
+        "} unicode_grapheme_range;",
         "",
         "enum {",
         "  SALTS_UNICODE_INCB_NONE = 0,",
@@ -174,11 +174,11 @@ def main() -> None:
         "};",
         "",
     ]
-    lines += emit_array("salts_unicode_gcb_ranges", gcb)
+    lines += emit_array("unicode_gcb_ranges", gcb)
     lines.append("")
-    lines += emit_array("salts_unicode_extended_pictographic_ranges", ep)
+    lines += emit_array("unicode_extended_pictographic_ranges", ep)
     lines.append("")
-    lines += emit_array("salts_unicode_incb_ranges", incb)
+    lines += emit_array("unicode_incb_ranges", incb)
     lines += ["", "#endif", ""]
 
     args.output.write_text("\n".join(lines), encoding="utf-8")

@@ -5,8 +5,8 @@
  * Compares short-list and indexed json_object_get() query workloads.
  */
 
-#include "json_parser.h"
-#include <fmt.h>
+#include <json_parser.h>
+#include <salts/fmt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

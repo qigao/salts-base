@@ -1,15 +1,15 @@
-#include "coro_executor.h"
+#include <salts/coro_executor.h>
 #include "coro_executor_internal.h"
 
 #include <limits.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
-#include <disruptor.h>
-#include <clock.h>
-#include <error_codes.h>
-#include <thread.h>
-#include <thread_pool.h>
+#include <queue/disruptor.h>
+#include <salts/clock.h>
+#include <salts/error_codes.h>
+#include <threads/threads.h>
+#include <threads/thread_pool.h>
 
 typedef struct coro_executor_shard_s coro_executor_shard_t;
 
@@ -42,15 +42,15 @@ struct coro_executor_shard_s {
   size_t await_capacity;
   size_t free_await_count;
   atomic_size_t active_await_count;
-  cmeta_mutex_t mutex;
-  cmeta_cond_t work_available;
-  cmeta_cond_t queue_space;
+  sync_mutex_t mutex;
+  sync_cond_t work_available;
+  sync_cond_t queue_space;
   coro_scheduler_t *scheduler;
   coro_pool_t *pool;
 };
 
 struct coro_executor_s {
-  cmeta_threadpool_t *workers;
+  threadpool_t *workers;
   coro_executor_shard_t *shards;
   coro_pool_config_t pool_config;
   size_t worker_count;
@@ -70,13 +70,13 @@ struct coro_executor_s {
   atomic_uint_fast64_t active_awaits;
   atomic_uint_fast64_t waiting_awaits;
 
-  cmeta_mutex_t startup_mutex;
-  cmeta_cond_t startup_done;
+  sync_mutex_t startup_mutex;
+  sync_cond_t startup_done;
   size_t startup_count;
   int startup_failed;
 
-  cmeta_mutex_t wait_mutex;
-  cmeta_cond_t all_done;
+  sync_mutex_t wait_mutex;
+  sync_cond_t all_done;
 };
 
 static SALTS_THREAD_LOCAL coro_executor_t *coro_executor_tls = NULL;
@@ -115,9 +115,9 @@ static uint64_t coro_executor_pending(const coro_executor_t *executor) {
 }
 
 static void coro_executor_notify_progress(coro_executor_t *executor) {
-  cmeta_mutex_lock(&executor->wait_mutex);
-  if (coro_executor_pending(executor) == 0u) cmeta_cond_broadcast(&executor->all_done);
-  cmeta_mutex_unlock(&executor->wait_mutex);
+  sync_mutex_lock(&executor->wait_mutex);
+  if (coro_executor_pending(executor) == 0u) sync_cond_broadcast(&executor->all_done);
+  sync_mutex_unlock(&executor->wait_mutex);
 }
 
 static void coro_executor_update_peak(atomic_uint_fast64_t *peak, uint64_t candidate) {
@@ -130,10 +130,10 @@ static void coro_executor_wake_shards(coro_executor_t *executor) {
   if (executor == NULL || executor->shards == NULL) return;
   for (size_t index = 0u; index < executor->worker_count; ++index) {
     coro_executor_shard_t *shard = &executor->shards[index];
-    cmeta_mutex_lock(&shard->mutex);
-    cmeta_cond_broadcast(&shard->work_available);
-    cmeta_cond_broadcast(&shard->queue_space);
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_lock(&shard->mutex);
+    sync_cond_broadcast(&shard->work_available);
+    sync_cond_broadcast(&shard->queue_space);
+    sync_mutex_unlock(&shard->mutex);
   }
 }
 
@@ -173,7 +173,7 @@ static void coro_executor_release_await_locked(coro_executor_shard_t *shard,
 static void coro_executor_release_coro_await(coro_executor_shard_t *shard,
                                                    coro_t *coroutine) {
   if (atomic_load(&shard->active_await_count) == 0u) return;
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   for (uint32_t index = 0u; index < shard->await_capacity; ++index) {
     coro_executor_await_slot_t *slot = &shard->await_slots[index];
     if (slot->active && slot->coroutine == coroutine) {
@@ -181,7 +181,7 @@ static void coro_executor_release_coro_await(coro_executor_shard_t *shard,
       break;
     }
   }
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_mutex_unlock(&shard->mutex);
 }
 
 static void coro_executor_finish_coro(coro_t *coroutine, void *arg) {
@@ -219,9 +219,9 @@ static int coro_executor_take_task(coro_executor_shard_t *shard,
   disruptor_cursor_t cursor;
   const coro_executor_task_t *entry;
 
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   if (shard->queued_depth == 0u) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return 0;
   }
 
@@ -229,14 +229,14 @@ static int coro_executor_take_task(coro_executor_shard_t *shard,
   /* The broadcast wait reports the latest contiguous sequence. Read and
    * release only next_sequence so per-shard FIFO entries are never skipped. */
   if (!disruptor_consumer_wait_for_nonblocking_for(shard->queue, &shard->consumer, &available)) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return 0;
   }
 
   cursor.sequence = shard->next_sequence;
   entry = (const coro_executor_task_t *)disruptor_show_entry(shard->queue, &cursor);
   if (entry == NULL || entry->run == NULL) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return 0;
   }
 
@@ -245,8 +245,8 @@ static int coro_executor_take_task(coro_executor_shard_t *shard,
   shard->next_sequence++;
   shard->queued_depth--;
   atomic_fetch_sub(&shard->executor->queued_tasks, 1u);
-  cmeta_cond_broadcast(&shard->queue_space);
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_cond_broadcast(&shard->queue_space);
+  sync_mutex_unlock(&shard->mutex);
   return 1;
 }
 
@@ -261,15 +261,15 @@ static size_t coro_executor_take_task_batch(
 
   if (shard == NULL || tasks == NULL || capacity == 0u) return 0u;
 
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   if (shard->queued_depth == 0u) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return 0u;
   }
 
   limit = atomic_load_explicit(&shard->dequeue_batch_limit, memory_order_acquire);
   if (limit < 2u) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return 0u;
   }
   if (limit > capacity) limit = capacity;
@@ -278,7 +278,7 @@ static size_t coro_executor_take_task_batch(
   available.sequence = shard->next_sequence;
   if (!disruptor_consumer_wait_for_nonblocking_for(
           shard->queue, &shard->consumer, &available)) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return 0u;
   }
 
@@ -290,7 +290,7 @@ static size_t coro_executor_take_task_batch(
         (const coro_executor_task_t *)disruptor_show_entry(
             shard->queue, &cursor);
     if (entry == NULL || entry->run == NULL) {
-      cmeta_mutex_unlock(&shard->mutex);
+      sync_mutex_unlock(&shard->mutex);
       return 0u;
     }
     tasks[index] = *entry;
@@ -302,8 +302,8 @@ static size_t coro_executor_take_task_batch(
   shard->next_sequence += count;
   shard->queued_depth -= count;
   atomic_fetch_sub(&shard->executor->queued_tasks, count);
-  cmeta_cond_broadcast(&shard->queue_space);
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_cond_broadcast(&shard->queue_space);
+  sync_mutex_unlock(&shard->mutex);
   return count;
 }
 
@@ -314,23 +314,23 @@ static int coro_executor_dispatch_wake(coro_executor_shard_t *shard) {
   coro_executor_await_t await_handle;
   coro_executor_await_slot_t *slot;
 
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   if (shard->wake_depth == 0u) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return 0;
   }
 
   available.sequence = shard->next_wake_sequence;
   if (!disruptor_consumer_wait_for_nonblocking_for(shard->wake_queue, &shard->wake_consumer,
                                                    &available)) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return 0;
   }
 
   cursor.sequence = shard->next_wake_sequence;
   entry = (const coro_executor_await_t *)disruptor_show_entry(shard->wake_queue, &cursor);
   if (entry == NULL) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return 0;
   }
 
@@ -342,15 +342,15 @@ static int coro_executor_dispatch_wake(coro_executor_shard_t *shard) {
   slot = coro_executor_find_await_locked(shard, await_handle);
   if (slot != NULL && slot->waiting && slot->completion_ready)
     coro_set_waiting_for_io(slot->coroutine, 0);
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_mutex_unlock(&shard->mutex);
   return 1;
 }
 
 static int coro_executor_dispatch_timeouts(coro_executor_shard_t *shard) {
-  const uint64_t now_ms = cmeta_monotonic_ms();
+  const uint64_t now_ms = monotonic_ms();
   int progressed = 0;
   if (atomic_load(&shard->active_await_count) == 0u) return 0;
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   for (size_t index = 0u; index < shard->await_capacity; ++index) {
     coro_executor_await_slot_t *slot = &shard->await_slots[index];
     if (!slot->active || !slot->waiting || !slot->timeout_enabled || slot->completion_ready ||
@@ -361,13 +361,13 @@ static int coro_executor_dispatch_timeouts(coro_executor_shard_t *shard) {
     coro_set_waiting_for_io(slot->coroutine, 0);
     progressed = 1;
   }
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_mutex_unlock(&shard->mutex);
   return progressed;
 }
 
 static uint64_t coro_executor_next_timeout_ns_locked(
     const coro_executor_shard_t *shard) {
-  const uint64_t now_ms = cmeta_monotonic_ms();
+  const uint64_t now_ms = monotonic_ms();
   uint64_t earliest_ms = UINT64_MAX;
   for (size_t index = 0u; index < shard->await_capacity; ++index) {
     const coro_executor_await_slot_t *slot = &shard->await_slots[index];
@@ -409,11 +409,11 @@ static int coro_executor_shard_should_exit(coro_executor_shard_t *shard) {
 
 static void coro_executor_report_startup(coro_executor_shard_t *shard, int failed) {
   coro_executor_t *executor = shard->executor;
-  cmeta_mutex_lock(&executor->startup_mutex);
+  sync_mutex_lock(&executor->startup_mutex);
   if (failed) executor->startup_failed = 1;
   executor->startup_count++;
-  cmeta_cond_broadcast(&executor->startup_done);
-  cmeta_mutex_unlock(&executor->startup_mutex);
+  sync_cond_broadcast(&executor->startup_done);
+  sync_mutex_unlock(&executor->startup_mutex);
 
   if (failed) coro_executor_stop_internal(executor);
 }
@@ -488,9 +488,9 @@ static void coro_executor_worker(void *arg) {
         progressed = 1;
       }
 
-      cmeta_mutex_lock(&shard->mutex);
+      sync_mutex_lock(&shard->mutex);
       if (coro_executor_shard_should_exit(shard)) {
-        cmeta_mutex_unlock(&shard->mutex);
+        sync_mutex_unlock(&shard->mutex);
         break;
       }
       if (!progressed) {
@@ -500,12 +500,12 @@ static void coro_executor_worker(void *arg) {
             !coro_scheduler_has_ready(shard->scheduler)) {
           const uint64_t timeout_ns = coro_executor_next_timeout_ns_locked(shard);
           if (timeout_ns == UINT64_MAX)
-            cmeta_cond_wait(&shard->work_available, &shard->mutex);
+            sync_cond_wait(&shard->work_available, &shard->mutex);
           else
-            (void)cmeta_cond_timedwait(&shard->work_available, &shard->mutex, timeout_ns);
+            (void)sync_cond_timedwait(&shard->work_available, &shard->mutex, timeout_ns);
         }
       }
-      cmeta_mutex_unlock(&shard->mutex);
+      sync_mutex_unlock(&shard->mutex);
     }
   }
 
@@ -528,7 +528,7 @@ static int coro_executor_config_valid(const coro_executor_config_t *config,
   if (config == NULL || worker_count == NULL) return 0;
   *worker_count = config->worker_count;
   if (*worker_count == 0u) {
-    detected_workers = cmeta_cpu_count();
+    detected_workers = cpu_count();
     if (detected_workers <= 0) return 0;
     *worker_count = (size_t)detected_workers;
   }
@@ -557,23 +557,23 @@ static void coro_executor_destroy_storage(coro_executor_t *executor) {
       disruptor_destroy(shard->wake_queue);
       free(shard->free_await_slots);
       free(shard->await_slots);
-      cmeta_mutex_destroy(&shard->mutex);
-      cmeta_cond_destroy(&shard->work_available);
-      cmeta_cond_destroy(&shard->queue_space);
+      sync_mutex_destroy(&shard->mutex);
+      sync_cond_destroy(&shard->work_available);
+      sync_cond_destroy(&shard->queue_space);
     }
   }
   free(executor->shards);
-  cmeta_mutex_destroy(&executor->startup_mutex);
-  cmeta_cond_destroy(&executor->startup_done);
-  cmeta_mutex_destroy(&executor->wait_mutex);
-  cmeta_cond_destroy(&executor->all_done);
+  sync_mutex_destroy(&executor->startup_mutex);
+  sync_cond_destroy(&executor->startup_done);
+  sync_mutex_destroy(&executor->wait_mutex);
+  sync_cond_destroy(&executor->all_done);
   free(executor);
 }
 
 coro_executor_t *coro_executor_create(const coro_executor_config_t *config) {
   coro_executor_config_t defaults = CORO_EXECUTOR_CONFIG_DEFAULT;
   coro_executor_t *executor;
-  cmeta_threadpool_config_t worker_config;
+  threadpool_config_t worker_config;
   size_t worker_count;
 
   if (config == NULL) config = &defaults;
@@ -586,10 +586,10 @@ coro_executor_t *coro_executor_create(const coro_executor_config_t *config) {
   executor->pool_config = config->coroutine_pool;
   atomic_store(&executor->accepting, 1);
 
-  cmeta_mutex_init(&executor->startup_mutex);
-  cmeta_cond_init(&executor->startup_done);
-  cmeta_mutex_init(&executor->wait_mutex);
-  cmeta_cond_init(&executor->all_done);
+  sync_mutex_init(&executor->startup_mutex);
+  sync_cond_init(&executor->startup_done);
+  sync_mutex_init(&executor->wait_mutex);
+  sync_cond_init(&executor->all_done);
   if (executor->startup_mutex == NULL || executor->startup_done == NULL ||
       executor->wait_mutex == NULL || executor->all_done == NULL) {
     coro_executor_destroy_storage(executor);
@@ -625,9 +625,9 @@ coro_executor_t *coro_executor_create(const coro_executor_config_t *config) {
     shard->await_capacity = executor->pool_config.max_capacity;
     shard->free_await_count = shard->await_capacity;
     shard->wake_capacity = wake_capacity;
-    cmeta_mutex_init(&shard->mutex);
-    cmeta_cond_init(&shard->work_available);
-    cmeta_cond_init(&shard->queue_space);
+    sync_mutex_init(&shard->mutex);
+    sync_cond_init(&shard->work_available);
+    sync_cond_init(&shard->queue_space);
     shard->queue = disruptor_create(&queue_config);
     shard->wake_queue = disruptor_create(&wake_queue_config);
     shard->await_slots = (coro_executor_await_slot_t *)calloc(shard->await_capacity,
@@ -646,32 +646,32 @@ coro_executor_t *coro_executor_create(const coro_executor_config_t *config) {
 
   worker_config.num_threads = (int)worker_count;
   worker_config.queue_capacity = worker_count;
-  executor->workers = cmeta_threadpool_create_with_config(&worker_config);
+  executor->workers = threadpool_create_with_config(&worker_config);
   if (executor->workers == NULL) {
     coro_executor_destroy_storage(executor);
     return NULL;
   }
 
   for (size_t index = 0u; index < worker_count; ++index) {
-    if (cmeta_threadpool_submit(executor->workers, coro_executor_worker,
+    if (threadpool_submit(executor->workers, coro_executor_worker,
                                 &executor->shards[index]) != SALTS_OK) {
       coro_executor_stop_internal(executor);
-      cmeta_threadpool_shutdown(executor->workers);
-      cmeta_threadpool_destroy(executor->workers);
+      threadpool_shutdown(executor->workers);
+      threadpool_destroy(executor->workers);
       executor->workers = NULL;
       coro_executor_destroy_storage(executor);
       return NULL;
     }
   }
 
-  cmeta_mutex_lock(&executor->startup_mutex);
+  sync_mutex_lock(&executor->startup_mutex);
   while (executor->startup_count < executor->worker_count)
-    cmeta_cond_wait(&executor->startup_done, &executor->startup_mutex);
-  cmeta_mutex_unlock(&executor->startup_mutex);
+    sync_cond_wait(&executor->startup_done, &executor->startup_mutex);
+  sync_mutex_unlock(&executor->startup_mutex);
 
   if (executor->startup_failed) {
-    cmeta_threadpool_shutdown(executor->workers);
-    cmeta_threadpool_destroy(executor->workers);
+    threadpool_shutdown(executor->workers);
+    threadpool_destroy(executor->workers);
     executor->workers = NULL;
     coro_executor_destroy_storage(executor);
     return NULL;
@@ -695,24 +695,24 @@ static int coro_executor_submit_internal(coro_executor_t *executor, size_t shard
   }
 
   shard = &executor->shards[shard_index];
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   while (atomic_load(&executor->accepting) &&
          shard->queued_depth >= executor->queue_capacity_per_worker) {
     if (!blocking || coro_executor_tls == executor) {
-      cmeta_mutex_unlock(&shard->mutex);
+      sync_mutex_unlock(&shard->mutex);
       atomic_fetch_add(&executor->rejected_tasks, 1u);
       return blocking && coro_executor_tls == executor ? SALTS_EBUSY : SALTS_ENOBUFS;
     }
-    cmeta_cond_wait(&shard->queue_space, &shard->mutex);
+    sync_cond_wait(&shard->queue_space, &shard->mutex);
   }
 
   if (!atomic_load(&executor->accepting)) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     atomic_fetch_add(&executor->rejected_tasks, 1u);
     return SALTS_ESHUTDOWN;
   }
   if (!disruptor_publisher_try_claim(shard->queue, &cursor)) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     atomic_fetch_add(&executor->rejected_tasks, 1u);
     return SALTS_ENOBUFS;
   }
@@ -724,8 +724,8 @@ static int coro_executor_submit_internal(coro_executor_t *executor, size_t shard
   queued = atomic_fetch_add(&executor->queued_tasks, 1u) + 1u;
   atomic_fetch_add(&executor->submitted_tasks, 1u);
   coro_executor_update_peak(&executor->peak_queued_tasks, queued);
-  cmeta_cond_signal(&shard->work_available);
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_cond_signal(&shard->work_available);
+  sync_mutex_unlock(&shard->mutex);
   return SALTS_OK;
 }
 
@@ -750,19 +750,19 @@ int coro_executor_try_submit_batch_to_internal(
   }
 
   shard = &executor->shards[shard_index];
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   if (!atomic_load(&executor->accepting)) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     atomic_fetch_add(&executor->rejected_tasks, count);
     return SALTS_ESHUTDOWN;
   }
   if (count > executor->queue_capacity_per_worker - shard->queued_depth) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     atomic_fetch_add(&executor->rejected_tasks, count);
     return SALTS_ENOBUFS;
   }
   if (!disruptor_publisher_try_claim_n(shard->queue, (uint32_t)count, &range)) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     atomic_fetch_add(&executor->rejected_tasks, count);
     return SALTS_ENOBUFS;
   }
@@ -779,8 +779,8 @@ int coro_executor_try_submit_batch_to_internal(
   queued = atomic_fetch_add(&executor->queued_tasks, count) + count;
   atomic_fetch_add(&executor->submitted_tasks, count);
   coro_executor_update_peak(&executor->peak_queued_tasks, queued);
-  cmeta_cond_signal(&shard->work_available);
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_cond_signal(&shard->work_available);
+  sync_mutex_unlock(&shard->mutex);
   return SALTS_OK;
 }
 
@@ -794,9 +794,9 @@ int coro_executor_set_dequeue_batch_limit_internal(
 
   shard = &executor->shards[shard_index];
   atomic_store_explicit(&shard->dequeue_batch_limit, limit, memory_order_release);
-  cmeta_mutex_lock(&shard->mutex);
-  cmeta_cond_signal(&shard->work_available);
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
+  sync_cond_signal(&shard->work_available);
+  sync_mutex_unlock(&shard->mutex);
   return SALTS_OK;
 }
 
@@ -858,16 +858,16 @@ int coro_executor_await_begin(coro_executor_await_t *out_await) {
   shard = coro_executor_current_context(&coroutine);
   if (shard == NULL || out_await == NULL) return SALTS_EINVAL;
 
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   for (size_t slot_index = 0u; slot_index < shard->await_capacity; ++slot_index) {
     slot = &shard->await_slots[slot_index];
     if (slot->active && slot->coroutine == coroutine) {
-      cmeta_mutex_unlock(&shard->mutex);
+      sync_mutex_unlock(&shard->mutex);
       return SALTS_EBUSY;
     }
   }
   if (shard->free_await_count == 0u) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_ENOBUFS;
   }
 
@@ -882,7 +882,7 @@ int coro_executor_await_begin(coro_executor_await_t *out_await) {
                                              index + 1u, generation, 0u};
   atomic_fetch_add(&shard->active_await_count, 1u);
   atomic_fetch_add(&shard->executor->active_awaits, 1u);
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_mutex_unlock(&shard->mutex);
   return SALTS_OK;
 }
 
@@ -898,21 +898,21 @@ int coro_executor_await_complete(coro_executor_t *executor,
     return SALTS_EINVAL;
   shard = &executor->shards[await_handle.shard];
 
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   slot = coro_executor_find_await_locked(shard, await_handle);
   if (slot == NULL) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_ENOENT;
   }
   if (slot->completion_ready) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_EALREADY;
   }
 
   if (slot->waiting) {
     if (shard->wake_depth >= shard->wake_capacity ||
         !disruptor_publisher_try_claim(shard->wake_queue, &cursor)) {
-      cmeta_mutex_unlock(&shard->mutex);
+      sync_mutex_unlock(&shard->mutex);
       return SALTS_ENOBUFS;
     }
     entry = (coro_executor_await_t *)disruptor_acquire_entry(shard->wake_queue, &cursor);
@@ -922,8 +922,8 @@ int coro_executor_await_complete(coro_executor_t *executor,
   }
   slot->completion_status = status;
   slot->completion_ready = 1;
-  if (slot->waiting) cmeta_cond_signal(&shard->work_available);
-  cmeta_mutex_unlock(&shard->mutex);
+  if (slot->waiting) sync_cond_signal(&shard->work_available);
+  sync_mutex_unlock(&shard->mutex);
   return SALTS_OK;
 }
 
@@ -944,30 +944,30 @@ static int coro_executor_await_internal(coro_executor_await_t await_handle,
     return SALTS_EINVAL;
   index = await_handle.slot - 1u;
 
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   slot = coro_executor_find_await_locked(shard, await_handle);
   if (slot == NULL) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_ENOENT;
   }
   if (slot->coroutine != coroutine) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_EINVAL;
   }
   if (slot->completion_ready) {
     status = slot->completion_status;
     coro_executor_release_await_locked(shard, index);
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     *out_status = status;
     return SALTS_OK;
   }
   if (slot->waiting) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_EALREADY;
   }
 
   if (timeout_enabled) {
-    const uint64_t now_ms = cmeta_monotonic_ms();
+    const uint64_t now_ms = monotonic_ms();
     slot->deadline_ms =
         now_ms > UINT64_MAX - (uint64_t)timeout_ms ? UINT64_MAX : now_ms + timeout_ms;
     slot->timeout_enabled = 1;
@@ -975,29 +975,29 @@ static int coro_executor_await_internal(coro_executor_await_t await_handle,
   slot->waiting = 1;
   atomic_fetch_add(&shard->executor->waiting_awaits, 1u);
   coro_set_waiting_for_io(coroutine, 1);
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_mutex_unlock(&shard->mutex);
 
   if (coro_yield() != 0) {
-    cmeta_mutex_lock(&shard->mutex);
+    sync_mutex_lock(&shard->mutex);
     slot = coro_executor_find_await_locked(shard, await_handle);
     if (slot != NULL) {
       coro_set_waiting_for_io(coroutine, 0);
       coro_executor_release_await_locked(shard, index);
     }
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_EIO;
   }
 
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   slot = coro_executor_find_await_locked(shard, await_handle);
   if (slot == NULL || slot->coroutine != coroutine || !slot->completion_ready) {
     if (slot != NULL) coro_executor_release_await_locked(shard, index);
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_EPROTO;
   }
   status = slot->completion_status;
   coro_executor_release_await_locked(shard, index);
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_mutex_unlock(&shard->mutex);
   *out_status = status;
   return SALTS_OK;
 }
@@ -1027,26 +1027,26 @@ int coro_executor_await_abort(coro_executor_await_t await_handle) {
     return SALTS_EINVAL;
   index = await_handle.slot - 1u;
 
-  cmeta_mutex_lock(&shard->mutex);
+  sync_mutex_lock(&shard->mutex);
   slot = coro_executor_find_await_locked(shard, await_handle);
   if (slot == NULL) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_ENOENT;
   }
   if (slot->coroutine != coroutine) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_EINVAL;
   }
   if (slot->completion_ready) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_EALREADY;
   }
   if (slot->waiting) {
-    cmeta_mutex_unlock(&shard->mutex);
+    sync_mutex_unlock(&shard->mutex);
     return SALTS_EBUSY;
   }
   coro_executor_release_await_locked(shard, index);
-  cmeta_mutex_unlock(&shard->mutex);
+  sync_mutex_unlock(&shard->mutex);
   return SALTS_OK;
 }
 
@@ -1060,10 +1060,10 @@ int coro_executor_wait(coro_executor_t *executor) {
   if (executor == NULL) return SALTS_EINVAL;
   if (coro_executor_tls == executor) return SALTS_EBUSY;
 
-  cmeta_mutex_lock(&executor->wait_mutex);
+  sync_mutex_lock(&executor->wait_mutex);
   while (coro_executor_pending(executor) > 0u)
-    cmeta_cond_wait(&executor->all_done, &executor->wait_mutex);
-  cmeta_mutex_unlock(&executor->wait_mutex);
+    sync_cond_wait(&executor->all_done, &executor->wait_mutex);
+  sync_mutex_unlock(&executor->wait_mutex);
   return SALTS_OK;
 }
 
@@ -1076,10 +1076,10 @@ int coro_executor_destroy(coro_executor_t *executor) {
   status = coro_executor_wait(executor);
   if (status != SALTS_OK) return status;
 
-  cmeta_threadpool_shutdown(executor->workers);
-  status = cmeta_threadpool_wait_status(executor->workers);
+  threadpool_shutdown(executor->workers);
+  status = threadpool_wait_status(executor->workers);
   if (status != SALTS_OK) return status;
-  cmeta_threadpool_destroy(executor->workers);
+  threadpool_destroy(executor->workers);
   executor->workers = NULL;
   coro_executor_destroy_storage(executor);
   return SALTS_OK;

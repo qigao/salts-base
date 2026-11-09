@@ -60,7 +60,7 @@ This is important. `0 0 13 * 5` means "the 13th of the month, or every Friday", 
 ## Quick Start
 
 ```c
-#include "salts_cron.h"
+#include "cron.h"
 
 salts_cron_expr_t expr;
 time_t next_fire;
@@ -74,7 +74,7 @@ if (salts_cron_parse("*/15 9-17 * * 1-5", &expr) == SALTS_CRON_OK &&
 ## Next N Fire Times
 
 ```c
-#include "salts_cron.h"
+#include "cron.h"
 
 salts_cron_expr_t expr;
 time_t next_times[5];

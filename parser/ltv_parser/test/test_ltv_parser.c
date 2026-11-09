@@ -3,7 +3,7 @@
  * Tests for Length-Type-Value parser with varint encoding
  */
 
-#include "ltv_parser.h"
+#include <ltv_parser.h>
 #include "tinytest.h"
 #include <stdlib.h>
 #include <string.h>

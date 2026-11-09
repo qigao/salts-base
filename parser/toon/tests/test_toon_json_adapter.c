@@ -1,6 +1,6 @@
-#include "json_parser.h"
+#include <json_parser.h>
 #include "tinytest.h"
-#include "toon_json_adapter.h"
+#include <toon_json_adapter.h>
 
 #include <math.h>
 #include <stdint.h>
@@ -250,6 +250,25 @@ suite("toon json adapter") {
         check_null(value);
 
         root->array.len = 1U;
+        TOONc_free(root);
+    }
+
+    it("retains pointer identity across growth and rejects a repeated early node") {
+        toonObject *root = TOONc_newListObj();
+        json_value_t *value = NULL;
+        check_not_null(root);
+        for (int i = 0; i < 150; ++i) {
+            toonObject *item = TOONc_newIntObj(i);
+            check_not_null(item);
+            TOONc_listPush(root, item);
+        }
+        check_equal(toon_json_to_value(root, &value), SALTS_OK);
+        json_free(value);
+        value = NULL;
+        TOONc_listPush(root, root->array.items[0]);
+        check_equal(toon_json_to_value(root, &value), SALTS_EPROTO);
+        check_null(value);
+        --root->array.len;
         TOONc_free(root);
     }
 

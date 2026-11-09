@@ -49,7 +49,7 @@
 #ifndef TSTR_H
 #define TSTR_H
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 #include "vstr.h"
 #include <stdarg.h>
 #include <stddef.h>

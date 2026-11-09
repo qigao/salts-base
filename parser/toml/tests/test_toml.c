@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
-#include "toml.h"
+#include <toml.h>
 #include "tinytest.h"
 
 spec("toml_parser") {

@@ -1,4 +1,4 @@
-#include <ring_buffer.h>
+#include <queue/ring_buffer.h>
 #include <tinytest.h>
 #include <stdint.h>
 #include <string.h>

@@ -11,7 +11,7 @@
 
 Salts builds cxml core, DOM XML, query, XPath, and utility sources. SAX,
 upstream tests, examples, and tools are retained as source reference where
-present but are not compiled into `salts_cxml`. Query and XPath remain
+present but are not compiled into `cxml`. Query and XPath remain
 private implementations behind `Salts::XmlParser`.
 
 Local patches:

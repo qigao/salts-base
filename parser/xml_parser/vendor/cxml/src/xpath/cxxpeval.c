@@ -4,7 +4,7 @@
  */
 
 #include "xpath/cxxpeval.h"
-#include "query_vm.h"
+#include <query_vm.h>
 
 
 #define _CXML_MAX_CACHEABLE_SET_SIZE (500000)

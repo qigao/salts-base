@@ -1,6 +1,6 @@
 /* #177 native C11 indented code semantics; no alternate Markdown grammar. */
-#include <salts/markdown.h>
-#include <salts/markdown_html.h>
+#include <markdown.h>
+#include <markdown_html.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -80,11 +80,11 @@ _Static_assert(sizeof(cases)/sizeof(cases[0])==22u,
 
 static int run_case(const indented_fixture *f) {
     const size_t size=strlen(f->source);
-    salts_md_document *owner=NULL;
-    REQUIRE(salts_md_parse(f->source,size,256u,size+1u,&owner)==SALTS_MD_OK);
+    md_document *owner=NULL;
+    REQUIRE(md_parse(f->source,size,256u,size+1u,&owner)==SALTS_MD_OK);
     REQUIRE(owner!=NULL);
-    const salts_md_rich_document_view view=salts_md_get_document_view(owner);
-    REQUIRE(salts_md_rich_document_validate(&view,256u)==SALTS_MD_OK);
+    const md_rich_document_view view=md_get_document_view(owner);
+    REQUIRE(md_rich_document_validate(&view,256u)==SALTS_MD_OK);
     REQUIRE(view.raw_markdown_bytes==size);
     REQUIRE(!memcmp(view.raw_markdown,f->source,size));
 
@@ -92,14 +92,14 @@ static int run_case(const indented_fixture *f) {
     char combined[2048];
     size_t total=0u;
     for(size_t i=0;i<view.document.block_count;++i) {
-        const salts_md_block *node=&view.document.blocks[i];
+        const md_block *node=&view.document.blocks[i];
         REQUIRE(node->stable_id==(uint64_t)i+1u);
         if(node->kind==SALTS_MD_BLOCK_CODE_INDENTED) {
             ++code_count;
             REQUIRE(node->parent_index==0u);
             const char *metadata=NULL;
             size_t metadata_bytes=SIZE_MAX;
-            REQUIRE(salts_md_rich_document_metadata(&view,i,&metadata,
+            REQUIRE(md_rich_document_metadata(&view,i,&metadata,
                                                    &metadata_bytes)==SALTS_MD_OK);
             REQUIRE(metadata_bytes==0u);
         }
@@ -120,26 +120,26 @@ static int run_case(const indented_fixture *f) {
     } else REQUIRE(total==0u);
 
     size_t required=SIZE_MAX;
-    REQUIRE(salts_md_render_html(&view,256u,NULL,0u,&required)==SALTS_MD_OK);
+    REQUIRE(md_render_html(&view,256u,NULL,0u,&required)==SALTS_MD_OK);
     REQUIRE(required==strlen(f->expected_html));
     char *output=(char*)malloc(required+2u);
     REQUIRE(output!=NULL);
     memset(output,0xa5,required+2u);
     size_t checked=SIZE_MAX;
     if(required) {
-        REQUIRE(salts_md_render_html(&view,256u,output,required,&checked)==
+        REQUIRE(md_render_html(&view,256u,output,required,&checked)==
                 SALTS_MD_CAPACITY_EXCEEDED);
         REQUIRE(checked==required);
         for(size_t j=0;j<required+2u;++j)
             REQUIRE((unsigned char)output[j]==0xa5u);
     }
-    REQUIRE(salts_md_render_html(&view,256u,output,required+1u,&checked)==
+    REQUIRE(md_render_html(&view,256u,output,required+1u,&checked)==
             SALTS_MD_OK);
     REQUIRE(checked==required);
     REQUIRE(!memcmp(output,f->expected_html,required+1u));
     REQUIRE((unsigned char)output[required+1u]==0xa5u);
     free(output);
-    salts_md_document_destroy(owner);
+    md_document_destroy(owner);
     return 0;
 }
 

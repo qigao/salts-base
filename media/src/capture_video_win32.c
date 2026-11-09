@@ -27,10 +27,10 @@
 #include <libyuv/scale.h>
 #include <stdlib.h>
 #include <string.h>
-#include <tlog.h>
+#include <salts/tlog.h>
 
 #endif /* _WIN32 */
-#include "capture.h"
+#include <capture.h>
 #include "capture_video_backend.h"
 
 #ifdef _WIN32
@@ -119,10 +119,10 @@ typedef struct {
     int width;
     int height;
     int framerate;
-    int format;         /* salts_video_capture_format_t */
+    int format;         /* video_capture_format_t */
     int source_format;          /* Turbo format of the native media type */
     mf_native_format_t native_source; /* Actual reader output subtype */
-    salts_video_native_mode_t native_mode;
+    video_native_mode_t native_mode;
     unsigned int read_error_logs;
 
     /* Conversion buffer */
@@ -131,7 +131,7 @@ typedef struct {
 
     /* Software camera controls */
     int zoom_percent;
-    salts_video_crop_t crop;
+    video_crop_t crop;
     int crop_enabled;
     CRITICAL_SECTION control_lock;
     int control_lock_initialized;
@@ -202,7 +202,7 @@ static mf_native_format_t mf_subtype_to_native(REFGUID subtype) {
     return MF_NATIVE_UNKNOWN;
 }
 
-static int mf_native_to_salts_format(mf_native_format_t native) {
+static int mf_native_to_format(mf_native_format_t native) {
     switch (native) {
     case MF_NATIVE_I420:
     case MF_NATIVE_YUY2:
@@ -229,7 +229,7 @@ static int mf_frame_rate_to_int(UINT32 numerator, UINT32 denominator) {
 static int mf_media_type_to_native_mode(
     IMFMediaType *media_type,
     DWORD native_type_index,
-    salts_video_native_mode_t *mode) {
+    video_native_mode_t *mode) {
     GUID subtype;
     UINT32 width = 0;
     UINT32 height = 0;
@@ -254,13 +254,13 @@ static int mf_media_type_to_native_mode(
     mode->height = (int)height;
     mode->framerate_numerator = fps_num;
     mode->framerate_denominator = fps_den;
-    mode->format = mf_native_to_salts_format(native_format);
+    mode->format = mf_native_to_format(native_format);
     mode->mode_id = (uint64_t)native_type_index;
     return mode->format >= 0 ? 0 : -1;
 }
 
-static int mf_native_modes_equal(const salts_video_native_mode_t *lhs,
-                                 const salts_video_native_mode_t *rhs) {
+static int mf_native_modes_equal(const video_native_mode_t *lhs,
+                                 const video_native_mode_t *rhs) {
     return lhs->width == rhs->width &&
            lhs->height == rhs->height &&
            lhs->framerate_numerator == rhs->framerate_numerator &&
@@ -272,7 +272,7 @@ static int mf_native_modes_equal(const salts_video_native_mode_t *lhs,
 static HRESULT mf_configure_video_output(mf_video_capture_ctx_t *ctx) {
     IMFMediaType *media_type = NULL;
     IMFMediaType *current_type = NULL;
-    salts_video_native_mode_t actual_mode;
+    video_native_mode_t actual_mode;
     GUID subtype;
     mf_native_format_t native_format;
     HRESULT hr;
@@ -316,7 +316,7 @@ static HRESULT mf_configure_video_output(mf_video_capture_ctx_t *ctx) {
             native_format != MF_NATIVE_UYVY) {
             return MF_E_INVALIDMEDIATYPE;
         }
-    } else if (mf_native_to_salts_format(native_format) != ctx->format) {
+    } else if (mf_native_to_format(native_format) != ctx->format) {
         return MF_E_INVALIDMEDIATYPE;
     }
     ctx->native_source = native_format;
@@ -443,7 +443,7 @@ cleanup:
     return result;
 }
 
-static int camera_control_to_dshow(salts_camera_control_t control, long *property) {
+static int camera_control_to_dshow(camera_control_t control, long *property) {
     if (!property) return 0;
 
     switch (control) {
@@ -467,7 +467,7 @@ static int camera_control_to_dshow(salts_camera_control_t control, long *propert
     }
 }
 
-static int video_proc_amp_to_dshow(salts_camera_control_t control, long *property) {
+static int video_proc_amp_to_dshow(camera_control_t control, long *property) {
     if (!property) return 0;
 
     switch (control) {
@@ -518,12 +518,12 @@ static int align_even_down(int value) {
     return value & ~1;
 }
 
-static int get_effective_crop(mf_video_capture_ctx_t *ctx, salts_video_crop_t *crop) {
+static int get_effective_crop(mf_video_capture_ctx_t *ctx, video_crop_t *crop) {
     int crop_width;
     int crop_height;
     int zoom_percent;
     int crop_enabled;
-    salts_video_crop_t configured_crop;
+    video_crop_t configured_crop;
 
     if (!ctx || !crop) return 0;
 
@@ -566,7 +566,7 @@ static int get_effective_crop(mf_video_capture_ctx_t *ctx, salts_video_crop_t *c
     return 1;
 }
 
-static int deliver_i420_frame(salts_capture_t *capture,
+static int deliver_i420_frame(capture_t *capture,
                               mf_video_capture_ctx_t *ctx,
                               const uint8_t *data,
                               size_t data_len,
@@ -576,7 +576,7 @@ static int deliver_i420_frame(salts_capture_t *capture,
     const uint8_t *src_y = data;
     const uint8_t *src_u = data + y_size;
     const uint8_t *src_v = src_u + y_size / 4;
-    salts_video_crop_t crop;
+    video_crop_t crop;
     uint8_t *dst_y;
     uint8_t *dst_u;
     uint8_t *dst_v;
@@ -618,7 +618,7 @@ static int deliver_i420_frame(salts_capture_t *capture,
     return 0;
 }
 
-static int deliver_nv12_frame(salts_capture_t *capture,
+static int deliver_nv12_frame(capture_t *capture,
                               mf_video_capture_ctx_t *ctx,
                               const uint8_t *data,
                               size_t data_len,
@@ -627,7 +627,7 @@ static int deliver_nv12_frame(salts_capture_t *capture,
     const size_t frame_size = y_size + y_size / 2;
     const uint8_t *src_y = data;
     const uint8_t *src_uv = data + y_size;
-    salts_video_crop_t crop;
+    video_crop_t crop;
     uint8_t *dst_y;
     uint8_t *dst_uv;
     int result;
@@ -664,7 +664,7 @@ static int deliver_nv12_frame(salts_capture_t *capture,
     return 0;
 }
 
-static int deliver_video_frame(salts_capture_t *capture,
+static int deliver_video_frame(capture_t *capture,
                                mf_video_capture_ctx_t *ctx,
                                const uint8_t *data,
                                size_t data_len,
@@ -746,7 +746,7 @@ static int deliver_video_frame(salts_capture_t *capture,
 static ULONG STDMETHODCALLTYPE mf_reader_callback_add_ref(
     IMFSourceReaderCallback *iface);
 
-static void mf_video_report_read_error(salts_capture_t *capture,
+static void mf_video_report_read_error(capture_t *capture,
                                        mf_video_capture_ctx_t *ctx,
                                        HRESULT hr,
                                        DWORD flags) {
@@ -807,7 +807,7 @@ static HRESULT STDMETHODCALLTYPE mf_reader_callback_on_read_sample(
     IMFSample *sample) {
     mf_source_reader_callback_t *callback = CONTAINING_RECORD(
         iface, mf_source_reader_callback_t, iface);
-    salts_capture_t *capture = (salts_capture_t *)InterlockedCompareExchangePointer(
+    capture_t *capture = (capture_t *)InterlockedCompareExchangePointer(
         &callback->capture, NULL, NULL);
     mf_video_capture_ctx_t *ctx;
     HRESULT hr = S_OK;
@@ -874,7 +874,7 @@ static HRESULT STDMETHODCALLTYPE mf_reader_callback_on_flush(
     IMFSourceReaderCallback *iface, DWORD stream_index) {
     mf_source_reader_callback_t *callback = CONTAINING_RECORD(
         iface, mf_source_reader_callback_t, iface);
-    salts_capture_t *capture = (salts_capture_t *)InterlockedCompareExchangePointer(
+    capture_t *capture = (capture_t *)InterlockedCompareExchangePointer(
         &callback->capture, NULL, NULL);
     (void)stream_index;
 
@@ -906,7 +906,7 @@ static IMFSourceReaderCallbackVtbl mf_reader_callback_vtable = {
 };
 
 static mf_source_reader_callback_t *mf_reader_callback_create(
-    salts_capture_t *capture) {
+    capture_t *capture) {
     mf_source_reader_callback_t *callback =
         (mf_source_reader_callback_t *)calloc(1, sizeof(*callback));
     if (!callback) return NULL;
@@ -921,7 +921,7 @@ static mf_source_reader_callback_t *mf_reader_callback_create(
  * Device Enumeration
  * ============================================================================= */
 
-int salts_capture_list_video_devices(salts_capture_device_t *devices, int max_count) {
+int capture_list_video_devices(capture_device_t *devices, int max_count) {
     if (!devices || max_count <= 0) return -1;
 
     HRESULT hr;
@@ -946,7 +946,7 @@ int salts_capture_list_video_devices(salts_capture_device_t *devices, int max_co
     if (FAILED(hr)) goto cleanup;
 
     for (UINT32 i = 0; i < device_count && count < max_count; i++) {
-        salts_capture_device_t *dev = &devices[count];
+        capture_device_t *dev = &devices[count];
         memset(dev, 0, sizeof(*dev));
         dev->index = count;
         dev->type = SALTS_CAPTURE_TYPE_VIDEO;
@@ -988,7 +988,7 @@ cleanup:
 
 static int mf_video_device_list_modes(
     void *backend_ctx,
-    salts_video_native_mode_t *modes,
+    video_native_mode_t *modes,
     size_t capacity,
     size_t *out_count) {
     mf_video_device_ctx_t *device = (mf_video_device_ctx_t *)backend_ctx;
@@ -1062,7 +1062,7 @@ static int mf_video_device_list_modes(
         DWORD consecutive_errors = 0;
         for (DWORD type_index = 0; count < capacity; ++type_index) {
             IMFMediaType *media_type = NULL;
-            salts_video_native_mode_t mode;
+            video_native_mode_t mode;
 
             hr = IMFSourceReader_GetNativeMediaType(
                 reader, MF_SOURCE_READER_FIRST_VIDEO_STREAM,
@@ -1109,9 +1109,9 @@ cleanup:
  * Video Capture Implementation
  * ============================================================================= */
 
-static salts_capture_t *mf_video_capture_create_exact(
+static capture_t *mf_video_capture_create_exact(
     const char *device_id,
-    const salts_video_native_mode_t *native_mode) {
+    const video_native_mode_t *native_mode) {
     HRESULT hr;
     int device_index = -1;
     int selected_index = -1;
@@ -1137,7 +1137,7 @@ static salts_capture_t *mf_video_capture_create_exact(
     hr = MFStartup(MF_VERSION, MFSTARTUP_LITE);
     if (FAILED(hr)) return NULL;
 
-    salts_capture_t *capture = (salts_capture_t *)calloc(1, sizeof(salts_capture_t));
+    capture_t *capture = (capture_t *)calloc(1, sizeof(capture_t));
     if (!capture) {
         MFShutdown();
         return NULL;
@@ -1295,12 +1295,12 @@ error:
         CoTaskMemFree(device_list);
     }
     if (attributes) IMFAttributes_Release(attributes);
-    salts_capture_destroy(capture);
+    capture_destroy(capture);
     return NULL;
 }
 
 static int mf_video_device_open(const char *device_id, void **backend_ctx) {
-    salts_capture_device_t devices[SALTS_CAPTURE_MAX_DEVICES];
+    capture_device_t devices[SALTS_CAPTURE_MAX_DEVICES];
     mf_video_device_ctx_t *ctx;
     int device_index = -1;
     int count;
@@ -1312,7 +1312,7 @@ static int mf_video_device_open(const char *device_id, void **backend_ctx) {
         return SALTS_CAPTURE_ERR_FORMAT;
     }
 
-    count = salts_capture_list_video_devices(
+    count = capture_list_video_devices(
         devices, SALTS_CAPTURE_MAX_DEVICES);
     if (count <= 0) return SALTS_CAPTURE_ERR_DEVICE;
 
@@ -1343,8 +1343,8 @@ static void mf_video_device_close(void *backend_ctx) {
 
 static int mf_video_device_create_capture(
     void *backend_ctx,
-    const salts_video_native_mode_t *mode,
-    salts_capture_t **out_capture) {
+    const video_native_mode_t *mode,
+    capture_t **out_capture) {
     mf_video_device_ctx_t *device = (mf_video_device_ctx_t *)backend_ctx;
     const char *device_id;
 
@@ -1354,8 +1354,8 @@ static int mf_video_device_create_capture(
     return *out_capture ? SALTS_CAPTURE_OK : SALTS_CAPTURE_ERR_DEVICE;
 }
 
-const salts_video_backend_ops_t *salts_video_platform_backend(void) {
-    static const salts_video_backend_ops_t ops = {
+const video_backend_ops_t *video_platform_backend(void) {
+    static const video_backend_ops_t ops = {
         mf_video_device_open,
         mf_video_device_close,
         mf_video_device_list_modes,
@@ -1364,8 +1364,8 @@ const salts_video_backend_ops_t *salts_video_platform_backend(void) {
     return &ops;
 }
 
-void salts_video_capture_set_callback(salts_capture_t *capture,
-                                        salts_video_capture_cb cb,
+void video_capture_set_callback(capture_t *capture,
+                                        video_capture_cb cb,
                                         void *user_data) {
     if (!capture) return;
     capture->video_cb = cb;
@@ -1407,9 +1407,9 @@ static int read_exposure_mode(IAMCameraControl *control, long *exposure, int *mo
     return SALTS_CAPTURE_OK;
 }
 
-int salts_video_capture_get_control_range(salts_capture_t *capture,
-                                           salts_camera_control_t control,
-                                           salts_camera_control_range_t *range) {
+int video_capture_get_control_range(capture_t *capture,
+                                           camera_control_t control,
+                                           camera_control_range_t *range) {
     mf_video_capture_ctx_t *ctx;
     long property;
     long min_value;
@@ -1504,8 +1504,8 @@ int salts_video_capture_get_control_range(salts_capture_t *capture,
     return SALTS_CAPTURE_ERR_UNSUPPORTED;
 }
 
-int salts_video_capture_set_control(salts_capture_t *capture,
-                                     salts_camera_control_t control,
+int video_capture_set_control(capture_t *capture,
+                                     camera_control_t control,
                                      int value) {
     mf_video_capture_ctx_t *ctx;
     long property;
@@ -1569,8 +1569,8 @@ int salts_video_capture_set_control(salts_capture_t *capture,
     return SALTS_CAPTURE_OK;
 }
 
-int salts_video_capture_get_control(salts_capture_t *capture,
-                                     salts_camera_control_t control,
+int video_capture_get_control(capture_t *capture,
+                                     camera_control_t control,
                                      int *value) {
     mf_video_capture_ctx_t *ctx;
     long property;
@@ -1615,10 +1615,10 @@ int salts_video_capture_get_control(salts_capture_t *capture,
     return SALTS_CAPTURE_OK;
 }
 
-int salts_video_capture_set_crop(salts_capture_t *capture,
-                                  const salts_video_crop_t *crop) {
+int video_capture_set_crop(capture_t *capture,
+                                  const video_crop_t *crop) {
     mf_video_capture_ctx_t *ctx;
-    salts_video_crop_t normalized;
+    video_crop_t normalized;
 
     if (!capture || capture->type != SALTS_CAPTURE_TYPE_VIDEO) {
         return SALTS_CAPTURE_ERR_DEVICE;
@@ -1660,8 +1660,8 @@ int salts_video_capture_set_crop(salts_capture_t *capture,
     return SALTS_CAPTURE_OK;
 }
 
-int salts_video_capture_get_crop(salts_capture_t *capture,
-                                  salts_video_crop_t *crop) {
+int video_capture_get_crop(capture_t *capture,
+                                  video_crop_t *crop) {
     mf_video_capture_ctx_t *ctx;
 
     if (!capture || !crop || capture->type != SALTS_CAPTURE_TYPE_VIDEO) {
@@ -1689,7 +1689,7 @@ int salts_video_capture_get_crop(salts_capture_t *capture,
  * Hooks for centralized dispatcher
  * ============================================================================= */
 
-int mf_video_start(salts_capture_t *capture) {
+int mf_video_start(capture_t *capture) {
     mf_video_capture_ctx_t *ctx = (mf_video_capture_ctx_t *)capture->platform_ctx;
     HRESULT hr;
 
@@ -1707,7 +1707,7 @@ int mf_video_start(salts_capture_t *capture) {
     return 0;
 }
 
-void mf_video_stop(salts_capture_t *capture) {
+void mf_video_stop(capture_t *capture) {
     mf_video_capture_ctx_t *ctx = (mf_video_capture_ctx_t *)capture->platform_ctx;
     HRESULT hr;
     LONG was_running;
@@ -1743,7 +1743,7 @@ void mf_video_stop(salts_capture_t *capture) {
     }
 }
 
-void mf_video_destroy(salts_capture_t *capture) {
+void mf_video_destroy(capture_t *capture) {
     mf_video_capture_ctx_t *ctx = (mf_video_capture_ctx_t *)capture->platform_ctx;
     if (!ctx) return;
 

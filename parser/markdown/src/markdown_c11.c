@@ -1,6 +1,6 @@
-#include <salts/markdown.h>
-#include <salts_unicode.h>
-#include <vstr.h>
+#include <markdown.h>
+#include <unicode.h>
+#include <salts/vstr.h>
 #include "markdown_entities.h"
 
 #include <ctype.h>
@@ -10,7 +10,7 @@
 
 /* The input's exact bytes are copied once and never rewritten. The parser
  * emits semantic text spans and metadata into two distinct owned buffers.
- * All RichDoc views borrow this document until salts_md_document_destroy().
+ * All RichDoc views borrow this document until md_document_destroy().
  */
 /* Parse-local root reference-definition bindings, never exposed through
  * RichDoc or persisted as runtime state. First normalized label wins.
@@ -30,7 +30,7 @@ typedef struct md_reference_binding {
     size_t source_last_line; /* inclusive, all validated ROOT continuations */
 } md_reference_binding;
 
-struct salts_md_document {
+struct md_document {
     char *raw;
     size_t raw_size;
     char *text;
@@ -39,8 +39,8 @@ struct salts_md_document {
     char *metadata;
     size_t metadata_size;
     size_t metadata_capacity;
-    salts_md_block *nodes;
-    salts_md_block_metadata *node_metadata;
+    md_block *nodes;
+    md_block_metadata *node_metadata;
     size_t node_count;
     size_t capacity;
     size_t node_limit;
@@ -48,7 +48,7 @@ struct salts_md_document {
     size_t reference_count;
     bool collecting_container_definitions;
     bool discovered_container_definition;
-    salts_md_status error;
+    md_status error;
 };
 
 typedef struct md_line {
@@ -60,11 +60,11 @@ typedef struct md_line {
 
 /* Container references are admitted by the SAME canonical quote/list
  * block traversal, never by stripping '>' or guessing a second grammar. */
-static bool md_reference_definition_line(const salts_md_document *d,size_t begin);
-static bool md_reference_collect_line(salts_md_document *d,md_line line,
+static bool md_reference_definition_line(const md_document *d,size_t begin);
+static bool md_reference_collect_line(md_document *d,md_line line,
                                       size_t begin,size_t *after_definition,
                                       bool container);
-static bool md_container_reference_line(salts_md_document *d,md_line line,
+static bool md_container_reference_line(md_document *d,md_line line,
                                         size_t begin);
 
 typedef struct md_fence {
@@ -79,7 +79,7 @@ static bool md_ascii_punct(char c) {
            (c >= '[' && c <= (char)0x60) || (c >= '{' && c <= '~');
 }
 
-static md_line md_read_line(const salts_md_document *d, size_t pos) {
+static md_line md_read_line(const md_document *d, size_t pos) {
     md_line line = {pos, pos, pos, false};
     while (line.end < d->raw_size && d->raw[line.end] != '\n')
         ++line.end;
@@ -101,11 +101,11 @@ static bool md_blank(const char *s, size_t b, size_t e) {
     return md_left(s,b,e) == e;
 }
 
-static void md_error(salts_md_document *d, salts_md_status error) {
+static void md_error(md_document *d, md_status error) {
     if (d->error == SALTS_MD_OK) d->error = error;
 }
 
-static bool md_grow(salts_md_document *d) {
+static bool md_grow(md_document *d) {
     if (d->node_count < d->capacity) return true;
     if (d->node_count >= d->node_limit) {
         md_error(d, SALTS_MD_CAPACITY_EXCEEDED);
@@ -113,19 +113,19 @@ static bool md_grow(salts_md_document *d) {
     }
     size_t next = d->capacity ? d->capacity * 2 : 32;
     if (next < d->capacity || next > d->node_limit) next = d->node_limit;
-    if (next > SIZE_MAX / sizeof(salts_md_block) ||
-        next > SIZE_MAX / sizeof(salts_md_block_metadata)) {
+    if (next > SIZE_MAX / sizeof(md_block) ||
+        next > SIZE_MAX / sizeof(md_block_metadata)) {
         md_error(d, SALTS_MD_CAPACITY_EXCEEDED);
         return false;
     }
-    salts_md_block *nodes = (salts_md_block *)realloc(
+    md_block *nodes = (md_block *)realloc(
         d->nodes, next * sizeof(*nodes));
     if (!nodes) {
         md_error(d, SALTS_MD_OUT_OF_MEMORY);
         return false;
     }
     d->nodes = nodes;
-    salts_md_block_metadata *meta = (salts_md_block_metadata *)realloc(
+    md_block_metadata *meta = (md_block_metadata *)realloc(
         d->node_metadata, next * sizeof(*meta));
     if (!meta) {
         md_error(d, SALTS_MD_OUT_OF_MEMORY);
@@ -136,20 +136,20 @@ static bool md_grow(salts_md_document *d) {
     return true;
 }
 
-static uint32_t md_add(salts_md_document *d, uint32_t parent,
-                       salts_md_block_kind kind, uint32_t level) {
+static uint32_t md_add(md_document *d, uint32_t parent,
+                       md_block_kind kind, uint32_t level) {
     if (d->error != SALTS_MD_OK || !md_grow(d)) return UINT32_MAX;
     const uint32_t i = (uint32_t)d->node_count++;
-    d->nodes[i] = (salts_md_block){
+    d->nodes[i] = (md_block){
         .stable_id = (uint64_t)i + 1u, .parent_index = parent,
         .kind = kind, .heading_level = level,
         .byte_begin = 0, .byte_end = 0
     };
-    d->node_metadata[i] = (salts_md_block_metadata){0,0};
+    d->node_metadata[i] = (md_block_metadata){0,0};
     return i;
 }
 
-static bool md_store(salts_md_document *d, bool is_meta,
+static bool md_store(md_document *d, bool is_meta,
                      const char *s, size_t n, size_t *begin, size_t *end) {
     size_t *used = is_meta ? &d->metadata_size : &d->text_size;
     char *target = is_meta ? d->metadata : d->text;
@@ -177,16 +177,16 @@ static bool md_store(salts_md_document *d, bool is_meta,
         /* Bound metadata by the node budget; short Markdown sources may still
          * need eight metadata bytes for one list. */
         if(d->raw_size>(SIZE_MAX-1u)/2u ||
-           d->node_limit>SIZE_MAX/sizeof(salts_md_list_semantics)) {
+           d->node_limit>SIZE_MAX/sizeof(md_list_semantics)) {
             md_error(d,SALTS_MD_CAPACITY_EXCEEDED);return false;
         }
         const size_t semantic_ceiling=d->raw_size*2u;
         if(semantic_ceiling>
-           SIZE_MAX-d->node_limit*sizeof(salts_md_list_semantics)) {
+           SIZE_MAX-d->node_limit*sizeof(md_list_semantics)) {
             md_error(d,SALTS_MD_CAPACITY_EXCEEDED);return false;
         }
         const size_t maximum=semantic_ceiling+
-                             d->node_limit*sizeof(salts_md_list_semantics);
+                             d->node_limit*sizeof(md_list_semantics);
         if(*used>maximum || n>maximum-*used) {
             md_error(d,SALTS_MD_CAPACITY_EXCEEDED);return false;
         }
@@ -209,7 +209,7 @@ static bool md_store(salts_md_document *d, bool is_meta,
     return true;
 }
 
-static void md_text(salts_md_document *d, uint32_t parent,
+static void md_text(md_document *d, uint32_t parent,
                     const char *s, size_t n) {
     if (!n || d->error != SALTS_MD_OK) return;
     const uint32_t node = md_add(d, parent, SALTS_MD_BLOCK_TEXT, 0);
@@ -223,7 +223,7 @@ static void md_text(salts_md_document *d, uint32_t parent,
 
 /* One owned verbatim semantic span: only the explicit renderer policy
  * chooses whether RAW_HTML is escaped or emitted byte-for-byte. */
-static void md_raw_html_inline(salts_md_document *d,uint32_t parent,
+static void md_raw_html_inline(md_document *d,uint32_t parent,
                                const char *s,size_t n) {
     if(!n || d->error!=SALTS_MD_OK)return;
     const uint32_t node=md_add(d,parent,SALTS_MD_BLOCK_RAW_HTML_INLINE,0u);
@@ -238,7 +238,7 @@ static void md_raw_html_inline(salts_md_document *d,uint32_t parent,
 /* One owned RAW_HTML_BLOCK span per canonical root block. Preserve exact
  * payload lines but normalize CRLF to LF, as CommonMark's input model does.
  * The semantic text arena stays contiguous while this block owns input. */
-static bool md_raw_html_block_line(salts_md_document *d,uint32_t node,
+static bool md_raw_html_block_line(md_document *d,uint32_t node,
                                    md_line line,bool first) {
     size_t begin=0u,end=0u;
     if(!md_store(d,false,d->raw+line.begin,line.end-line.begin,
@@ -257,12 +257,12 @@ static bool md_raw_html_block_line(salts_md_document *d,uint32_t node,
     return true;
 }
 
-static void md_meta(salts_md_document *d, uint32_t node,
+static void md_meta(md_document *d, uint32_t node,
                     const char *s, size_t n) {
     if (node == UINT32_MAX || !n) return;
     size_t from = 0, to = 0;
     if (md_store(d, true, s, n, &from, &to))
-        d->node_metadata[node] = (salts_md_block_metadata){from,to};
+        d->node_metadata[node] = (md_block_metadata){from,to};
 }
 
 
@@ -271,7 +271,7 @@ static void md_meta(salts_md_document *d, uint32_t node,
  * HTML5 character reference decoding. Results are never reparsed as grammar.
  * Two-scalar aliases can expand UTF-8 output beyond raw length; twice source
  * bytes bounds the scratch and is checked before every write. */
-static bool md_decode_component(salts_md_document *d,const char *s,size_t n,
+static bool md_decode_component(md_document *d,const char *s,size_t n,
                                  char **output,size_t *output_bytes) {
     if(d->error!=SALTS_MD_OK || !output || !output_bytes)return false;
     if(n>(SIZE_MAX-1u)/2u) {
@@ -288,7 +288,7 @@ static bool md_decode_component(salts_md_document *d,const char *s,size_t n,
         }
         char decoded[8];
         size_t consumed=0u,written=0u;
-        if(s[p]=='&' && salts_md_decode_character_reference(
+        if(s[p]=='&' && md_decode_character_reference(
                     s+p,n-p,&consumed,decoded,&written)) {
             if(written>cap-used) {
                 md_error(d,SALTS_MD_CAPACITY_EXCEEDED);break;
@@ -307,7 +307,7 @@ static bool md_decode_component(salts_md_document *d,const char *s,size_t n,
 /* Fence info strings share this exact decoder with inline link metadata.
  * The code fence BODY is strictly literal. All decoded metadata is copied
  * into the document-owned arena before the scratch is released. */
-static void md_fence_info_meta(salts_md_document *d,uint32_t node,
+static void md_fence_info_meta(md_document *d,uint32_t node,
                                const char *s,size_t n) {
     if(node==UINT32_MAX || !n || d->error!=SALTS_MD_OK)return;
     char *text=NULL;size_t bytes=0u;
@@ -317,19 +317,19 @@ static void md_fence_info_meta(salts_md_document *d,uint32_t node,
 }
 
 /* List metadata is owned by the parser; update before publishing the view. */
-static bool md_list_meta(salts_md_document *d, uint32_t id,
+static bool md_list_meta(md_document *d, uint32_t id,
                          uint32_t start, char marker) {
-    const salts_md_list_semantics info={start,(uint8_t)marker,0u,{0u,0u}};
+    const md_list_semantics info={start,(uint8_t)marker,0u,{0u,0u}};
     md_meta(d,id,(const char*)&info,sizeof(info));
     return d->error==SALTS_MD_OK;
 }
-static void md_mark_list_loose(salts_md_document *d, uint32_t id) {
+static void md_mark_list_loose(md_document *d, uint32_t id) {
     if(id>=d->node_count) {md_error(d,SALTS_MD_INVALID_ARGUMENT);return;}
-    const salts_md_block_metadata span=d->node_metadata[id];
-    if(span.byte_end-span.byte_begin!=sizeof(salts_md_list_semantics)) {
+    const md_block_metadata span=d->node_metadata[id];
+    if(span.byte_end-span.byte_begin!=sizeof(md_list_semantics)) {
         md_error(d,SALTS_MD_INVALID_ARGUMENT);return;
     }
-    salts_md_list_semantics info;
+    md_list_semantics info;
     memcpy(&info,d->metadata+span.byte_begin,sizeof(info));
     info.loose=1u;
     memcpy(d->metadata+span.byte_begin,&info,sizeof(info));
@@ -351,7 +351,7 @@ static size_t md_code_unindent(const char *s, size_t begin, size_t end) {
 /* One text child per logical code line, with LF normalized at EOF/CRLF.
  * Code is not recursively parsed as inline Markdown; decoded text and the
  * original raw input remain separately owned by the same document. */
-static bool md_code_line(salts_md_document *d, uint32_t parent,
+static bool md_code_line(md_document *d, uint32_t parent,
                          md_line line, bool blank) {
     const char *s=d->raw;
     size_t content=md_code_unindent(s,line.begin,line.end);
@@ -394,7 +394,7 @@ static size_t md_logical_content_column_at(const char *s,size_t at) {
 /* Consume a precise visual-column code indent from raw source. If the
  * last consumed TAB crosses the boundary, emit its residual columns as
  * ASCII spaces in the ONE owned code TEXT node. CRLF/EOF normalize to LF. */
-static bool md_code_line_visual(salts_md_document *d,uint32_t parent,
+static bool md_code_line_visual(md_document *d,uint32_t parent,
                                 md_line line,size_t physical_column,
                                 size_t wanted_column) {
     const char *s=d->raw;
@@ -450,9 +450,9 @@ static bool md_inline_whitespace_after(const char *s,size_t n,size_t at) {
     if((unsigned char)s[at]<0x80u)
         return md_space(s[at]) || s[at]=='\n' || s[at]=='\r';
     size_t cursor=0u;
-    salts_unicode_scalar scalar={0};
+    unicode_scalar scalar={0};
     const vstr borrowed=vstr_from_buf(s+at,n-at);
-    return salts_unicode_utf8_next(borrowed,&cursor,&scalar)==
+    return unicode_utf8_next(borrowed,&cursor,&scalar)==
            SALTS_UNICODE_OK &&
            (scalar.properties&SALTS_UNICODE_PROPERTY_WHITE_SPACE)!=0u;
 }
@@ -466,9 +466,9 @@ static bool md_inline_whitespace_before(const char *s,size_t at) {
     while(first>0u && at-first<4u &&
           ((unsigned char)s[first]&0xc0u)==0x80u) --first;
     size_t cursor=0u;
-    salts_unicode_scalar scalar={0};
+    unicode_scalar scalar={0};
     const vstr borrowed=vstr_from_buf(s+first,at-first);
-    return salts_unicode_utf8_next(borrowed,&cursor,&scalar)==
+    return unicode_utf8_next(borrowed,&cursor,&scalar)==
            SALTS_UNICODE_OK && cursor==at-first &&
            (scalar.properties&SALTS_UNICODE_PROPERTY_WHITE_SPACE)!=0u;
 }
@@ -479,12 +479,12 @@ static bool md_inline_whitespace_before(const char *s,size_t at) {
 static bool md_inline_punct_after(const char *s,size_t n,size_t at) {
     if(at>=n)return false;
     if((unsigned char)s[at]<0x80u)return md_ascii_punct(s[at]);
-    salts_unicode_scalar scalar={0};
+    unicode_scalar scalar={0};
     size_t cursor=0u;
-    if(salts_unicode_utf8_next(vstr_from_buf(s+at,n-at),&cursor,
+    if(unicode_utf8_next(vstr_from_buf(s+at,n-at),&cursor,
                                &scalar)!=SALTS_UNICODE_OK)return false;
     int result=0;
-    return salts_unicode_is_punctuation_or_symbol(scalar.value,&result)==
+    return unicode_is_punctuation_or_symbol(scalar.value,&result)==
            SALTS_UNICODE_OK && result!=0;
 }
 static bool md_inline_punct_before(const char *s,size_t at) {
@@ -494,13 +494,13 @@ static bool md_inline_punct_before(const char *s,size_t at) {
     size_t first=last;
     while(first>0u && at-first<4u &&
           ((unsigned char)s[first]&0xc0u)==0x80u)--first;
-    salts_unicode_scalar scalar={0};
+    unicode_scalar scalar={0};
     size_t cursor=0u;
-    if(salts_unicode_utf8_next(vstr_from_buf(s+first,at-first),
+    if(unicode_utf8_next(vstr_from_buf(s+first,at-first),
                                &cursor,&scalar)!=SALTS_UNICODE_OK ||
        cursor!=at-first)return false;
     int result=0;
-    return salts_unicode_is_punctuation_or_symbol(scalar.value,&result)==
+    return unicode_is_punctuation_or_symbol(scalar.value,&result)==
            SALTS_UNICODE_OK && result!=0;
 }
 
@@ -1031,17 +1031,17 @@ static bool md_reference_key(const char *s,size_t b,size_t e,
     if(!used)return false;
     const vstr borrowed=vstr_from_buf(canonical,used);
     size_t folded=SIZE_MAX;
-    if(salts_unicode_case_fold(borrowed,NULL,0u,&folded)!=SALTS_UNICODE_OK ||
+    if(unicode_case_fold(borrowed,NULL,0u,&folded)!=SALTS_UNICODE_OK ||
        !folded || folded>MD_REF_FOLD_MAX)return false;
     size_t written=SIZE_MAX;
-    if(salts_unicode_case_fold(borrowed,key,MD_REF_FOLD_MAX,&written)!=
+    if(unicode_case_fold(borrowed,key,MD_REF_FOLD_MAX,&written)!=
        SALTS_UNICODE_OK || written!=folded)return false;
     key[written]='\0';
     return true;
 }
 
 static const md_reference_binding *md_reference_lookup(
-    const salts_md_document *d,const char *s,size_t begin,size_t end) {
+    const md_document *d,const char *s,size_t begin,size_t end) {
     if(!d->reference_count)return NULL;
     char key[MD_REF_FOLD_MAX+1u];
     if(!md_reference_key(s,begin,end,key))return NULL;
@@ -1056,7 +1056,7 @@ static const md_reference_binding *md_reference_lookup(
  * visible label after finding its balanced closer. Only real inline targets
  * or resolved references are active; images do not count as nested links.
  * All lookups borrow the parse-local reference table. */
-static bool md_link_visible_has_active_link(const salts_md_document *d,
+static bool md_link_visible_has_active_link(const md_document *d,
                                           const char *s,size_t begin,
                                           size_t end) {
     for(size_t p=begin;p<end;) {
@@ -1108,7 +1108,7 @@ static bool md_link_visible_has_active_link(const salts_md_document *d,
  * opacity and RichDoc emission. Never bind an outer LINK around an already
  * active inner LINK (CommonMark #532/#533). */
 static bool md_reference_inline_match(
-    const salts_md_document *d,const char *s,size_t n,size_t at,
+    const md_document *d,const char *s,size_t n,size_t at,
     bool image,const md_reference_binding **binding,size_t *label_end,
     size_t *token_end) {
     if(!d->reference_count || !binding || !label_end || !token_end ||
@@ -1256,7 +1256,7 @@ static size_t md_code_span_close(const char *s,size_t n,size_t begin,
  * other interior spaces and Unicode bytes are literal. The scratch buffer
  * cannot exceed the already admitted raw-source budget; publication still
  * goes through the single RichDoc text arena and failure-atomic md_text. */
-static void md_code_span_text(salts_md_document *d,uint32_t parent,
+static void md_code_span_text(md_document *d,uint32_t parent,
                               const char *s,size_t start,size_t end) {
     const size_t n=end-start;
     const bool multiline=memchr(s+start,'\n',n)!=NULL ||
@@ -1313,7 +1313,7 @@ typedef struct md_emph_event {
  *
  * Comparison work is capped relative to this inline source's byte count:
  * malicious alternating runs fail atomically instead of searching forever. */
-static bool md_emph_pairs(salts_md_document *d,const char *s,size_t n,
+static bool md_emph_pairs(md_document *d,const char *s,size_t n,
                           md_emph_event *events) {
     if(n>SIZE_MAX/sizeof(md_emph_run)) {
         md_error(d,SALTS_MD_CAPACITY_EXCEEDED);return false;
@@ -1480,14 +1480,14 @@ static md_root_break md_root_line_content(const char *s,size_t begin,
     return MD_ROOT_BREAK_SOFT;
 }
 
-static bool md_root_emit_break(salts_md_document *d,uint32_t paragraph,
+static bool md_root_emit_break(md_document *d,uint32_t paragraph,
                                md_root_break kind) {
     const bool hard=kind!=MD_ROOT_BREAK_SOFT;
     const uint32_t node=md_add(d,paragraph,hard?
         SALTS_MD_BLOCK_HARD_LINE_BREAK:SALTS_MD_BLOCK_LINE_BREAK,0u);
     if(node==UINT32_MAX)return false;
     if(hard) {
-        const salts_md_line_break_semantics info={
+        const md_line_break_semantics info={
             (uint8_t)(kind==MD_ROOT_BREAK_SPACES ?
              SALTS_MD_LINE_BREAK_TRAILING_SPACES :
              SALTS_MD_LINE_BREAK_BACKSLASH),{0u,0u,0u}
@@ -1497,7 +1497,7 @@ static bool md_root_emit_break(salts_md_document *d,uint32_t paragraph,
     return d->error==SALTS_MD_OK;
 }
 
-static bool md_inline(salts_md_document *d, uint32_t parent,
+static bool md_inline(md_document *d, uint32_t parent,
                       const char *s, size_t n, unsigned depth) {
     if(depth>32u || n>SIZE_MAX/sizeof(md_emph_event)) {
         md_error(d,SALTS_MD_CAPACITY_EXCEEDED);return false;
@@ -1525,7 +1525,7 @@ static bool md_inline(salts_md_document *d, uint32_t parent,
                 md_error(d,SALTS_MD_CAPACITY_EXCEEDED);break;
             }
             md_text(d,owners[nested],s+text_start,p-text_start);
-            const salts_md_block_kind kind=events[p].open==2u?
+            const md_block_kind kind=events[p].open==2u?
                 SALTS_MD_BLOCK_STRONG:SALTS_MD_BLOCK_EMPHASIS;
             const uint32_t node=md_add(d,owners[nested],kind,0u);
             if(node==UINT32_MAX) break;
@@ -1598,7 +1598,7 @@ static bool md_inline(salts_md_document *d, uint32_t parent,
                         md_error(d,SALTS_MD_INVALID_ARGUMENT);break;
                     }
                     d->node_metadata[link]=
-                        (salts_md_block_metadata){first,end};
+                        (md_block_metadata){first,end};
                 } else md_meta(d,link,s+p+1u,bytes);
                 md_text(d,link,s+p+1u,bytes);
                 if(d->error!=SALTS_MD_OK)break;
@@ -1627,7 +1627,7 @@ static bool md_inline(salts_md_document *d, uint32_t parent,
         if(s[p]=='&') {
             char decoded[8];
             size_t consumed=0u,written=0u;
-            if(salts_md_decode_character_reference(
+            if(md_decode_character_reference(
                     s+p,n-p,&consumed,decoded,&written)) {
                 md_text(d,owners[nested],s+text_start,p-text_start);
                 md_text(d,owners[nested],decoded,written);
@@ -1895,7 +1895,7 @@ static size_t md_skip_columns(const char *s,size_t begin,size_t end,
 
 /* List content columns are relative to the physical line's final owner
  * (root or marked quote). Count TAB stops from original source positions. */
-static bool md_list_code_line(salts_md_document *d,md_list_frame *f,
+static bool md_list_code_line(md_document *d,md_list_frame *f,
                               md_line line) {
     const char *s=d->raw;
     const size_t base=md_logical_content_column_at(s,line.begin);
@@ -1969,7 +1969,7 @@ static bool md_list_interrupts_paragraph(const md_list_marker_info *m,
 /* Both marker-line and continuation-line fences use the same owned item
  * frame.  A recognized opener is consumed even when allocation fails; the
  * caller will propagate d->error and discard the incomplete document. */
-static bool md_list_begin_fence(salts_md_document *d,md_list_frame *f,
+static bool md_list_begin_fence(md_document *d,md_list_frame *f,
                                 const char *s,size_t begin,size_t end) {
     char marker=0;
     size_t run=0,info_b=0,info_e=0;
@@ -1992,18 +1992,18 @@ static bool md_list_begin_fence(salts_md_document *d,md_list_frame *f,
 /* One typed GFM TABLE admission shared by root/quote/list owners.
  * Item content columns are relative to their owning root or quoted line;
  * 0 means no list owner. The cursor is advanced only on actual admission. */
-static bool md_table_admit(salts_md_document *d,uint32_t parent,
+static bool md_table_admit(md_document *d,uint32_t parent,
                            md_line header,size_t header_begin,
                            size_t *next_pos,size_t quote_depth,
                            size_t item_column);
-static bool md_list_open(salts_md_document *d,md_list_stack *stack,
+static bool md_list_open(md_document *d,md_list_stack *stack,
                          uint32_t parent,const md_list_marker_info *m,
                          const char *s,size_t end,size_t *next_pos,
                          size_t quote_depth);
 
 /* Use the same ATX grammar and owned IR for headings admitted directly
  * within a list item; no competing inline parser is introduced. */
-static bool md_list_begin_atx(salts_md_document *d,md_list_frame *f,
+static bool md_list_begin_atx(md_document *d,md_list_frame *f,
                               const char *s,size_t begin,size_t end) {
     size_t text_begin=begin,text_end=end;
     const unsigned level=md_atx(s,&text_begin,&text_end);
@@ -2018,7 +2018,7 @@ static bool md_list_begin_atx(salts_md_document *d,md_list_frame *f,
 /* An inline '>' on a list marker line and subsequent explicitly marked
  * quote lines share the same list-owned quote paragraph. The owned quote
  * node stays a child of the list item; no root quote grammar is duplicated. */
-static bool md_list_append_quote(salts_md_document *d,md_list_frame *f,
+static bool md_list_append_quote(md_document *d,md_list_frame *f,
                                  const char *s,size_t begin,size_t end) {
     if(begin>=end || s[begin]!='>') return false;
     if(f->quote==UINT32_MAX) {
@@ -2041,7 +2041,7 @@ static bool md_list_append_quote(salts_md_document *d,md_list_frame *f,
     return true;
 }
 
-static bool md_list_append_item(salts_md_document *d,md_list_stack *stack,
+static bool md_list_append_item(md_document *d,md_list_stack *stack,
                                 md_list_frame *f,
                                 const md_list_marker_info *m,
                                 const char *s,size_t end,
@@ -2153,7 +2153,7 @@ static bool md_list_append_item(salts_md_document *d,md_list_stack *stack,
     return d->error==SALTS_MD_OK;
 }
 
-static bool md_list_open(salts_md_document *d,md_list_stack *stack,
+static bool md_list_open(md_document *d,md_list_stack *stack,
                          uint32_t parent,const md_list_marker_info *m,
                          const char *s,size_t end,size_t *next_pos,
                          size_t quote_depth) {
@@ -2187,7 +2187,7 @@ static void md_list_claim_nested_blank(md_list_stack *stack) {
 static bool md_quote_lazy_interrupts(const char *s,md_line line,
                                      size_t begin);
 
-static bool md_list_consume(salts_md_document *d,md_list_stack *stack,
+static bool md_list_consume(md_document *d,md_list_stack *stack,
                             md_line line,size_t *next_pos,
                             size_t quote_depth) {
     if(!stack->depth) return false;
@@ -2528,7 +2528,7 @@ static bool md_table_scan(const char *s, size_t begin, size_t end,
  * temporary buffer: inside a code span the regular CommonMark inline scanner
  * otherwise treats that backslash as literal and would print an extra '\\'.
  * The original document input stays immutable and no scratch is published. */
-static bool md_table_cell_inline(salts_md_document *d,uint32_t cell,
+static bool md_table_cell_inline(md_document *d,uint32_t cell,
                                  const char *s,size_t begin,size_t end) {
     if(end<begin || end-begin==SIZE_MAX) {
         md_error(d,SALTS_MD_CAPACITY_EXCEEDED);return false;
@@ -2549,7 +2549,7 @@ static bool md_table_cell_inline(salts_md_document *d,uint32_t cell,
     return ok;
 }
 
-static bool md_table_row(salts_md_document *d, uint32_t table,
+static bool md_table_row(md_document *d, uint32_t table,
                          const char *s, size_t begin, size_t end,
                          size_t expected_columns) {
     const uint32_t row=md_add(d,table,SALTS_MD_BLOCK_TABLE_ROW,0u);
@@ -2664,7 +2664,7 @@ static size_t md_quote_prefix(const char *s,md_line line,size_t *body) {
  * lazy/unmarked line, a nested list, or a competing container as table data.
  * This routine advances next_pos only after a complete header+delimiter
  * admission and never persists a second parser or an unowned scratch view. */
-static bool md_table_admit(salts_md_document *d,uint32_t parent,
+static bool md_table_admit(md_document *d,uint32_t parent,
                            md_line header,size_t header_begin,
                            size_t *next_pos,size_t quote_depth,
                            size_t item_column) {
@@ -2744,7 +2744,7 @@ static bool md_table_admit(salts_md_document *d,uint32_t parent,
  * same delimiter column count. An unindented/dedented delimiter remains
  * root TABLE-owned. This single check is reused during ROOT reference
  * preflight; it is not a second parser or an HTML-only inference. */
-static bool md_table_header_owned_by_list(salts_md_document *d,
+static bool md_table_header_owned_by_list(md_document *d,
                                           md_line header,
                                           size_t next_pos) {
     if(next_pos>=d->raw_size)return false;
@@ -2769,7 +2769,7 @@ static bool md_table_header_owned_by_list(salts_md_document *d,
 
 /* After a quote marker consumes its optional ONE visual whitespace
  * column, retain the remaining TAB columns as owned code indentation. */
-static bool md_quote_code_line(salts_md_document *d,uint32_t code,
+static bool md_quote_code_line(md_document *d,uint32_t code,
                                md_line line,size_t body) {
     const char *s=d->raw;
     const size_t logical=md_logical_content_column_at(s,body);
@@ -2786,7 +2786,7 @@ static bool md_quote_code_line(salts_md_document *d,uint32_t code,
 
 /* One explicitly owned stack of quote containers. All admitted blocks keep
  * their true parent in the pre-order RichDoc, with one document lifetime. */
-static bool md_quote_line(salts_md_document *d,md_quote_stack *q,
+static bool md_quote_line(md_document *d,md_quote_stack *q,
                           md_line line,size_t level,size_t body,
                           size_t *next_pos) {
     if(level>MD_QUOTE_MAX_DEPTH) {
@@ -2961,7 +2961,7 @@ static bool md_quote_line(salts_md_document *d,md_quote_stack *q,
  * At most 64 continuation lines are examined per opener to keep repeated
  * unmatched candidates from causing unbounded quadratic rescanning.
  * Nested quote/list paragraph admission is a separate #182 slice. */
-static bool md_root_code_span_interrupts(salts_md_document *d,md_line line) {
+static bool md_root_code_span_interrupts(md_document *d,md_line line) {
     const char *s=d->raw;
     const size_t begin=md_left(s,line.begin,line.end);
     if(begin==line.end) return true;
@@ -2980,7 +2980,7 @@ static bool md_root_code_span_interrupts(salts_md_document *d,md_line line) {
            md_list_interrupts_paragraph(&item,line);
 }
 
-static bool md_root_multiline_code_span(salts_md_document *d,
+static bool md_root_multiline_code_span(md_document *d,
                                         uint32_t *paragraph,md_line first,
                                         size_t begin,size_t *next_pos) {
     const char *s=d->raw;
@@ -3029,7 +3029,7 @@ static bool md_root_multiline_code_span(salts_md_document *d,
  * Delimiters may be parsed twice in this test-and-admit path. Both passes
  * remain subject to the identical work cap and the 32-deep owner ceiling;
  * this is bounded by the full original raw-byte input budget. */
-static bool md_root_paragraph_emphasis(salts_md_document *d,
+static bool md_root_paragraph_emphasis(md_document *d,
                                         uint32_t *paragraph,
                                         md_line first,size_t begin,
                                         size_t *next_pos) {
@@ -3121,7 +3121,7 @@ static bool md_root_paragraph_emphasis(salts_md_document *d,
  * origin BEFORE publishing decoded RichDoc text. A backward trim of the
  * shared text arena would invalidate borrowed byte spans and node owners.
  * Do not cross competing blocks, list/quote generations or blank lines. */
-static bool md_root_paragraph_continues(salts_md_document *d,md_line current) {
+static bool md_root_paragraph_continues(md_document *d,md_line current) {
     if(!current.newline || current.next>=d->raw_size)return false;
     const md_line next=md_read_line(d,current.next);
     const char *s=d->raw;
@@ -3141,7 +3141,7 @@ static bool md_root_paragraph_continues(salts_md_document *d,md_line current) {
  * A single CRLF is normalized to a semantic LF. The second line's actual
  * hard/soft continuation origin remains owned by md_root_line_content.
  * Other multiline inline grammars remain separately scoped. */
-static bool md_root_multiline_inline_title(salts_md_document *d,
+static bool md_root_multiline_inline_title(md_document *d,
                                            uint32_t *paragraph,
                                            md_line first,size_t begin,
                                            size_t *next_pos,
@@ -3205,7 +3205,7 @@ static bool md_root_multiline_inline_title(salts_md_document *d,
  * Input is copied into transient LF-normalized scratch; published nodes own
  * copied semantic bytes. Never borrow scratch or cross blank/container/block
  * boundaries. The two-line limit bounds incomplete-candidate work. */
-static bool md_root_multiline_raw_html(salts_md_document *d,
+static bool md_root_multiline_raw_html(md_document *d,
                                        uint32_t *paragraph,md_line first,
                                        size_t begin,size_t *next_pos,
                                        md_root_break *next_break) {
@@ -3278,7 +3278,7 @@ static bool md_root_multiline_raw_html(salts_md_document *d,
  * their block output; duplicates are consumed but lookup selects the FIRST.
  * Fixed 128-entry budget prevents unbounded hash/state growth. */
 static bool md_reference_definition_line(
-    const salts_md_document *d,size_t begin) {
+    const md_document *d,size_t begin) {
     size_t low=0u,high=d->reference_count;
     while(low<high) {
         const size_t mid=low+(high-low)/2u;
@@ -3295,7 +3295,7 @@ static bool md_reference_definition_line(
  * Normalize CRLF to LF and remove structural continuation indentation;
  * retain all title payload/trailing spaces and raw document bytes.
  * Scratch is bounded by source bytes; at most 64 physical lines are read. */
-static bool md_reference_collect_title(salts_md_document *d,md_line first,
+static bool md_reference_collect_title(md_document *d,md_line first,
                                        size_t begin,md_line *last,
                                        char **title,size_t *title_bytes) {
     const char *s=d->raw;
@@ -3348,7 +3348,7 @@ static bool md_reference_collect_title(salts_md_document *d,md_line first,
  * Original bytes (including CRLF and indentation) must fit 128 raw bytes.
  * Continue to borrow only the immutable source; no secondary table, Unicode
  * fold substitute, or nested-container definition grammar (#208 / #183). */
-static bool md_reference_definition_label(salts_md_document *d,
+static bool md_reference_definition_label(md_document *d,
                                          md_line first,size_t begin,
                                          md_line *target_line,
                                          size_t *after_colon,
@@ -3413,7 +3413,7 @@ static bool md_reference_definition_label(salts_md_document *d,
     return false;
 }
 
-static bool md_reference_collect_line(salts_md_document *d,md_line line,
+static bool md_reference_collect_line(md_document *d,md_line line,
                                       size_t begin,size_t *after_definition,
                                       bool container) {
     const char *s=d->raw;
@@ -3519,7 +3519,7 @@ static bool md_reference_collect_line(salts_md_document *d,md_line line,
  * content column and paragraph/fence precedence. In discovery, collect
  * its metadata into the SAME document table. During emission, suppress
  * only source intervals already admitted by discovery. */
-static bool md_container_reference_line(salts_md_document *d,md_line line,
+static bool md_container_reference_line(md_document *d,md_line line,
                                         size_t begin) {
     if(md_reference_definition_line(d,line.begin))return true;
     if(!d->collecting_container_definitions || begin>=line.end ||
@@ -3530,7 +3530,7 @@ static bool md_container_reference_line(salts_md_document *d,md_line line,
     return true;
 }
 
-static void md_reference_collect_root(salts_md_document *d) {
+static void md_reference_collect_root(md_document *d) {
     const char *s=d->raw;
     bool paragraph_started=false;
     bool fenced=false;
@@ -3726,7 +3726,7 @@ static void md_reference_collect_root(salts_md_document *d) {
     }
 }
 
-static void md_reference_clear(salts_md_document *d) {
+static void md_reference_clear(md_document *d) {
     if(!d)return;
     for(size_t i=0u;i<d->reference_count;++i) {
         free(d->references[i].href);
@@ -3737,7 +3737,7 @@ static void md_reference_clear(salts_md_document *d) {
     d->reference_count=0u;
 }
 
-static void md_parse_blocks(salts_md_document *d) {
+static void md_parse_blocks(md_document *d) {
     uint32_t paragraph = UINT32_MAX;
     md_root_break pending_break=MD_ROOT_BREAK_SOFT;
     uint32_t indented = UINT32_MAX;
@@ -4063,7 +4063,7 @@ static void md_parse_blocks(salts_md_document *d) {
     }
 }
 
-void salts_md_document_destroy(salts_md_document *d) {
+void md_document_destroy(md_document *d) {
     if (!d) return;
     free(d->raw);
     free(d->text);
@@ -4074,9 +4074,9 @@ void salts_md_document_destroy(salts_md_document *d) {
     free(d);
 }
 
-salts_md_rich_document_view salts_md_get_document_view(const salts_md_document *d) {
-    if (!d) return (salts_md_rich_document_view){0};
-    return (salts_md_rich_document_view){
+md_rich_document_view md_get_document_view(const md_document *d) {
+    if (!d) return (md_rich_document_view){0};
+    return (md_rich_document_view){
         .document = {
             .source = d->text,
             .source_bytes = d->text_size,
@@ -4092,16 +4092,16 @@ salts_md_rich_document_view salts_md_get_document_view(const salts_md_document *
     };
 }
 
-salts_md_status salts_md_parse(const char *input,size_t length,
+md_status md_parse(const char *input,size_t length,
                              size_t max_nodes,size_t max_source_bytes,
-                             salts_md_document **out) {
+                             md_document **out) {
     if (!out) return SALTS_MD_INVALID_ARGUMENT;
     *out=NULL;
     if ((!input && length) || !max_nodes || !max_source_bytes)
         return SALTS_MD_INVALID_ARGUMENT;
     if (length>max_source_bytes || max_nodes>UINT32_MAX ||
         length==SIZE_MAX) return SALTS_MD_CAPACITY_EXCEEDED;
-    salts_md_document *d=(salts_md_document *)calloc(1,sizeof(*d));
+    md_document *d=(md_document *)calloc(1,sizeof(*d));
     if (!d) return SALTS_MD_OUT_OF_MEMORY;
     d->node_limit=max_nodes;
     d->raw_size=length;
@@ -4111,15 +4111,15 @@ salts_md_status salts_md_parse(const char *input,size_t length,
     d->metadata_capacity=length;
     d->text_capacity=length;
     if (!d->raw || !d->text || !d->metadata) {
-        salts_md_document_destroy(d);
+        md_document_destroy(d);
         return SALTS_MD_OUT_OF_MEMORY;
     }
     if(length) memcpy(d->raw,input,length);
     d->raw[length]='\0';
     d->text[0]=d->metadata[0]='\0';
     if (md_add(d,SALTS_MD_PARENT_NONE,SALTS_MD_BLOCK_DOCUMENT,0)==UINT32_MAX) {
-        const salts_md_status error=d->error;
-        salts_md_document_destroy(d);
+        const md_status error=d->error;
+        md_document_destroy(d);
         return error;
     }
     md_reference_collect_root(d);
@@ -4144,12 +4144,12 @@ salts_md_status salts_md_parse(const char *input,size_t length,
     md_reference_clear(d);
     if (d->error==SALTS_MD_OK) {
         d->nodes[0].byte_end=d->text_size;
-        const salts_md_rich_document_view view=salts_md_get_document_view(d);
-        d->error=salts_md_rich_document_validate(&view,max_nodes);
+        const md_rich_document_view view=md_get_document_view(d);
+        d->error=md_rich_document_validate(&view,max_nodes);
     }
     if (d->error!=SALTS_MD_OK) {
-        const salts_md_status error=d->error;
-        salts_md_document_destroy(d);
+        const md_status error=d->error;
+        md_document_destroy(d);
         return error;
     }
     *out=d;

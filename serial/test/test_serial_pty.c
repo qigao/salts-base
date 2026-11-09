@@ -37,11 +37,11 @@ static int read_peer(int fd, void *buffer, size_t expected) {
   return 1;
 }
 
-static int wait_rx(salts_serial_t *serial, size_t expected) {
+static int wait_rx(serial_t *serial, size_t expected) {
   size_t attempt;
   for (attempt = 0u; attempt < 1000u; ++attempt) {
     const struct timespec interval = {0, 1000000L};
-    if (salts_serial_rx_available(serial) == expected) return 1;
+    if (serial_rx_available(serial) == expected) return 1;
     (void)nanosleep(&interval, NULL);
   }
   return 0;
@@ -50,9 +50,9 @@ static int wait_rx(salts_serial_t *serial, size_t expected) {
 static int serial_pty_native_contract(void) {
   const unsigned char payload[] = {'A', 0u, 0xffu, 0x80u, 0xc3u, 0xa9u, 'Z'};
   unsigned char received[sizeof(payload)] = {0};
-  salts_serial_config_t config;
-  salts_serial_t *serial = NULL;
-  salts_serial_event_set_t *events = NULL;
+  serial_config_t config;
+  serial_t *serial = NULL;
+  serial_event_set_t *events = NULL;
   struct termios initial;
   char name[256] = {0};
   int master = -1;
@@ -68,73 +68,73 @@ static int serial_pty_native_contract(void) {
   REQUIRE(tcgetattr(slave, &initial) == 0);
   cfmakeraw(&initial);
   REQUIRE(tcsetattr(slave, TCSANOW, &initial) == 0);
-  salts_serial_config_default(&config);
+  serial_config_default(&config);
   config.rx_buffer_size = 8u;
   config.tx_buffer_size = 8u;
   config.io_chunk_size = 4u;
   config.poll_interval_ms = 1u;
-  REQUIRE(salts_serial_create(&serial, &config) == SALTS_SERIAL_OK);
-  REQUIRE(salts_serial_open(serial, name, SALTS_SERIAL_MODE_READ_WRITE) == SALTS_SERIAL_OK);
+  REQUIRE(serial_create(&serial, &config) == SALTS_SERIAL_OK);
+  REQUIRE(serial_open(serial, name, SALTS_SERIAL_MODE_READ_WRITE) == SALTS_SERIAL_OK);
   REQUIRE(close(slave) == 0);
   slave = -1;
-  REQUIRE(salts_serial_event_set_create(&events) == SALTS_SERIAL_OK);
-  REQUIRE(salts_serial_event_set_add(events, serial,
+  REQUIRE(serial_event_set_create(&events) == SALTS_SERIAL_OK);
+  REQUIRE(serial_event_set_add(events, serial,
       SALTS_SERIAL_EVENT_RX_READY | SALTS_SERIAL_EVENT_ERROR) == SALTS_SERIAL_OK);
 
   REQUIRE(write(master, payload, sizeof(payload)) == (ssize_t)sizeof(payload));
-  REQUIRE(salts_serial_event_wait_ex(events, 1000u, &mask) == SALTS_SERIAL_OK);
+  REQUIRE(serial_event_wait_ex(events, 1000u, &mask) == SALTS_SERIAL_OK);
   REQUIRE((mask & SALTS_SERIAL_EVENT_RX_READY) != 0u);
-  REQUIRE(salts_serial_read(serial, received, sizeof(received), 1000u, &count) == SALTS_SERIAL_OK);
+  REQUIRE(serial_read(serial, received, sizeof(received), 1000u, &count) == SALTS_SERIAL_OK);
   REQUIRE(count == sizeof(payload));
   REQUIRE(memcmp(received, payload, sizeof(payload)) == 0);
-  REQUIRE(salts_serial_write(serial, payload, sizeof(payload), 1000u, &count) == SALTS_SERIAL_OK);
+  REQUIRE(serial_write(serial, payload, sizeof(payload), 1000u, &count) == SALTS_SERIAL_OK);
   REQUIRE(count == sizeof(payload));
   REQUIRE(read_peer(master, received, sizeof(received)));
   REQUIRE(memcmp(received, payload, sizeof(payload)) == 0);
-  REQUIRE(salts_serial_read(serial, received, sizeof(received), 1u, &count) == SALTS_SERIAL_OK);
+  REQUIRE(serial_read(serial, received, sizeof(received), 1u, &count) == SALTS_SERIAL_OK);
   REQUIRE(count == 0u);
   mask = 99u;
-  REQUIRE(salts_serial_event_wait_ex(events, 1u, &mask) == SALTS_SERIAL_WOULD_BLOCK);
+  REQUIRE(serial_event_wait_ex(events, 1u, &mask) == SALTS_SERIAL_WOULD_BLOCK);
   REQUIRE(mask == 0u);
 
-  REQUIRE(salts_serial_start_async(serial) == SALTS_SERIAL_OK);
-  REQUIRE(salts_serial_read(serial, received, sizeof(received), 1u, &count) == SALTS_SERIAL_INVALID_STATE);
+  REQUIRE(serial_start_async(serial) == SALTS_SERIAL_OK);
+  REQUIRE(serial_read(serial, received, sizeof(received), 1u, &count) == SALTS_SERIAL_INVALID_STATE);
   REQUIRE(count == 0u);
-  REQUIRE(salts_serial_write(serial, payload, sizeof(payload), 1u, &count) == SALTS_SERIAL_INVALID_STATE);
+  REQUIRE(serial_write(serial, payload, sizeof(payload), 1u, &count) == SALTS_SERIAL_INVALID_STATE);
   REQUIRE(count == 0u);
-  REQUIRE(salts_serial_buffer_rx(serial, payload, sizeof(payload), &count) == SALTS_SERIAL_INVALID_STATE);
+  REQUIRE(serial_buffer_rx(serial, payload, sizeof(payload), &count) == SALTS_SERIAL_INVALID_STATE);
   REQUIRE(count == 0u);
-  REQUIRE(salts_serial_drain_tx_buffer(serial, received, sizeof(received), &count) == SALTS_SERIAL_INVALID_STATE);
+  REQUIRE(serial_drain_tx_buffer(serial, received, sizeof(received), &count) == SALTS_SERIAL_INVALID_STATE);
   REQUIRE(count == 0u);
-  REQUIRE(salts_serial_write_buffered(serial, payload, sizeof(payload), &count) == SALTS_SERIAL_OK);
+  REQUIRE(serial_write_buffered(serial, payload, sizeof(payload), &count) == SALTS_SERIAL_OK);
   REQUIRE(count == sizeof(payload));
   REQUIRE(read_peer(master, received, sizeof(received)));
   REQUIRE(memcmp(received, payload, sizeof(payload)) == 0);
   REQUIRE(write(master, payload, sizeof(payload)) == (ssize_t)sizeof(payload));
   REQUIRE(wait_rx(serial, sizeof(payload)));
-  REQUIRE(salts_serial_read_buffered(serial, received, sizeof(received), &count) == SALTS_SERIAL_OK);
+  REQUIRE(serial_read_buffered(serial, received, sizeof(received), &count) == SALTS_SERIAL_OK);
   REQUIRE(count == sizeof(payload));
   REQUIRE(memcmp(received, payload, sizeof(payload)) == 0);
-  REQUIRE(salts_serial_stop_async(serial) == SALTS_SERIAL_OK);
-  REQUIRE(salts_serial_async_running(serial) == 0);
-  REQUIRE(salts_serial_stop_async(serial) == SALTS_SERIAL_OK);
-  REQUIRE(salts_serial_last_error(serial) == SALTS_SERIAL_OK);
+  REQUIRE(serial_stop_async(serial) == SALTS_SERIAL_OK);
+  REQUIRE(serial_async_running(serial) == 0);
+  REQUIRE(serial_stop_async(serial) == SALTS_SERIAL_OK);
+  REQUIRE(serial_last_error(serial) == SALTS_SERIAL_OK);
 
   REQUIRE(close(master) == 0);
   master = -1;
-  REQUIRE(salts_serial_event_wait_ex(events, 1000u, &mask) == SALTS_SERIAL_OK);
+  REQUIRE(serial_event_wait_ex(events, 1000u, &mask) == SALTS_SERIAL_OK);
   REQUIRE((mask & SALTS_SERIAL_EVENT_ERROR) != 0u);
-  salts_serial_event_set_destroy(events);
+  serial_event_set_destroy(events);
   events = NULL;
-  REQUIRE(salts_serial_close(serial) == SALTS_SERIAL_OK);
-  REQUIRE(salts_serial_close(serial) == SALTS_SERIAL_OK);
-  REQUIRE(salts_serial_read(serial, received, sizeof(received), 1u, &count) == SALTS_SERIAL_INVALID_STATE);
+  REQUIRE(serial_close(serial) == SALTS_SERIAL_OK);
+  REQUIRE(serial_close(serial) == SALTS_SERIAL_OK);
+  REQUIRE(serial_read(serial, received, sizeof(received), 1u, &count) == SALTS_SERIAL_INVALID_STATE);
   REQUIRE(count == 0u);
   result = 0;
 
 cleanup:
-  salts_serial_event_set_destroy(events);
-  salts_serial_destroy(serial);
+  serial_event_set_destroy(events);
+  serial_destroy(serial);
   if (slave >= 0) (void)close(slave);
   if (master >= 0) (void)close(master);
   return result;

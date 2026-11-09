@@ -19,7 +19,7 @@
 #ifndef SALTS_RE_H
 #define SALTS_RE_H
 
-#include "cmeta_api.h"
+#include "salts_api.h"
 
 #include <stddef.h>
 #include <stdint.h>

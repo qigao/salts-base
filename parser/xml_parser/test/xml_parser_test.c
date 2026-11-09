@@ -8,9 +8,9 @@
 #include <stdint.h>
 #include <string.h>
 
-static salts_xml_location expected_location(const char *input,
+static xml_location expected_location(const char *input,
                                             const char *position) {
-    salts_xml_location location = {0u, 1u, 1u};
+    xml_location location = {0u, 1u, 1u};
     const char *cursor;
 
     location.byte_offset = (size_t)(position - input);
@@ -25,14 +25,14 @@ static salts_xml_location expected_location(const char *input,
     return location;
 }
 
-static void check_location_equal(salts_xml_location actual,
-                                 salts_xml_location expected) {
+static void check_location_equal(xml_location actual,
+                                 xml_location expected) {
     check_equal(actual.byte_offset, expected.byte_offset);
     check_equal(actual.line, expected.line);
     check_equal(actual.column, expected.column);
 }
 
-static void check_view(salts_xml_string_view actual, const char *expected) {
+static void check_view(xml_string_view actual, const char *expected) {
     const size_t expected_size = strlen(expected);
     check_equal(actual.size, expected_size);
     check_not_null(actual.data);
@@ -42,12 +42,12 @@ static void check_view(salts_xml_string_view actual, const char *expected) {
 static void check_retained_limit_releases(const char *source,
                                           size_t maximum_bytes) {
     const size_t allocations_before = cxml_test_outstanding_allocations();
-    salts_xml_limits limits = salts_xml_default_limits();
-    salts_xml_document document = {0};
-    salts_xml_diagnostic diagnostic = {0};
+    xml_limits limits = xml_default_limits();
+    xml_document document = {0};
+    xml_diagnostic diagnostic = {0};
 
     limits.max_retained_string_bytes = maximum_bytes;
-    check_equal(salts_xml_parse(&document, source, strlen(source), &limits,
+    check_equal(xml_parse(&document, source, strlen(source), &limits,
                                 &diagnostic),
                 SALTS_XML_LIMIT_EXCEEDED);
     check_null(document.impl);
@@ -56,14 +56,14 @@ static void check_retained_limit_releases(const char *source,
 
 static void check_malformed_releases_everything(const char *source) {
     const size_t allocations_before = cxml_test_outstanding_allocations();
-    salts_xml_document document = {0};
-    salts_xml_diagnostic diagnostic = {0};
-    const salts_xml_status status =
-        salts_xml_parse(
+    xml_document document = {0};
+    xml_diagnostic diagnostic = {0};
+    const xml_status status =
+        xml_parse(
             &document, source, strlen(source), NULL, &diagnostic);
 
     if (status == SALTS_XML_OK) {
-        salts_xml_document_destroy(&document);
+        xml_document_destroy(&document);
         check(false, "malformed source unexpectedly parsed: %s", source);
         check_equal(cxml_test_outstanding_allocations(), allocations_before);
         return;
@@ -230,10 +230,10 @@ static void check_fuzz_mutations_release_everything(
          ++iteration) {
         const size_t allocations_before =
             cxml_test_outstanding_allocations();
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
         size_t size;
-        salts_xml_status status;
+        xml_status status;
 
         memcpy(work, source, source_size);
         size = fuzz_regression_mutate(
@@ -242,11 +242,11 @@ static void check_fuzz_mutations_release_everything(
                 (uint32_t)(
                     seed_index * UINT32_C(0x01000193)),
             iteration);
-        status = salts_xml_parse(
+        status = xml_parse(
             &document, (const char *)work, size,
             NULL, &diagnostic);
         if (status == SALTS_XML_OK)
-            salts_xml_document_destroy(&document);
+            xml_document_destroy(&document);
         else
             check_null(document.impl);
 
@@ -268,17 +268,17 @@ static void check_allocation_failures_release_everything(const char *source) {
          failure_point < (size_t)MAX_ALLOCATION_FAILURE_POINTS;
          ++failure_point) {
         const size_t allocations_before = cxml_test_outstanding_allocations();
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
-        salts_xml_status status;
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
+        xml_status status;
 
         cxml_test_fail_allocation_after(failure_point);
-        status = salts_xml_parse(&document, source, strlen(source), NULL,
+        status = xml_parse(&document, source, strlen(source), NULL,
                                  &diagnostic);
         cxml_test_clear_allocation_failure();
 
         if (status == SALTS_XML_OK) {
-            salts_xml_document_destroy(&document);
+            xml_document_destroy(&document);
             check_equal(cxml_test_outstanding_allocations(),
                         allocations_before);
             reached_success = true;
@@ -347,11 +347,11 @@ suite("bounded XML parser facade") {
 
     it("maps private cxml allocation failure without terminating the process") {
         static const char source[] = "<root><child/></root>";
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
 
         cxml_test_fail_allocation_after(0u);
-        check_equal(salts_xml_parse(&document, source, strlen(source), NULL,
+        check_equal(xml_parse(&document, source, strlen(source), NULL,
                                     &diagnostic),
                     SALTS_XML_ALLOCATION_FAILED);
         cxml_test_clear_allocation_failure();
@@ -373,10 +373,10 @@ suite("bounded XML parser facade") {
         for (index = 0u;
              index < sizeof(cases) / sizeof(cases[0]);
              ++index) {
-            salts_xml_document document = {0};
-            salts_xml_diagnostic diagnostic = {0};
+            xml_document document = {0};
+            xml_diagnostic diagnostic = {0};
             check_equal(
-                salts_xml_parse(
+                xml_parse(
                     &document,
                     cases[index], strlen(cases[index]),
                     NULL, &diagnostic),
@@ -430,62 +430,62 @@ suite("bounded XML parser facade") {
             "<root xmlns='urn:root'>\n"
             "  <p:item xmlns:p='urn:item' p:key='value'>text</p:item>\n"
             "</root>";
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
-        salts_xml_node root;
-        salts_xml_node item;
-        salts_xml_node text;
-        salts_xml_attribute key = {0};
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
+        xml_node root;
+        xml_node item;
+        xml_node text;
+        xml_attribute key = {0};
         size_t index;
 
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u,
                                     NULL, &diagnostic),
                     SALTS_XML_OK);
         check_not_null(document.impl);
 
-        root = salts_xml_document_root(&document);
+        root = xml_document_root(&document);
         check_not_null(root.impl);
-        check_equal(salts_xml_node_type(root), SALTS_XML_ELEMENT);
-        check_view(salts_xml_node_qualified_name(root), "root");
-        check_view(salts_xml_node_local_name(root), "root");
-        check_view(salts_xml_node_namespace_uri(root), "urn:root");
-        check_location_equal(salts_xml_node_location(root),
+        check_equal(xml_node_type(root), SALTS_XML_ELEMENT);
+        check_view(xml_node_qualified_name(root), "root");
+        check_view(xml_node_local_name(root), "root");
+        check_view(xml_node_namespace_uri(root), "urn:root");
+        check_location_equal(xml_node_location(root),
                              expected_location(xml, strstr(xml, "<root")));
 
-        check_equal(salts_xml_node_child_count(root), (size_t)1u);
-        item = salts_xml_node_child_at(root, 0u);
-        check_equal(salts_xml_node_type(item), SALTS_XML_ELEMENT);
-        check_view(salts_xml_node_qualified_name(item), "p:item");
-        check_view(salts_xml_node_local_name(item), "item");
-        check_view(salts_xml_node_namespace_uri(item), "urn:item");
-        check_location_equal(salts_xml_node_location(item),
+        check_equal(xml_node_child_count(root), (size_t)1u);
+        item = xml_node_child_at(root, 0u);
+        check_equal(xml_node_type(item), SALTS_XML_ELEMENT);
+        check_view(xml_node_qualified_name(item), "p:item");
+        check_view(xml_node_local_name(item), "item");
+        check_view(xml_node_namespace_uri(item), "urn:item");
+        check_location_equal(xml_node_location(item),
                              expected_location(xml, strstr(xml, "<p:item")));
 
-        for (index = 0u; index < salts_xml_node_attribute_count(item); ++index) {
-            salts_xml_attribute candidate =
-                salts_xml_node_attribute_at(item, index);
-            salts_xml_string_view name =
-                salts_xml_attribute_qualified_name(candidate);
+        for (index = 0u; index < xml_node_attribute_count(item); ++index) {
+            xml_attribute candidate =
+                xml_node_attribute_at(item, index);
+            xml_string_view name =
+                xml_attribute_qualified_name(candidate);
             if (name.size == 5u && memcmp(name.data, "p:key", 5u) == 0) {
                 key = candidate;
                 break;
             }
         }
         check_not_null(key.impl);
-        check_view(salts_xml_attribute_local_name(key), "key");
-        check_view(salts_xml_attribute_namespace_uri(key), "urn:item");
-        check_view(salts_xml_attribute_value(key), "value");
-        check_location_equal(salts_xml_attribute_location(key),
+        check_view(xml_attribute_local_name(key), "key");
+        check_view(xml_attribute_namespace_uri(key), "urn:item");
+        check_view(xml_attribute_value(key), "value");
+        check_location_equal(xml_attribute_location(key),
                              expected_location(xml, strstr(xml, "p:key")));
 
-        check_equal(salts_xml_node_child_count(item), (size_t)1u);
-        text = salts_xml_node_child_at(item, 0u);
-        check_equal(salts_xml_node_type(text), SALTS_XML_TEXT);
-        check_view(salts_xml_node_value(text), "text");
+        check_equal(xml_node_child_count(item), (size_t)1u);
+        text = xml_node_child_at(item, 0u);
+        check_equal(xml_node_type(text), SALTS_XML_TEXT);
+        check_view(xml_node_value(text), "text");
 
-        salts_xml_document_destroy(&document);
+        xml_document_destroy(&document);
         check_null(document.impl);
-        salts_xml_document_destroy(&document);
+        xml_document_destroy(&document);
     }
 
     it("serializes bounded mixed child fragments without exposing cxml") {
@@ -495,70 +495,70 @@ suite("bounded XML parser facade") {
         static const char expected[] =
             " lead <p:item xmlns:p=\"urn:item\" p:key=\"a&amp;b\">"
             "x&lt;y</p:item> tail <!--note--><?work value?>";
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
-        salts_xml_node root;
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
+        xml_node root;
         char output[256] = {0};
         size_t size = 0u;
 
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u,
                                     NULL, &diagnostic),
                     SALTS_XML_OK);
-        root = salts_xml_document_root(&document);
-        check_equal(salts_xml_serialize_children(
+        root = xml_document_root(&document);
+        check_equal(xml_serialize_children(
                         root, NULL, 0u, sizeof(output) - 1u, &size),
                     SALTS_XML_OK);
         check_equal(size, sizeof(expected) - 1u);
-        check_equal(salts_xml_serialize_children(
+        check_equal(xml_serialize_children(
                         root, output, size + 1u,
                         sizeof(output) - 1u, &size),
                     SALTS_XML_OK);
         check_equal(output, expected, sizeof(expected));
-        check_equal(salts_xml_serialize_children(
+        check_equal(xml_serialize_children(
                         root, output, size, sizeof(output) - 1u, &size),
                     SALTS_XML_LIMIT_EXCEEDED);
-        check_equal(salts_xml_serialize_children(
+        check_equal(xml_serialize_children(
                         root, NULL, 0u, size - 1u, &size),
                     SALTS_XML_LIMIT_EXCEEDED);
-        salts_xml_document_destroy(&document);
+        xml_document_destroy(&document);
     }
 
     it("serializes empty and whitespace-only child fragments exactly") {
         static const char empty_xml[] = "<root/>";
         static const char whitespace_xml[] = "<root> \n\t </root>";
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
         char output[16] = {0};
         size_t size = SIZE_MAX;
 
-        check_equal(salts_xml_parse(&document, empty_xml,
+        check_equal(xml_parse(&document, empty_xml,
                                     sizeof(empty_xml) - 1u,
                                     NULL, &diagnostic), SALTS_XML_OK);
-        check_equal(salts_xml_serialize_children(
-                        salts_xml_document_root(&document), output,
+        check_equal(xml_serialize_children(
+                        xml_document_root(&document), output,
                         sizeof(output), sizeof(output) - 1u, &size),
                     SALTS_XML_OK);
         check_equal(size, (size_t)0u);
         check_equal(output, "", sizeof(""));
-        salts_xml_document_destroy(&document);
+        xml_document_destroy(&document);
 
-        check_equal(salts_xml_parse(&document, whitespace_xml,
+        check_equal(xml_parse(&document, whitespace_xml,
                                     sizeof(whitespace_xml) - 1u,
                                     NULL, &diagnostic), SALTS_XML_OK);
-        check_equal(salts_xml_serialize_children(
-                        salts_xml_document_root(&document), output,
+        check_equal(xml_serialize_children(
+                        xml_document_root(&document), output,
                         sizeof(output), sizeof(output) - 1u, &size),
                     SALTS_XML_OK);
         check_equal(output, " \n\t ", sizeof(" \n\t "));
-        salts_xml_document_destroy(&document);
+        xml_document_destroy(&document);
     }
 
     it("reports the first malformed token location without publishing") {
         static const char xml[] = "<root>\n  <child>\n</root>";
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
 
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u,
                                     NULL, &diagnostic),
                     SALTS_XML_MALFORMED);
         check_null(document.impl);
@@ -571,25 +571,25 @@ suite("bounded XML parser facade") {
     it("distinguishes entity-bearing text from literal CDATA bytes") {
         static const char xml[] =
             "<r><x>a&amp;b</x><![CDATA[c&amp;d]]></r>";
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
-        salts_xml_node root;
-        salts_xml_node element;
-        salts_xml_node cdata;
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
+        xml_node root;
+        xml_node element;
+        xml_node cdata;
 
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u,
                                     NULL, &diagnostic), SALTS_XML_OK);
-        root = salts_xml_document_root(&document);
-        check_equal(salts_xml_node_child_count(root), (size_t)2u);
-        element = salts_xml_node_child_at(root, 0u);
-        cdata = salts_xml_node_child_at(root, 1u);
-        check_equal(salts_xml_node_type(element), SALTS_XML_ELEMENT);
-        check_equal(salts_xml_node_type(cdata), SALTS_XML_TEXT);
-        check_view(salts_xml_node_text_view(element), "a&amp;b");
-        check_true(salts_xml_node_text_has_entity_reference(element));
-        check_view(salts_xml_node_text_view(cdata), "c&amp;d");
-        check_false(salts_xml_node_text_has_entity_reference(cdata));
-        salts_xml_document_destroy(&document);
+        root = xml_document_root(&document);
+        check_equal(xml_node_child_count(root), (size_t)2u);
+        element = xml_node_child_at(root, 0u);
+        cdata = xml_node_child_at(root, 1u);
+        check_equal(xml_node_type(element), SALTS_XML_ELEMENT);
+        check_equal(xml_node_type(cdata), SALTS_XML_TEXT);
+        check_view(xml_node_text_view(element), "a&amp;b");
+        check_true(xml_node_text_has_entity_reference(element));
+        check_view(xml_node_text_view(cdata), "c&amp;d");
+        check_false(xml_node_text_has_entity_reference(cdata));
+        xml_document_destroy(&document);
     }
 
     it("retains multiline comment CDATA and PI token locations") {
@@ -599,40 +599,40 @@ suite("bounded XML parser facade") {
             "<![CDATA[value\nline]]>\n"
             "<?work value?>\n"
             "</r>";
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
-        salts_xml_node root;
-        salts_xml_node comment;
-        salts_xml_node cdata;
-        salts_xml_node instruction;
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
+        xml_node root;
+        xml_node comment;
+        xml_node cdata;
+        xml_node instruction;
 
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u, NULL,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_OK);
-        root = salts_xml_document_root(&document);
-        check_equal(salts_xml_node_child_count(root), (size_t)3u);
-        comment = salts_xml_node_child_at(root, 0u);
-        cdata = salts_xml_node_child_at(root, 1u);
-        instruction = salts_xml_node_child_at(root, 2u);
-        check_equal(salts_xml_node_type(comment), SALTS_XML_COMMENT);
-        check_equal(salts_xml_node_type(cdata), SALTS_XML_TEXT);
-        check_equal(salts_xml_node_type(instruction),
+        root = xml_document_root(&document);
+        check_equal(xml_node_child_count(root), (size_t)3u);
+        comment = xml_node_child_at(root, 0u);
+        cdata = xml_node_child_at(root, 1u);
+        instruction = xml_node_child_at(root, 2u);
+        check_equal(xml_node_type(comment), SALTS_XML_COMMENT);
+        check_equal(xml_node_type(cdata), SALTS_XML_TEXT);
+        check_equal(xml_node_type(instruction),
                     SALTS_XML_PROCESSING_INSTRUCTION);
-        check_location_equal(salts_xml_node_location(comment),
+        check_location_equal(xml_node_location(comment),
                              expected_location(xml, strstr(xml, "<!--")));
-        check_location_equal(salts_xml_node_location(cdata),
+        check_location_equal(xml_node_location(cdata),
                              expected_location(xml, strstr(xml, "<![CDATA[")));
-        check_location_equal(salts_xml_node_location(instruction),
+        check_location_equal(xml_node_location(instruction),
                              expected_location(xml, strstr(xml, "work")));
-        salts_xml_document_destroy(&document);
+        xml_document_destroy(&document);
     }
 
     it("rejects embedded NUL before invoking the XML engine") {
         static const char xml[] = {'<', 'r', '/', '>', '\0', '<', 'x', '/', '>'};
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
 
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml), NULL,
+        check_equal(xml_parse(&document, xml, sizeof(xml), NULL,
                                     &diagnostic),
                     SALTS_XML_EMBEDDED_NUL);
         check_null(document.impl);
@@ -643,54 +643,54 @@ suite("bounded XML parser facade") {
 
     it("accepts exact limits and rejects each limit plus one") {
         static const char xml[] = "<r a='1'><x>v</x></r>";
-        salts_xml_limits limits = salts_xml_default_limits();
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
+        xml_limits limits = xml_default_limits();
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
 
         limits.max_input_bytes = sizeof(xml) - 1u;
         limits.max_nodes = 3u;
         limits.max_attributes = 1u;
         limits.max_depth = 2u;
         limits.max_retained_string_bytes = 5u;
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u,
                                     &limits, &diagnostic),
                     SALTS_XML_OK);
-        salts_xml_document_destroy(&document);
+        xml_document_destroy(&document);
 
         limits.max_input_bytes = sizeof(xml) - 2u;
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u,
                                     &limits, &diagnostic),
                     SALTS_XML_LIMIT_EXCEEDED);
         check_null(document.impl);
 
-        limits = salts_xml_default_limits();
+        limits = xml_default_limits();
         limits.max_nodes = 2u;
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u,
                                     &limits, &diagnostic),
                     SALTS_XML_LIMIT_EXCEEDED);
 
-        limits = salts_xml_default_limits();
+        limits = xml_default_limits();
         limits.max_attributes = 0u;
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u,
                                     &limits, &diagnostic),
                     SALTS_XML_INVALID_ARGUMENT);
 
-        limits = salts_xml_default_limits();
+        limits = xml_default_limits();
         limits.max_attributes = 1u;
-        check_equal(salts_xml_parse(&document, "<r a='1' b='2'/>",
+        check_equal(xml_parse(&document, "<r a='1' b='2'/>",
                                     strlen("<r a='1' b='2'/>"), &limits,
                                     &diagnostic),
                     SALTS_XML_LIMIT_EXCEEDED);
 
-        limits = salts_xml_default_limits();
+        limits = xml_default_limits();
         limits.max_depth = 1u;
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u,
                                     &limits, &diagnostic),
                     SALTS_XML_LIMIT_EXCEEDED);
 
-        limits = salts_xml_default_limits();
+        limits = xml_default_limits();
         limits.max_retained_string_bytes = 4u;
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u,
                                     &limits, &diagnostic),
                     SALTS_XML_LIMIT_EXCEEDED);
     }
@@ -722,83 +722,83 @@ suite("bounded XML parser facade") {
             "\xEF\xBB\xBF<?xml version='1.0'?><r/>";
         static const char bom_then_whitespace[] =
             "\xEF\xBB\xBF <?xml version='1.0'?><r/>";
-        salts_xml_limits limits = salts_xml_default_limits();
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
+        xml_limits limits = xml_default_limits();
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
 
-        check_equal(salts_xml_parse(&document, declaration,
+        check_equal(xml_parse(&document, declaration,
                                     sizeof(declaration) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_OK);
-        salts_xml_document_destroy(&document);
+        xml_document_destroy(&document);
 
         limits.max_nodes = 1u;
-        check_equal(salts_xml_parse(&document, declaration,
+        check_equal(xml_parse(&document, declaration,
                                     sizeof(declaration) - 1u, &limits,
                                     &diagnostic),
                     SALTS_XML_LIMIT_EXCEEDED);
         check_null(document.impl);
 
-        limits = salts_xml_default_limits();
+        limits = xml_default_limits();
         limits.max_attributes = 3u;
-        check_equal(salts_xml_parse(&document, declaration,
+        check_equal(xml_parse(&document, declaration,
                                     sizeof(declaration) - 1u, &limits,
                                     &diagnostic),
                     SALTS_XML_LIMIT_EXCEEDED);
 
-        limits = salts_xml_default_limits();
+        limits = xml_default_limits();
         limits.max_retained_string_bytes = 1u;
-        check_equal(salts_xml_parse(&document, declaration,
+        check_equal(xml_parse(&document, declaration,
                                     sizeof(declaration) - 1u, &limits,
                                     &diagnostic),
                     SALTS_XML_LIMIT_EXCEEDED);
 
-        check_equal(salts_xml_parse(&document, wrong_order,
+        check_equal(xml_parse(&document, wrong_order,
                                     sizeof(wrong_order) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_MALFORMED);
-        check_equal(salts_xml_parse(&document, unknown_field,
+        check_equal(xml_parse(&document, unknown_field,
                                     sizeof(unknown_field) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_MALFORMED);
-        check_equal(salts_xml_parse(&document, invalid_version,
+        check_equal(xml_parse(&document, invalid_version,
                                     sizeof(invalid_version) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_MALFORMED);
-        check_equal(salts_xml_parse(&document, invalid_encoding,
+        check_equal(xml_parse(&document, invalid_encoding,
                                     sizeof(invalid_encoding) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_MALFORMED);
-        check_equal(salts_xml_parse(&document, invalid_standalone,
+        check_equal(xml_parse(&document, invalid_standalone,
                                     sizeof(invalid_standalone) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_MALFORMED);
-        check_equal(salts_xml_parse(&document, after_pi,
+        check_equal(xml_parse(&document, after_pi,
                                     sizeof(after_pi) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_MALFORMED);
-        check_equal(salts_xml_parse(&document, after_whitespace,
+        check_equal(xml_parse(&document, after_whitespace,
                                     sizeof(after_whitespace) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_MALFORMED);
-        check_equal(salts_xml_parse(&document, duplicate,
+        check_equal(xml_parse(&document, duplicate,
                                     sizeof(duplicate) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_MALFORMED);
-        check_equal(salts_xml_parse(&document, after_root,
+        check_equal(xml_parse(&document, after_root,
                                     sizeof(after_root) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_MALFORMED);
-        check_equal(salts_xml_parse(&document, uppercase_target,
+        check_equal(xml_parse(&document, uppercase_target,
                                     sizeof(uppercase_target) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_MALFORMED);
-        check_equal(salts_xml_parse(&document, bom_declaration,
+        check_equal(xml_parse(&document, bom_declaration,
                                     sizeof(bom_declaration) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_OK);
-        salts_xml_document_destroy(&document);
-        check_equal(salts_xml_parse(&document, bom_then_whitespace,
+        xml_document_destroy(&document);
+        check_equal(xml_parse(&document, bom_then_whitespace,
                                     sizeof(bom_then_whitespace) - 1u, NULL,
                                     &diagnostic),
                     SALTS_XML_MALFORMED);
@@ -815,9 +815,9 @@ suite("bounded XML parser facade") {
     it("enforces structural budgets before building the remaining DOM") {
         char xml[512];
         static const char child[] = "<x/>";
-        salts_xml_limits limits = salts_xml_default_limits();
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
+        xml_limits limits = xml_default_limits();
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
         size_t size = 0u;
         size_t index;
 
@@ -832,7 +832,7 @@ suite("bounded XML parser facade") {
 
         limits.max_nodes = 1u;
         cxml_test_fail_allocation_after(64u);
-        check_equal(salts_xml_parse(&document, xml, size, &limits,
+        check_equal(xml_parse(&document, xml, size, &limits,
                                     &diagnostic),
                     SALTS_XML_LIMIT_EXCEEDED);
         cxml_test_clear_allocation_failure();
@@ -841,68 +841,68 @@ suite("bounded XML parser facade") {
     }
 
     it("builds and serializes a document through opaque handles") {
-        salts_xml_document document = {0};
-        salts_xml_node root;
-        salts_xml_node name = {0};
+        xml_document document = {0};
+        xml_node root;
+        xml_node name = {0};
         char *serialized;
         size_t serialized_size = 0u;
 
-        check_equal(salts_xml_document_create(&document, "Item"), SALTS_XML_OK);
-        root = salts_xml_document_root(&document);
-        check_equal(salts_xml_node_add_element(root, "name", &name), SALTS_XML_OK);
-        check_equal(salts_xml_node_set_text(name, "salts & utils"), SALTS_XML_OK);
-        serialized = salts_xml_document_serialize(&document, &serialized_size);
+        check_equal(xml_document_create(&document, "Item"), SALTS_XML_OK);
+        root = xml_document_root(&document);
+        check_equal(xml_node_add_element(root, "name", &name), SALTS_XML_OK);
+        check_equal(xml_node_set_text(name, "salts & utils"), SALTS_XML_OK);
+        serialized = xml_document_serialize(&document, &serialized_size);
         check_not_null(serialized);
         if (serialized) {
             check_contains(serialized, "<Item>");
             check_contains(serialized, "salts &amp; utils");
             check_equal(serialized_size, strlen(serialized));
         }
-        salts_xml_owned_string_free(serialized);
-        salts_xml_document_destroy(&document);
+        xml_owned_string_free(serialized);
+        xml_document_destroy(&document);
     }
 
     it("rejects malformed XPath without undefined cleanup") {
         static const char xml[] = "<root><tag>x</tag></root>";
-        salts_xml_document document = {0};
-        salts_xml_diagnostic parse_diagnostic = {0};
-        salts_xml_node_list nodes = {0};
+        xml_document document = {0};
+        xml_diagnostic parse_diagnostic = {0};
+        xml_node_list nodes = {0};
         qvm_diagnostic_t query_diagnostic = {0};
 
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u, NULL,
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u, NULL,
                                     &parse_diagnostic),
                     SALTS_XML_OK);
         check_not_equal(
-            salts_xml_document_xpath_query(&document, "//*[", &nodes, NULL,
+            xml_document_xpath_query(&document, "//*[", &nodes, NULL,
                                            &query_diagnostic),
             QVM_STATUS_OK);
-        check_equal(salts_xml_node_list_size(&nodes), (size_t)0u);
-        salts_xml_node_list_destroy(&nodes);
-        salts_xml_document_destroy(&document);
+        check_equal(xml_node_list_size(&nodes), (size_t)0u);
+        xml_node_list_destroy(&nodes);
+        xml_document_destroy(&document);
     }
 
     it("returns owned lists of borrowed query and XPath nodes") {
         static const char xml[] = "<fruit><name>banana</name><name>pear</name></fruit>";
-        salts_xml_document document = {0};
-        salts_xml_diagnostic diagnostic = {0};
-        salts_xml_node_list nodes = {0};
-        salts_xml_node found;
+        xml_document document = {0};
+        xml_diagnostic diagnostic = {0};
+        xml_node_list nodes = {0};
+        xml_node found;
 
-        check_equal(salts_xml_parse(&document, xml, sizeof(xml) - 1u, NULL, &diagnostic),
+        check_equal(xml_parse(&document, xml, sizeof(xml) - 1u, NULL, &diagnostic),
                     SALTS_XML_OK);
-        found = salts_xml_node_find(salts_xml_document_root(&document), "<name>/");
+        found = xml_node_find(xml_document_root(&document), "<name>/");
         check_not_null(found.impl);
-        check_equal(salts_xml_node_find_all(salts_xml_document_root(&document), "<name>/", &nodes),
+        check_equal(xml_node_find_all(xml_document_root(&document), "<name>/", &nodes),
                     SALTS_XML_OK);
-        check_equal(salts_xml_node_list_size(&nodes), (size_t)2u);
-        salts_xml_node_list_destroy(&nodes);
+        check_equal(xml_node_list_size(&nodes), (size_t)2u);
+        xml_node_list_destroy(&nodes);
 
-        check_equal(salts_xml_document_xpath_query(&document, "/fruit/name", &nodes, NULL, NULL),
+        check_equal(xml_document_xpath_query(&document, "/fruit/name", &nodes, NULL, NULL),
                     SALTS_XML_OK);
-        check_equal(salts_xml_node_list_size(&nodes), (size_t)2u);
-        check_equal(salts_xml_node_type(salts_xml_node_list_at(&nodes, 0u)),
+        check_equal(xml_node_list_size(&nodes), (size_t)2u);
+        check_equal(xml_node_type(xml_node_list_at(&nodes, 0u)),
                     SALTS_XML_ELEMENT);
-        salts_xml_node_list_destroy(&nodes);
-        salts_xml_document_destroy(&document);
+        xml_node_list_destroy(&nodes);
+        xml_document_destroy(&document);
     }
 }
