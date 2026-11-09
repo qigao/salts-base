@@ -4,7 +4,7 @@
 #include "csv_lexer.h"
 #include <file/fs.h>
 #include <memory/mmap.h>
-#include <salts/tstr.h>
+#include <core/tstr.h>
 
 #include <float.h>
 #include <limits.h>

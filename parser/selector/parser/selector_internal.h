@@ -6,6 +6,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* Keep one-vector tails inline to avoid shared-library calls on short DSLs. */
+enum { SELECTOR_SCAN_MIN_BYTES = 16 };
+
 enum {
   SELECTOR_NODE_AND = 1,
   SELECTOR_NODE_OR,

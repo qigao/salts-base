@@ -2,7 +2,7 @@
 #ifndef RING_BUFFER_SPSC_H
 #define RING_BUFFER_SPSC_H
 
-#include <salts/api.h>
+#include <core/api.h>
 
 #include <queue/spsc_ring.h>
 

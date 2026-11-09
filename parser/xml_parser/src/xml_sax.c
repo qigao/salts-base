@@ -1,6 +1,7 @@
 /* Incremental lexical parsing relocated from salts-utils into its parser owner. */
 #include <xml_parser/xml_sax.h>
-#include <salts/tstr.h>
+#include <core/tstr.h>
+#include <core/scan.h>
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -39,8 +40,8 @@ static void xml_sax_set_error(xml_sax_parser_t *parser, const char *format, ...)
 static bool xml_sax_is_ws(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
 
 static void xml_sax_skip_ws(const char *data, size_t len, size_t *pos) {
-  while (*pos < len && xml_sax_is_ws(data[*pos]))
-    ++*pos;
+  if (*pos < len)
+    *pos = (size_t)(scan_skip_sp_tab_cr_lf(data + *pos, data + len) - data);
 }
 
 static bool xml_sax_is_name_start(char c) {
@@ -166,9 +167,10 @@ static int xml_sax_parse_name(xml_sax_parser_t *parser, const char *data, size_t
 static int xml_sax_find_until(xml_sax_parser_t *parser, const char *data, size_t len,
                                     size_t start, const char *needle, size_t needle_len,
                                     size_t *end, bool final, const char *err) {
-  for (size_t i = start; i + needle_len <= len; ++i) {
-    if (memcmp(data + i, needle, needle_len) == 0) {
-      *end = i;
+  if (start <= len) {
+    const char *hit = scan_mem(data + start, len - start, needle, needle_len);
+    if (hit) {
+      *end = (size_t)(hit - data);
       return 1;
     }
   }
@@ -182,16 +184,17 @@ static int xml_sax_find_until(xml_sax_parser_t *parser, const char *data, size_t
 static int xml_sax_scan_markup_end(xml_sax_parser_t *parser, const char *data,
                                          size_t len, size_t start, size_t *end, bool final,
                                          const char *err) {
-  char quote = '\0';
   size_t bracket_depth = 0;
-  for (size_t i = start; i < len; ++i) {
+  for (size_t i = start; i < len;) {
+    const char *special = scan_to_any5(data + i, data + len, '"', '\'', '[', ']', '>');
+    if (special == data + len) break;
+    i = (size_t)(special - data);
     char c = data[i];
-    if (quote) {
-      if (c == quote) quote = '\0';
-      continue;
-    }
     if (c == '"' || c == '\'') {
-      quote = c;
+      const char *close = scan_char(special + 1, data + len, c);
+      if (!close) break;
+      i = (size_t)(close - data) + 1u;
+      continue;
     } else if (c == '[') {
       ++bracket_depth;
     } else if (c == ']' && bracket_depth > 0) {
@@ -200,6 +203,7 @@ static int xml_sax_scan_markup_end(xml_sax_parser_t *parser, const char *data,
       *end = i;
       return 1;
     }
+    ++i;
   }
   if (final) {
     xml_sax_set_error(parser, "%s", err);
@@ -223,8 +227,7 @@ static int xml_sax_parse_pi(xml_sax_parser_t *parser, const char *data, size_t l
   if (name_rc <= 0) return -1;
 
   size_t body_start = target_pos;
-  while (body_start < end && xml_sax_is_ws(data[body_start]))
-    ++body_start;
+  xml_sax_skip_ws(data, end, &body_start);
   if (xml_sax_emit_pi(parser, data + target_start, target_len, data + body_start,
                             end - body_start) != 0)
     return -1;
@@ -305,12 +308,10 @@ static int xml_sax_emit_start_tag(xml_sax_parser_t *parser, const char *data,
 
     char quote = data[attr_pos++];
     size_t value_start = attr_pos;
-    while (attr_pos < tag_end && data[attr_pos] != quote) {
-      if (data[attr_pos] == '<') {
-        xml_sax_set_error(parser, "Invalid < in XML attribute value");
-        return -1;
-      }
-      ++attr_pos;
+    attr_pos = (size_t)(scan_to_any2(data + attr_pos, data + tag_end, quote, '<') - data);
+    if (attr_pos < tag_end && data[attr_pos] == '<') {
+      xml_sax_set_error(parser, "Invalid < in XML attribute value");
+      return -1;
     }
     if (attr_pos >= tag_end) {
       xml_sax_set_error(parser, "Unterminated XML attribute value");
@@ -385,12 +386,10 @@ static int xml_sax_parse_start_tag(xml_sax_parser_t *parser, const char *data,
       return -1;
     }
     char quote = data[pos++];
-    while (pos < len && data[pos] != quote) {
-      if (data[pos] == '<') {
-        xml_sax_set_error(parser, "Invalid < in XML attribute value");
-        return -1;
-      }
-      ++pos;
+    pos = (size_t)(scan_to_any2(data + pos, data + len, quote, '<') - data);
+    if (pos < len && data[pos] == '<') {
+      xml_sax_set_error(parser, "Invalid < in XML attribute value");
+      return -1;
     }
     if (pos >= len)
       return final ? (xml_sax_set_error(parser, "Unterminated XML attribute value"), -1) : 0;

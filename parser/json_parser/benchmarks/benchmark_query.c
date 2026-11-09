@@ -6,7 +6,7 @@
  */
 
 #include <json_parser.h>
-#include <salts/fmt.h>
+#include <core/fmt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

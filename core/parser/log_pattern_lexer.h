@@ -7,7 +7,7 @@
 #define LOG_PATTERN_LEXER_H
 
 #include <stddef.h>
-#include <salts/api.h>
+#include <core/api.h>
 #ifdef __cplusplus
 extern "C" {
 #endif

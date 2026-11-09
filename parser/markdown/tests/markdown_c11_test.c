@@ -1344,9 +1344,22 @@ static int test_code_span_exact_runs_and_text(void) {
         {TICK "foo\n# Heading\nbar" TICK "\n",NULL,0u},
         {TICK TICK "a\n" TICK "b" TICK TICK "\n",
          "a " TICK "b",1u},
-        {TICK " \n " TICK "\n","   ",1u}
+        {TICK " \n " TICK "\n","   ",1u},
+        {TICK "123456789012345" TICK, "123456789012345",1u},
+        {TICK "1234567890123456" TICK, "1234567890123456",1u},
+        {TICK "12345678901234567" TICK, "12345678901234567",1u},
+        {TICK TICK "123456789012345" TICK "x" TICK TICK,
+         "123456789012345" TICK "x",1u},
+        {TICK "123456789012345\r\nnext" TICK,
+         "123456789012345 next",1u},
+        {TICK "1234567890123456\nnext" TICK,
+         "1234567890123456 next",1u},
+        {TICK TICK "123456789012345" TICK TICK TICK "x" TICK TICK,
+         "123456789012345" TICK TICK TICK "x",1u},
+        {TICK "123456789012345\\\xc3\xa9" TICK,
+         "123456789012345\\\xc3\xa9",1u}
     };
-    _Static_assert(sizeof(samples)/sizeof(samples[0])==19u,
+    _Static_assert(sizeof(samples)/sizeof(samples[0])==27u,
                    "code-span fixture count");
     for(size_t i=0u;i<sizeof(samples)/sizeof(samples[0]);++i) {
         const size_t n=strlen(samples[i].markdown);

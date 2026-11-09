@@ -2,6 +2,8 @@
 
 #include <cmd_arger.h>
 #include "cmd_arger_internal.h"
+#include <core/scan.h>
+#include <string.h>
 
 /**
  * @brief Lexer function implementation using re2c.
@@ -90,9 +92,18 @@ loop:
 void mustache_colorize(char *out, const char *in, CmdArgerBool colors) {
   const char *YYCURSOR = in;
   const char *YYMARKER;
+  const char *end = in + strlen(in);
   char *p = out;
 
   for (;;) {
+    if (YYCURSOR < end && *YYCURSOR != '{') {
+      const char *next = scan_to_char(YYCURSOR, end, '{');
+      const size_t run = (size_t)(next - YYCURSOR);
+      /* Preserve in-place tag stripping when output trails the input cursor. */
+      memmove(p, YYCURSOR, run);
+      p += run;
+      YYCURSOR = next;
+    }
     /*!re2c
         re2c:define:YYCTYPE = char;
         re2c:yyfill:enable = 0;

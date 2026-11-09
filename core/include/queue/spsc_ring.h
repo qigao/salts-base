@@ -1,7 +1,7 @@
 #ifndef SALTS_SPSC_RING_H
 #define SALTS_SPSC_RING_H
 
-#include <salts/api.h>
+#include <core/api.h>
 
 #ifdef __cplusplus
   #include <atomic>

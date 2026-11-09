@@ -6,9 +6,9 @@
 
 #include <json_parser.h>
 #include "jsonpath_contains.h"
-#include <salts/re.h>
+#include <core/re.h>
 #include "tinytest.h"
-#include <salts/scan.h>
+#include <core/scan.h>
 
 #include <stdio.h>
 #include <stdlib.h>

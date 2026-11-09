@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <salts/tlog.h>
+#include <core/tlog.h>
 
 /* =============================================================================
  * Camera Context

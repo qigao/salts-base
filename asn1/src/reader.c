@@ -1,4 +1,5 @@
-#include <salts/asn1.h>
+#include <asn1.h>
+#include <simd.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -88,6 +89,21 @@ static int bytes_compare(const uint8_t *a, size_t an,
 static asn1_status validate_oid(const uint8_t *data, size_t size) {
     size_t pos = 0u;
     if (size == 0u) return SALTS_ASN1_MALFORMED;
+    /* Each low-bit octet is a complete, canonical one-octet subidentifier.
+     * Stop batching at the first mixed vector; the existing base-128 parser
+     * then owns the entire remainder, including malformed/truncated arcs. */
+    if ((data[0] & 0x80u) == 0u) {
+        while (size - pos >= sizeof(v128)) {
+            v128 bytes;
+            uint32_t continuations;
+            simd_v128_load(&bytes, data + pos);
+            if (!simd_reduce(&simd_u8x16, SALTS_SIMD_REDUCE_BITMASK,
+                             &bytes, &continuations))
+                return SALTS_ASN1_UNSUPPORTED;
+            if (continuations != 0u) break;
+            pos += sizeof(v128);
+        }
+    }
     while (pos < size) {
         bool first = true, end = false;
         while (pos < size) {

@@ -1,5 +1,5 @@
-#include <salts/bytes.h>
-#include <salts/error_codes.h>
+#include <core/bytes.h>
+#include <core/error_codes.h>
 #include <tinytest.h>
 #include <string.h>
 

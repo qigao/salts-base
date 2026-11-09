@@ -7,8 +7,8 @@
 #define FMT_LEXER_H
 
 #include <stddef.h>
-#include <salts/api.h>
-#include <salts/vstr.h>
+#include <core/api.h>
+#include <core/vstr.h>
 
 #ifdef __cplusplus
 extern "C" {

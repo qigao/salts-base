@@ -1,8 +1,8 @@
 #include <dotenv.h>
 #include "dotenv_environment_internal.h"
 #include "dotenv_lexer.h"
-#include <salts/tstr.h>
-#include <salts/fmt.h>
+#include <core/tstr.h>
+#include <core/fmt.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

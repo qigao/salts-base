@@ -1,4 +1,5 @@
 #include "cyaml_internal.h"
+#include <core/scan.h>
 #include <math.h>
 
 // #region Token Types
@@ -266,11 +267,12 @@ inline static void skip_comment(scanner_t* s)
     if (PEEK(s) != C_HASH)
         return;
 
+    const size_t start = s->pos;
+    const uint32_t line = s->line, col = s->col;
+    const char* end = scan_to_any3(s->src + start, s->src + s->len, C_NUL, C_LF, C_CR);
+    s->pos = (size_t)(end - s->src);
+    s->col += (uint32_t)(s->pos - start);
     if (s->doc && s->doc->comments) {
-        size_t start = s->pos;
-        uint32_t line = s->line, col = s->col;
-        while (PEEK(s) && !CYAML_IS_BREAK(PEEK(s)))
-            SKIP(s);
 
         if (s->doc->comments->count >= s->doc->comments->cap) {
             uint32_t new_cap = s->doc->comments->cap ? s->doc->comments->cap * 2 : 16;
@@ -289,9 +291,6 @@ inline static void skip_comment(scanner_t* s)
             c->start_col = col;
             c->end_col = s->col;
         }
-    } else {
-        while (PEEK(s) && !CYAML_IS_BREAK(PEEK(s)))
-            SKIP(s);
     }
 }
 
@@ -608,10 +607,13 @@ static bool check_tab_indent(scanner_t* s)
 static bool scan_to_next_token(scanner_t* s)
 {
     while (true) {
-        while (CYAML_IS_WHITE(PEEK(s))) {
-            if (PEEK(s) == C_TAB)
+        if (CYAML_IS_WHITE(PEEK(s))) {
+            const char* begin = s->src + s->pos;
+            const char* end = scan_skip_sp_tab(begin, s->src + s->len);
+            if (scan_char(begin, end, C_TAB))
                 SET_FLAG(s, SCAN_TABS_IN_LINE);
-            SKIP(s);
+            s->col += (uint32_t)(end - begin);
+            s->pos = (size_t)(end - s->src);
         }
 
         skip_comment(s);
@@ -626,8 +628,12 @@ static bool scan_to_next_token(scanner_t* s)
                 return false;
 
             if (s->flow_level) {
-                while (CYAML_IS_WHITE(PEEK(s)))
-                    SKIP(s);
+                if (CYAML_IS_WHITE(PEEK(s))) {
+                    const char* begin = s->src + s->pos;
+                    const char* end = scan_skip_sp_tab(begin, s->src + s->len);
+                    s->col += (uint32_t)(end - begin);
+                    s->pos = (size_t)(end - s->src);
+                }
                 if (PEEK(s) && !CYAML_IS_BREAK(PEEK(s)) && (int)(s->col - 1) <= s->indent) {
                     set_synerr(s, SYNERR_FLOW_INDENT);
                     return false;

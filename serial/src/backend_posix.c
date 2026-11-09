@@ -18,7 +18,7 @@
 #include <dirent.h>
 
 #include "serial_internal.h"
-#include <salts/tstr.h>
+#include <core/tstr.h>
 
 struct serial_native_handle {
   int fd;

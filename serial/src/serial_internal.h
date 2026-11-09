@@ -6,7 +6,7 @@
 #define SALTS_SERIAL_INTERNAL_H
 
 #include <serial.h>
-#include <salts/tstr.h>
+#include <core/tstr.h>
 #include <stdbool.h>
 #include <stdlib.h>
 

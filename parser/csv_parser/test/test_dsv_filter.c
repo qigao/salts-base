@@ -40,6 +40,25 @@ static void on_row(void *user_data, size_t row_index, const char *rendered_row) 
 }
 
 spec("dsv_filter") {
+    it("keeps arithmetic semantics across long mixed whitespace runs") {
+        const char csv[] = "value_n\n1\n2\n";
+        csv_doc_t *document = csv_parse(csv, sizeof(csv) - 1u);
+        check_not_null(document);
+        dsv_filter_t *filter = dsv_filter_create(document, 0u);
+        check_not_null(filter);
+        char expression[160];
+        memcpy(expression, "value", 5u);
+        for (size_t i = 5u; i < 133u; ++i) expression[i] = " \t\r\n"[i % 4u];
+        memcpy(expression + 133u, "+1 == 2", 8u);
+        check_true(dsv_filter_compile(filter, expression));
+        check_equal(dsv_filter_check_row(filter, 1u), 1);
+        check_equal(dsv_filter_check_row(filter, 2u), 0);
+        check_false(dsv_filter_compile(filter, "value +\v1 == 2"));
+        check_contains(dsv_filter_error(filter), "arithmetic expression");
+        dsv_filter_destroy(filter);
+        csv_free(document);
+    }
+
     describe("Compile and Evaluate") {
         it("should filter numeric expression") {
             const char *csv = "price_n,volume_n,sym_s\n"

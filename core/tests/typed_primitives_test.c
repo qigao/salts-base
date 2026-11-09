@@ -1,5 +1,5 @@
 #include <atomic/atomic.h>
-#include <salts/rcu.h>
+#include <core/rcu.h>
 #include <threads/threads.h>
 #include "tinytest.h"
 

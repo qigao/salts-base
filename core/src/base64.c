@@ -2,7 +2,7 @@
  * Portable scalar C11, no libbase64/GmSSL/CMeta vendor copy, no implicit
  * fallback. The only exported ABI is base64.h / tn_base64_*.
  */
-#include <salts/base64.h>
+#include <core/base64.h>
 
 #include <stdint.h>
 #include <stdlib.h>

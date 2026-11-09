@@ -6,7 +6,7 @@
 #ifndef SALTS_CRON_H
 #define SALTS_CRON_H
 
-#include <salts/platform.h>
+#include <core/platform.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <time.h>

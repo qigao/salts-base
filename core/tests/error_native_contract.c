@@ -1,4 +1,4 @@
-#include <salts/error.h>
+#include <core/error.h>
 #include <tinytest.h>
 #include <threads/threads.h>
 

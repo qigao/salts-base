@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <queue/disruptor.h>
-#include <salts/clock.h>
-#include <salts/error_codes.h>
+#include <core/clock.h>
+#include <core/error_codes.h>
 #include <threads/threads.h>
 #include <threads/thread_pool.h>
 

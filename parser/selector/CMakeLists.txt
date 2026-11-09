@@ -18,6 +18,7 @@ add_library(${TARGET_NAME} STATIC ${selector_sources}
 add_dependencies(${TARGET_NAME}
   ${SELECTOR_V1_LEXER_TARGET}
   ${SELECTOR_V1_GRAMMAR_TARGET})
+target_link_libraries(${TARGET_NAME} PRIVATE Salts::Core)
 target_include_directories(${TARGET_NAME}
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

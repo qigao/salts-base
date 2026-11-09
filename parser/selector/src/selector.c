@@ -2,6 +2,7 @@
 
 #include "selector_internal.h"
 #include "selector_v1_grammar_gen.h"
+#include <core/scan.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -210,6 +211,17 @@ static int selector_store_string(selector_parse_ctx_t *ctx,
       token.value[token.length - 1u] != '"')
     return 0;
   while (input + 1u < token.length) {
+    if (token.length - 1u - input >= SELECTOR_SCAN_MIN_BYTES && token.value[input] != '\\') {
+      const char *end = scan_to_char(token.value + input,
+                                     token.value + token.length - 1u, '\\');
+      const size_t run = (size_t)(end - (token.value + input));
+      if (output > SALTS_SELECTOR_MAX_STRING_BYTES_V1 ||
+          run > SALTS_SELECTOR_MAX_STRING_BYTES_V1 - output) goto string_limit;
+      memcpy(decoded + output, token.value + input, run);
+      input += run;
+      output += run;
+      continue;
+    }
     unsigned char ch = (unsigned char)token.value[input++];
     if (ch == '\\') {
       unsigned char escaped;

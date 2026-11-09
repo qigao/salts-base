@@ -10,7 +10,7 @@
 #include <string.h>
 #include <time.h>
 
-#include <salts/fmt.h>
+#include <core/fmt.h>
 #include "tinytest.h"
 
 #define BUFFER_SIZE 512

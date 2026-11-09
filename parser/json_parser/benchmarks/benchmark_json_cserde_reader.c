@@ -1,5 +1,5 @@
 #include <json_cserde_reader.h>
-#include <salts/tstr.h>
+#include <core/tstr.h>
 #include <tinytest.h>
 
 enum { NUMBER_COUNT = 128 };

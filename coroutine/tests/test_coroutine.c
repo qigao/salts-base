@@ -1,7 +1,7 @@
-#include <salts/coro.h>
+#include <core/coro.h>
 #include <tinytest.h>
-#include <salts/coro_executor.h>
-#include <salts/error_codes.h>
+#include <core/coro_executor.h>
+#include <core/error_codes.h>
 #include <threads/threads.h>
 
 #include <stdatomic.h>

@@ -2,7 +2,7 @@
  * All clients use the one Platform Atomic ABI, never a volatile race.
  */
 #include <tinytest.h>
-#include <salts/clock.h>
+#include <core/clock.h>
 #include <threads/threads.h>
 #include <stdint.h>
 #include <stdio.h>

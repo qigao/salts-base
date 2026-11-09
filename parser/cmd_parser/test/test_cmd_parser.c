@@ -1,5 +1,6 @@
 #include "tinytest.h"
 #include <cmd_arger.h>
+#include "../src/cmd_arger_internal.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,6 +35,23 @@ static CmdArgerBool validate_port(const char* value, const char** error_message)
 }
 
 spec("cmd_parser") {
+    it("preserves color tags, unknown braces and in-place stripping") {
+        const char input[] = "{{red}}12345678901234567{{reset}} tail";
+        char output[128];
+        mustache_colorize(output, input, cmd_arger_false);
+        check_equal(output, "12345678901234567 tail");
+        mustache_colorize(output, input, cmd_arger_true);
+        check_equal(output, "\x1b[91m12345678901234567\x1b[0m tail");
+        char in_place[128] = "{{red}}1234567890123456789012345678901234567890{{reset}} tail";
+        mustache_colorize(in_place, in_place, cmd_arger_false);
+        check_equal(in_place, "1234567890123456789012345678901234567890 tail");
+        const char *plain[] = {"", "{", "{{", "{{unknown}} body", "plain text"};
+        for (size_t i = 0u; i < sizeof(plain) / sizeof(plain[0]); ++i) {
+            mustache_colorize(output, plain[i], cmd_arger_false);
+            check_equal(output, plain[i]);
+        }
+    }
+
     describe("Flag Parsing") {
         it("should parse long flags correctly") {
             CmdArgerBool verbose = cmd_arger_false;

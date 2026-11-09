@@ -1,4 +1,4 @@
-#include <salts/api.h>
+#include <core/api.h>
 #include <memory/buffer.h>
 
 void core_runtime_abi_0_1_required(void) {

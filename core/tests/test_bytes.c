@@ -1,4 +1,4 @@
-#include <salts/bytes.h>
+#include <core/bytes.h>
 #include <tinytest.h>
 
 #include <stdint.h>

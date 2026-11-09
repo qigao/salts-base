@@ -1,7 +1,7 @@
 #ifndef SALTS_ATOMIC_H
 #define SALTS_ATOMIC_H
 
-#include <salts/api.h>
+#include <core/api.h>
 
 /* Salts::Core compiled C ABI. These slots are NOT C11 _Atomic or
  * C++ std::atomic objects and must not be copied while being used.
@@ -9,7 +9,7 @@
  * execute with sequential consistency. No volatile-only fallback.
  */
 #include <stdint.h>
-#include <salts/error_codes.h>
+#include <core/error_codes.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -18,7 +18,7 @@
  * (JSONPath treats both as "no match").
  */
 
-#include <salts/re.h>
+#include <core/re.h>
 #include "re_scan.h"
 
 #include <limits.h>

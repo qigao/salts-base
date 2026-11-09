@@ -1,4 +1,4 @@
-#include <salts/clock.h>
+#include <core/clock.h>
 #include <threads/threads.h>
 #include <stdlib.h>
 #include <string.h>

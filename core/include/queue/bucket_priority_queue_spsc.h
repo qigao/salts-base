@@ -1,7 +1,7 @@
 #ifndef SALTS_BUCKET_PRIORITY_QUEUE_SPSC_H
 #define SALTS_BUCKET_PRIORITY_QUEUE_SPSC_H
 
-#include <salts/api.h>
+#include <core/api.h>
 
 #include <queue/ring_buffer_spsc.h>
 

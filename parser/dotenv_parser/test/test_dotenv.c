@@ -1,5 +1,6 @@
 #include <tinytest.h>
 #include <dotenv.h>
+#include "../src/dotenv_lexer.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -85,6 +86,36 @@ spec("dotenv") {
         it("should return error for missing file") {
             int res = dotenv_load("non_existent_file", true);
             check(res < 0);
+        }
+    }
+
+    it("preserves counted key tokens around vector widths and mixed separators") {
+        const size_t lengths[] = {1u, 15u, 16u, 17u, 31u, 32u, 33u, 255u, 4096u};
+        const char *suffixes[] = {"=value\n", " \t=value\n", "\t= value\n"};
+        char content[4224];
+
+        for (size_t i = 0u; i < sizeof(lengths) / sizeof(lengths[0]); ++i) {
+            const size_t length = lengths[i];
+            for (size_t j = 0u; j < sizeof(suffixes) / sizeof(suffixes[0]); ++j) {
+                const size_t suffix_length = strlen(suffixes[j]);
+                memset(content, 'K', length);
+                memcpy(content + length, suffixes[j], suffix_length + 1u);
+                dotenv_lexer_t lexer;
+                dotenv_token_t token;
+                dotenv_lexer_init(&lexer, content, length + suffix_length);
+
+                check_equal(dotenv_lexer_next(&lexer, &token), 1);
+                check_equal(token.type, DOTENV_TOKEN_KEY);
+                check_true(token.value == content);
+                check_equal(token.length, length);
+                check_equal(dotenv_lexer_next(&lexer, &token), 1);
+                check_equal(token.type, DOTENV_TOKEN_VALUE);
+                check_equal(token.length, 5u);
+                check_equal(token.value, "value", token.length);
+                check_equal(dotenv_lexer_next(&lexer, &token), 1);
+                check_equal(token.type, DOTENV_TOKEN_NEWLINE);
+                check_equal(dotenv_lexer_next(&lexer, &token), 0);
+            }
         }
     }
 

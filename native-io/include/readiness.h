@@ -1,7 +1,7 @@
 #ifndef SALTS_READINESS_H
 #define SALTS_READINESS_H
 
-#include <salts/error_codes.h>
+#include <core/error_codes.h>
 
 #include <stdbool.h>
 #include <stddef.h>

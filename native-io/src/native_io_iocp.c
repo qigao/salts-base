@@ -1,7 +1,7 @@
 #include "native_io_internal.h"
 #include "native_io_accept_escrow.h"
 
-#include <salts/error_codes.h>
+#include <core/error_codes.h>
 
 #if defined(interface)
   #undef interface

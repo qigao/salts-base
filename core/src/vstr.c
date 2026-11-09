@@ -1,9 +1,8 @@
-#include <salts/vstr.h>
+#include <core/vstr.h>
+#include <core/scan.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-enum { TSTR_SIMD_CSET_LIMIT = 8 };
 
 #define VSTR_COPY_TO(v, alloc_call)                                                              \
   do {                                                                                             \
@@ -143,15 +142,8 @@ size_t vstr_find(vstr s, vstr needle) {
   if (needle.len == 0) return 0;
   if (needle.len > s.len) return VSTR_NPOS;
   if (!vstr_is_valid(s) || !vstr_is_valid(needle)) return VSTR_NPOS;
-  char first = needle.data[0];
-  size_t limit = s.len - needle.len;
-  for (size_t i = 0; i <= limit; i++) {
-    const char *p = (const char *)memchr(s.data + i, first, limit - i + 1);
-    if (!p) return VSTR_NPOS;
-    i = (size_t)(p - s.data);
-    if (memcmp(p, needle.data, needle.len) == 0) return i;
-  }
-  return VSTR_NPOS;
+  const char *p = scan_mem(s.data, s.len, needle.data, needle.len);
+  return p ? (size_t)(p - s.data) : VSTR_NPOS;
 }
 
 size_t vstr_rfind(vstr s, vstr needle) {
@@ -167,7 +159,7 @@ size_t vstr_rfind(vstr s, vstr needle) {
 size_t vstr_find_char(vstr s, char c) {
   if (s.len == 0) return VSTR_NPOS;
   if (!vstr_is_valid(s)) return VSTR_NPOS;
-  const char *p = (const char *)memchr(s.data, c, s.len);
+  const char *p = scan_char(s.data, s.data + s.len, c);
   return p ? (size_t)(p - s.data) : VSTR_NPOS;
 }
 
@@ -276,10 +268,23 @@ size_t vstr_utf8_invalid_offset(vstr s) {
 size_t vstr_find_any(vstr s, vstr delimiters) {
   if (s.len == 0u || delimiters.len == 0u ||
       !vstr_is_valid(s) || !vstr_is_valid(delimiters)) return VSTR_NPOS;
-  for (size_t i = 0u; i < s.len; ++i) {
-    if (memchr(delimiters.data, s.data[i], delimiters.len) != NULL) return i;
+  const char *end = s.data + s.len;
+  const char *p;
+  const char *d = delimiters.data;
+  switch (delimiters.len) {
+  case 1u: return vstr_find_char(s, d[0]);
+  case 2u: p = scan_to_any2(s.data, end, d[0], d[1]); break;
+  case 3u: p = scan_to_any3(s.data, end, d[0], d[1], d[2]); break;
+  case 4u: p = scan_to_any4(s.data, end, d[0], d[1], d[2], d[3]); break;
+  case 5u: p = scan_to_any5(s.data, end, d[0], d[1], d[2], d[3], d[4]); break;
+  default:
+    /* Larger binary sets retain their general membership search. */
+    for (size_t i = 0u; i < s.len; ++i) {
+      if (memchr(d, s.data[i], delimiters.len) != NULL) return i;
+    }
+    return VSTR_NPOS;
   }
-  return VSTR_NPOS;
+  return p != end ? (size_t)(p - s.data) : VSTR_NPOS;
 }
 
 size_t vstr_utf8_len(vstr s) {

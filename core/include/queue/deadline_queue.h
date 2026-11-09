@@ -1,9 +1,9 @@
 #ifndef SALTS_DEADLINE_QUEUE_H
 #define SALTS_DEADLINE_QUEUE_H
 
-#include <salts/api.h>
+#include <core/api.h>
 
-#include <salts/error_codes.h>
+#include <core/error_codes.h>
 
 #include <stddef.h>
 #include <stdint.h>

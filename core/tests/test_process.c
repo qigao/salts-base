@@ -3,9 +3,9 @@
 #endif
 #define TINYTEST_NO_MAIN
 #include <tinytest.h>
-#include <salts/process.h>
-#include <salts/error_codes.h>
-#include <salts/clock.h>
+#include <core/process.h>
+#include <core/error_codes.h>
+#include <core/clock.h>
 #include <threads/threads.h>
 
 #include <stdio.h>

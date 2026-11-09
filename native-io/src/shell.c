@@ -1,8 +1,8 @@
 #include <shell.h>
 
-#include <salts/error_codes.h>
+#include <core/error_codes.h>
 #include <threads/threads.h>
-#include <salts/tstr.h>
+#include <core/tstr.h>
 
 #include <stdlib.h>
 #include <string.h>

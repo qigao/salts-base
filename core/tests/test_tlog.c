@@ -1,4 +1,4 @@
-#include <salts/tlog.h>
+#include <core/tlog.h>
 #include <file/fs.h>
 #include "tinytest.h"
 #include <stdbool.h>

@@ -1,4 +1,5 @@
-#include <salts/scan.h>
+#include <core/scan.h>
+#include <core/tstr.h>
 #include "scan_internal.h"
 #include <tinytest.h>
 #include <string.h>
@@ -9,6 +10,7 @@
 static char input_storage[64 * 1024 + 16];
 static const char *volatile scan_input;
 static const char *volatile scan_result;
+static volatile size_t string_scan_result;
 
 enum { SCAN_SAMPLES = 64, SCAN_BATCH = 32 };
 
@@ -92,4 +94,55 @@ suite("Core scalar, SIMDe and public scan comparison") {
     }
     check(scan_result == end - 1);
   }
+}
+
+/* Exercise the string entry points with the same counted, unaligned input
+ * before and after changing their scan backend. Owners and views are prepared
+ * outside the timed regions; each batch records actual operations performed. */
+#define STRING_SCAN_BENCH(title_, size_, hit_) \
+  bench(title_) { \
+    const size_t length = (size_); \
+    const size_t hit = (hit_); \
+    const size_t expected = hit < length ? hit : VSTR_NPOS; \
+    char *input = input_storage + 1; \
+    memset(input, 'x', length); \
+    if (hit < length) memcpy(input + hit, "END", 3u); \
+    scan_input = input; \
+    tstr owned = tstr_dup_len(input, length); \
+    check_not_null(owned); \
+    benchmark_ops("vstr substring", 16, 8) { \
+      for (size_t sample = 0; sample < 8u; ++sample) \
+        string_scan_result = vstr_find(vstr_from_buf(scan_input, length), VSTR_LIT("END")); \
+    } \
+    check_equal(string_scan_result, expected); \
+    benchmark_ops("tstr substring", 16, 8) { \
+      for (size_t sample = 0; sample < 8u; ++sample) \
+        string_scan_result = tstr_find_v(owned, VSTR_LIT("END")); \
+    } \
+    check_equal(string_scan_result, expected); \
+    benchmark_ops("vstr byte", 16, 8) { \
+      for (size_t sample = 0; sample < 8u; ++sample) \
+        string_scan_result = vstr_find_char(vstr_from_buf(scan_input, length), 'E'); \
+    } \
+    check_equal(string_scan_result, expected); \
+    const char delimiters[] = {'E', ';', '\r', '\n', '\t', '\0'}; \
+    const char *labels[] = {"vstr any2", "vstr any3", "vstr any4", "vstr any5", "vstr any6"}; \
+    for (size_t count = 2u; count <= sizeof(delimiters); ++count) { \
+      benchmark_ops(labels[count - 2u], 16, 8) { \
+        for (size_t sample = 0; sample < 8u; ++sample) \
+          string_scan_result = vstr_find_any(vstr_from_buf(scan_input, length), \
+                                             vstr_from_buf(delimiters, count)); \
+      } \
+      check_equal(string_scan_result, expected); \
+    } \
+    tstr_free(owned); \
+  }
+
+suite("String scan integration") {
+  STRING_SCAN_BENCH("15-byte string tail", 15u, 12u)
+  STRING_SCAN_BENCH("16-byte string", 16u, 13u)
+  STRING_SCAN_BENCH("256-byte string", 256u, 253u)
+  STRING_SCAN_BENCH("64-KiB string match at end", 65536u, 65533u)
+  STRING_SCAN_BENCH("64-KiB string without match", 65536u, 65536u)
+  STRING_SCAN_BENCH("64-KiB string match at start", 65536u, 0u)
 }

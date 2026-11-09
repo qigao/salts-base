@@ -19,7 +19,7 @@
 DEFINE_GUID(SALTS_GUID_DEVINTERFACE_COMPORT, 0x86e0d1e0, 0x8089, 0x11d0, 0x9c, 0xe4, 0x08, 0x00, 0x3e, 0x30, 0x1f, 0x73);
 
 #include "serial_internal.h"
-#include <salts/tstr.h>
+#include <core/tstr.h>
 
 struct serial_native_handle {
   HANDLE handle;

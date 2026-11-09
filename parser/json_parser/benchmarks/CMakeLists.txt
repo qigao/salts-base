@@ -10,3 +10,8 @@ foreach(benchmark_source ${BENCHMARK_SOURCES})
              ${CMAKE_CURRENT_SOURCE_DIR}/../parser
              ${SIMDE_INCLUDE_DIRS})
 endforeach()
+
+target_link_libraries(benchmark_json_cserde_reader PRIVATE Salts::JsonCSerdeAdapter)
+add_test(NAME json.cserde_reader_benchmark COMMAND benchmark_json_cserde_reader)
+set_tests_properties(json.cserde_reader_benchmark PROPERTIES LABELS "benchmark;json"
+  TIMEOUT 60)

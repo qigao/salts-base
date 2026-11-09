@@ -1,8 +1,8 @@
 #ifndef SALTS_OBJECT_POOL_H
 #define SALTS_OBJECT_POOL_H
 
-#include <salts/api.h>
-#include <salts/error_codes.h>
+#include <core/api.h>
+#include <core/error_codes.h>
 #include <threads/threads.h>
 
 #include <stdbool.h>

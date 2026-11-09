@@ -41,3 +41,17 @@ headers and behavior are covered by the module's formal source-tree tests.
 No old `crypto_asn1_reader_*`, `SaltsCore::ASN1` or dynamically exported
 `Salts::ASN1` compatibility facade is retained. The original strict
 parser implementation retains its existing semantics and ownership contracts.
+
+OID validation privately links `Salts::SIMD` and uses the public `simd.h`
+high-bit mask to skip complete 16-byte blocks of one-octet subidentifiers.
+The first block containing a continuation octet hands the entire remainder
+back to the base-128 parser. Short tails, nonminimal encodings and truncation
+keep their existing BER/DER errors; only complete vectors are loaded from
+the borrowed input. This remains O(n) time and O(1) extra storage, without
+allocations or public API changes. Static consumers receive the SIMD archive
+dependency through `Salts::ASN1`; SIMD's SIMDe headers remain private.
+
+With `BUILD_BENCHMARKS=ON`, CTest's `asn1.scan_benchmark` covers short/long,
+single-/multi-octet OIDs and integer magnitude access. The integer zero-prefix
+loop remains scalar: the measured public SIMD reduction path cost more than
+the existing byte loop on the tested LLVM-MinGW Release build.

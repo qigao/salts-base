@@ -1,8 +1,8 @@
 #ifndef SALTS_PROCESS_ASYNC_H
 #define SALTS_PROCESS_ASYNC_H
 
-#include <salts/api.h>
-#include <salts/process.h>
+#include <core/api.h>
+#include <core/process.h>
 #include <native_io.h>
 /** Zero-initialize handles and retain their addresses until destroy. Copying
  * a live handle does not share ownership. Calls return Salts/negative native

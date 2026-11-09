@@ -27,7 +27,7 @@
 #include <libyuv/scale.h>
 #include <stdlib.h>
 #include <string.h>
-#include <salts/tlog.h>
+#include <core/tlog.h>
 
 #endif /* _WIN32 */
 #include <capture.h>

@@ -3,7 +3,7 @@
 #include "cyaml_ypath_expr_parser.h"
 #include "cyaml_ypath_lexer.h"
 #include "cyaml_ypath_grammar_gen.h"
-#include <salts/re.h>
+#include <core/re.h>
 #include <math.h>
 #include <string.h>
 

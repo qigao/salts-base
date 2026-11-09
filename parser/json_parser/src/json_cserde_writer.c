@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <salts/vstr.h>
+#include <core/vstr.h>
 
 typedef struct json_cserde_writer_frame {
   cserde_token_kind begin_kind;

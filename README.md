@@ -21,7 +21,7 @@ NativeIO's `<fs_file.h>` submits file reads, writes and supported flush requests
 to the selected native completion backend.
 
 Readiness consumers include `<readiness.h>` and link `Salts::NativeIO`;
-`<salts/readiness.h>` and readiness exports from the Core DLL are removed.
+`<core/readiness.h>` and readiness exports from the Core DLL are removed.
 `<salts.h>` remains a Core-only umbrella and does not include readiness.
 The reactor implementation and private headers live in `native-io/src/readiness/`,
 and its tests live in `native-io/tests/`. NativeIO owns backend selection and
@@ -42,7 +42,7 @@ the same reactor in both Core and NativeIO.
 Public C identifiers and first-party filenames use functional names without a
 project branding prefix. Core provides the C/C++ umbrella `<salts.h>`, with
 atomic, queue and thread headers under `<atomic/...>`, `<queue/...>` and
-`<threads/...>`. Other Core utilities use paths such as `<salts/fmt.h>`.
+`<threads/...>`. Other Core utilities use paths such as `<core/fmt.h>`.
 ASN1, Coroutine and Cron retain their `include/salts/` directories.
 Parser, Media, SIMD, Serial, NativeIO and Unicode headers
 live directly under their modules' `include/` directories. Use `<json_parser.h>`,
@@ -54,18 +54,20 @@ uppercase `SALTS_*` configuration, status and export macros remain unchanged.
 The header namespace prevents collisions with system headers while functional
 prefixes disambiguate symbols where needed: `sync_*` for synchronization
 extensions, `time_*` for calendar conversion/formatting, `os_*` for OS identity,
-`native_timer_*`, `uuid128_*`, and `atomic_order`. UUID values use `uuid128_t` from
-`<salts/uuid.h>`. Borrowed byte views and bounded byte buffers use `<salts/bytes.h>`;
+`native_timer_*`, `uuid_*`, and `atomic_order`. UUID values use `uuid_t` from
+`<core/uuid.h>`. Borrowed byte views and bounded byte buffers use `<core/bytes.h>`;
 the owning byte accumulator uses `bytes.h`.
-The UUID type and entry points use the `uuid128` namespace to coexist with
-system `uuid_t` and libuuid functions. Update the former `uuid_*` calls and
-rebuild consumers; the value remains a 16-byte record.
+UUID values are 16-byte arrays compatible with the macOS and Linux libuuid
+representation. Pass `id` directly, access bytes with `id[i]`, and copy values
+with `memcpy(destination, source, sizeof(uuid_t))`. The parser is named
+`uuid_parse_text()` to avoid the system `uuid_parse()` symbol and retain Salts
+error codes. Update callers and rebuild consumers after this API change.
 
 This migration changes source includes and exported C symbol names. Rebuild
 all consumers together with their dependencies; old binaries are not ABI
 compatible. Object layouts, callback lifetimes, capacity limits and close/drain
 protocols retain their existing contracts. Runtime ABI admission is declared by
-`salts/api.h`; SDS remains private storage. Public functions and callback types
+`core/api.h`; SDS remains private storage. Public functions and callback types
 use the compiler's default C calling convention. Build the library and consumers
 with compatible ABI settings; native Windows callback entry points retain their
 required OS conventions.
@@ -74,16 +76,16 @@ Every file under `core/include/` is installed SDK payload. Keep private,
 generated implementation and test-only files outside it; installation copies the
 complete directory without exclusions.
 
-- `core/include/salts.h`: Core's installed umbrella, usable from C11 and C++17.
+- `core/include/core.h`: Core's installed umbrella, usable from C11 and C++17.
 - `core/include/atomic/`, `queue/`, `threads/`: atomic, queue and thread APIs.
   The unified atomic header exposes the compiled ABI to C and C++; C11
   compilers also receive native atomic helpers. C++ uses `<atomic>` for native objects.
 - `core/include/file/`, `memory/`: filesystem APIs and buffer/pool/mapping APIs;
   their implementations reside in `core/src/file/` and `core/src/memory/`.
-- `core/include/salts/`: installed utility headers and public
+- `core/include/core/`: installed utility headers and public
   C++ formatting helpers. Caller-facing formatter macros live inside `fmt.h`
   with `FMT_DETAIL_*` names; no separate `fmt_pp.h` is installed.
-  String ownership and mutation helpers are unified in `<salts/tstr.h>`:
+  String ownership and mutation helpers are unified in `<core/tstr.h>`:
   `VSTR_LIT`, `tstr_view`, `tstr_capacity`, `tstr_append` and
   `tstr_reserve_capacity` no longer require a separate `str.h` facade.
 - `core/src/`: private implementation contracts for threads, filesystem watches,
@@ -100,23 +102,68 @@ complete directory without exclusions.
   use the public C11 operations.
 - `core/src/file/`: filesystem operations/watch backends, with private headers
   beside their implementations.
-- `core/include/salts/scan.h` and `core/src/scan.c`: bounded C11 byte scanning
-  owned by `Salts::Core`, independent of the SIMD module. Space/tab and any4/any5
+- `core/include/core/scan.h` and `core/src/scan.c`: bounded C11 byte scanning
+  owned by `Salts::Core`, independent of the SIMD module. Space/tab, XML/JSON
+  whitespace and any2–any5
   scans use private SIMDe kernels with scalar tails in `core/src/scan_internal.h`.
   SIMDe comes from the existing vcpkg-cache and is a private header dependency;
-  applications include only `<salts/scan.h>`. The former public `simd_scan.h`
+  applications include only `<core/scan.h>`. The former public `simd_scan.h`
   is removed; replace its three `simd_*` calls with `scan_skip_sp_tab`,
   `scan_to_any4` and `scan_to_any5`. The latter two now resolve through Core's
   shared library rather than embedding scalar loops in application objects.
   Byte ranges, first-match behavior and end-on-miss semantics are unchanged.
+  `vstr_find`, `vstr_find_char` and small-set `vstr_find_any` share this scan
+  layer. Counted `tstr` search/count/replace and view partition/split reuse it
+  through `vstr`, preserving embedded NUL bytes and borrowed-view lifetimes.
+  SDS remains the private owner of mutable string storage.
+  Parser lexers also reuse the bounded scan API for delimiter searches; INI
+  and dotenv key-end searches stop within the token already matched by re2c.
+  JSON/CSV retain their existing specialized SIMD lexical checks. The public
+  `simd.h` vector-operation API remains independent of parser search policy.
+  Markdown code spans use bounded byte search for candidate backtick runs and
+  CR/LF segments; exact delimiter-run matching and newline normalization remain
+  parser policy. The JSON CSerde reader classifies decimal/exponent markers in
+  one counted scan while preserving integer ranges and token kinds.
+  With `BUILD_BENCHMARKS=ON`, CTest exposes `markdown.scan_benchmark` and
+  `json.cserde_reader_benchmark` for end-to-end scan workload comparisons.
+  XML SAX shares bounded terminator, quote and whitespace scans while keeping
+  incremental buffering and DTD bracket/quote state in the parser. CYAML shares
+  comment/whitespace and scalar-segment scans while retaining line/column,
+  tab-indentation and folding policy. TOML single-line literals use the scan
+  layer; triple-quoted forms retain their existing grammar and decoder. CSV
+  quoted fields share escape/newline searches for larger payloads and keep
+  inlined scalar loops for payloads up to one 16-byte vector. TOON's existing
+  delimiter paths already use Core scanning. These changes preserve borrowed
+  input lifetimes and error contracts without adding public APIs or dependencies.
+  `parser.scan_benchmark` compares complete XML, YAML, TOML and CSV workloads.
+  Selector and DSV expression whitespace share the four-byte whitespace scan.
+  Selector privately links Core for counted literal runs, retaining its decoded
+  string limit, Unicode escape handling and diagnostics; one-vector tails remain
+  inline. YPath uses bounded scans for its space/tab class and unescaped quoted
+  strings, with its existing escape and unterminated-token grammar retained.
+  Command help colorization copies ordinary byte runs between tag candidates,
+  including overlapping in-place tag stripping. Response-file tokenization
+  retains its existing longest-match lexer after small-token measurements.
+  `parser.query_scan_benchmark` covers these query/command workloads. URI,
+  datetime and binary protocol loops retain their character-validation, numeric
+  conversion and checksum algorithms; delimiter scans do not replace those
+  semantic operations.
 - `core/parser/`: private formatter/log-pattern lexer headers and sources.
+- `unicode/src/`: Unicode 17 property and UTF-8 rules remain the scalar source
+  of truth. Case folding, whitespace trimming and full XID checks privately use
+  `Salts::SIMD` through `simd.h` to identify ASCII runs with 16-byte high-bit
+  masks. Only complete vectors are loaded; short tails and non-ASCII scalars
+  retain counted bounds and strict UTF-8 validation. Folding still validates
+  and sizes the complete input before writing. Public scalar properties,
+  callbacks and early-stop identifier spans retain their existing behavior.
+  `saltscore.unicode_ascii_benchmark` compares ASCII, mixed and non-ASCII inputs.
 - `native-io/include/`: NativeIO's public backend, reactor and file/process/shell
   adapter headers. Private reactor headers stay in `native-io/src/readiness/`.
 
 Build-tree consumers receive the module's `include/` root; installed consumers
 receive the SDK include root. Both use the same header paths. Windows
 thread implementations can include the CRT's `<process.h>` directly because the
-public child-process header is now `<salts/process.h>`.
+public child-process header is now `<core/process.h>`.
 
 The bounded scan implementation is compiled once in Core; the independent SIMD
 execution API remains in `Salts::SIMD`. The private scalar kernels also serve as
@@ -298,18 +345,18 @@ MSVC consumers inherit the required C11 atomics option from `Salts::Core`.
 See [C11 section 7.17](https://open-std.org/jtc1/sc22/wg14/www/docs/n1570.pdf) and
 [GCC atomic builtins](https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html).
 
-The time/system API in `<salts/platform.h>` uses `timeval_now`, `time_utc`,
+The time/system API in `<core/platform.h>` uses `timeval_now`, `time_utc`,
 `time_local`, `time_from_utc`, `time_from_local`, `time_format_utc/local`,
 `os_name`, `os_version`, `cpu_arch`, `user_name`, `host_name`, `cpu_info`,
 `memory_info`, `load_average` and `network_interfaces`. Time values use
 `wall_time_t`; timezone information uses `timezone_info_t`. These names avoid
 colliding with libc functions having different signatures. `secure_random` has
 one OS-backed implementation. Its declaration and the `wall_time_t` definition
-are both provided by `<salts/platform.h>`.
+are both provided by `<core/platform.h>`.
 The `wall_time_t` source name replaces `time_value_t` to coexist with macOS
 Mach headers. Update type declarations when migrating; the `int64_t tv_sec`
 and `int32_t tv_usec` layout and `timeval_now()` function ABI are preserved.
-`<salts/clock.h>` owns monotonic/realtime clock queries and the `native_timer_*`
+`<core/clock.h>` owns monotonic/realtime clock queries and the `native_timer_*`
 API. Its Windows timer-queue and POSIX manager-thread implementations live in
 `core/src/clock.c`, including callback completion and destroy coordination.
 Rebuild consumers when migrating from the former prefixed symbols; rollback

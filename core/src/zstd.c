@@ -1,6 +1,6 @@
-#include <salts/zstd.h>
+#include <core/zstd.h>
 
-#include <salts/error.h>
+#include <core/error.h>
 
 #include <stdint.h>
 #include <zstd.h>

@@ -5,8 +5,8 @@
 #include "native_io_readiness.h"
 #include "native_io_accept_escrow.h"
 
-#include <salts/clock.h>
-#include <salts/error_codes.h>
+#include <core/clock.h>
+#include <core/error_codes.h>
 
 #include <errno.h>
 #include <fcntl.h>

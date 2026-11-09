@@ -1,8 +1,8 @@
 #include <queue/deadline_queue.h>
 #include <tinytest.h>
 #include <queue/disruptor.h>
-#include <salts/error_codes.h>
-#include <salts/rcu.h>
+#include <core/error_codes.h>
+#include <core/rcu.h>
 #include <queue/spsc_ring.h>
 #include <threads/thread_pool.h>
 

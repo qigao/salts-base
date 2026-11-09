@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <memory/buffer.h>
-#include <salts/vstr.h>
+#include <core/vstr.h>
 
 #define TOON_JSON_ARENA_INITIAL_SIZE (32U * 1024U)
 #define TOON_JSON_MAX_EXACT_INTEGER_TEXT "9007199254740992"

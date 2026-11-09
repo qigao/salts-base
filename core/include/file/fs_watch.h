@@ -1,7 +1,7 @@
 #ifndef SALTS_FS_WATCH_H
 #define SALTS_FS_WATCH_H
 
-#include <salts/api.h>
+#include <core/api.h>
 
 #include <stdbool.h>
 #include <stddef.h>

@@ -1,4 +1,4 @@
-#include <salts/asn1.h>
+#include <asn1.h>
 #include <tinytest.h>
 #include <stddef.h>
 #include <stdint.h>

@@ -1,6 +1,6 @@
 /* Standalone NativeIO readiness reactor contract. */
 #include <readiness.h>
-#include <salts/error_codes.h>
+#include <core/error_codes.h>
 #include <threads/threads.h>
 #include <stddef.h>
 #include <stdint.h>

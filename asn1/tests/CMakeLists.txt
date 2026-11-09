@@ -1,4 +1,4 @@
-foreach(_case IN ITEMS reader value)
+foreach(_case IN ITEMS reader value scan)
   cmake_add_executable(asn1_${_case}_test SOURCES ${_case}.c
     FOLDER "asn1/tests")
   target_link_libraries(asn1_${_case}_test PRIVATE Salts::ASN1 Salts::TinyTest)

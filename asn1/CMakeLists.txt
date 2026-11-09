@@ -11,6 +11,7 @@ cmake_config_target(asn1
 set_target_properties(asn1 PROPERTIES
   C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON)
 target_compile_features(asn1 PUBLIC c_std_11)
+target_link_libraries(asn1 PRIVATE Salts::SIMD)
 target_include_directories(asn1 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
@@ -20,4 +21,7 @@ install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 # Tests use the root-owned TinyTest and CTest graph.
 if(BUILD_TESTS)
   add_subdirectory(tests)
+endif()
+if(BUILD_BENCHMARKS)
+  add_subdirectory(benchmarks)
 endif()

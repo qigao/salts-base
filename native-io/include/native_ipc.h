@@ -1,7 +1,7 @@
 #ifndef SALTS_NATIVE_IPC_H
 #define SALTS_NATIVE_IPC_H
 
-#include <salts/error_codes.h>
+#include <core/error_codes.h>
 
 #ifndef __cplusplus
   #include <stdbool.h>

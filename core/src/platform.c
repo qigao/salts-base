@@ -2,8 +2,8 @@
  * Platform abstraction implementation - minimal but sufficient
  * "Write portable code, but test on real systems" - Linus
  */
-#include <salts/platform.h>
-#include <salts/clock.h>
+#include <core/platform.h>
+#include <core/clock.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>

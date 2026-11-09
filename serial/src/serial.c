@@ -4,7 +4,7 @@
 
 #include "serial_internal.h"
 #include <queue/ring_buffer_spsc.h>
-#include <salts/tstr.h>
+#include <core/tstr.h>
 #include <threads/threads.h>
 
 #include <stdbool.h>

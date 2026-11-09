@@ -1,7 +1,7 @@
 #ifndef SALTS_BUCKET_PRIORITY_QUEUE_MPMC_H
 #define SALTS_BUCKET_PRIORITY_QUEUE_MPMC_H
 
-#include <salts/api.h>
+#include <core/api.h>
 
 #include <queue/disruptor.h>
 #include <threads/threads.h>

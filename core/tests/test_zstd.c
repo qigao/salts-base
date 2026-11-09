@@ -1,7 +1,7 @@
 #include "tinytest.h"
 
-#include <salts/error.h>
-#include <salts/zstd.h>
+#include <core/error.h>
+#include <core/zstd.h>
 
 #include <stdint.h>
 #include <stdlib.h>

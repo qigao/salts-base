@@ -7,7 +7,7 @@
 #include "ini_lexer.h"
 #include "ini_types.h"
 #include "ini_grammar_gen.h"
-#include <salts/tstr.h>
+#include <core/tstr.h>
 
 #include <stdlib.h>
 #include <string.h>

@@ -101,7 +101,7 @@ target_include_directories(saltscore_unicode
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_link_libraries(saltscore_unicode PUBLIC Salts::Core)
+target_link_libraries(saltscore_unicode PUBLIC Salts::Core PRIVATE Salts::SIMD)
 install(TARGETS saltscore_unicode EXPORT SaltsBaseTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
@@ -110,4 +110,7 @@ install(FILES data/LICENSE.txt
 
 if(BUILD_TESTS)
   add_subdirectory(test)
+endif()
+if(BUILD_BENCHMARKS)
+  add_subdirectory(benchmarks)
 endif()

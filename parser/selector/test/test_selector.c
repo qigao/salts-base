@@ -91,6 +91,49 @@ static char *make_membership_selector(size_t item_count) {
 }
 
 spec("bounded resource selector DSL") {
+  it("preserves string escapes and borrowed input across scan boundaries") {
+    const size_t lengths[] = {0u, 15u, 16u, 17u, 31u, 32u, 33u, 252u};
+    const char prefix[] = "role == \"";
+    const char suffix[] = "\\n\\u0061\\\"\"";
+    char source[320], expected[260];
+    for (size_t i = 0u; i < sizeof(lengths) / sizeof(lengths[0]); ++i) {
+      const size_t length = lengths[i];
+      memcpy(source, prefix, sizeof(prefix) - 1u);
+      memset(source + sizeof(prefix) - 1u, 'x', length);
+      memcpy(source + sizeof(prefix) - 1u + length, suffix, sizeof(suffix));
+      memset(expected, 'x', length);
+      memcpy(expected + length, "\na\"", 4u);
+      selector_diagnostic_v1_t diagnostic = {0};
+      selector_program_t *program = compile_selector(source, &diagnostic);
+      check_not_null(program);
+      selector_record_t record = {NULL, expected, NULL, NULL, 0u};
+      const selector_eval_ops_v1_t ops = {
+          SALTS_SELECTOR_EVAL_OPS_V1_SIZE, resolve_field, has_capability};
+      int matched = 0;
+      check_equal(selector_program_evaluate_v1(program, &ops, &record, &matched,
+                                                &diagnostic), SALTS_SELECTOR_OK);
+      check_true(matched);
+      check_equal(source + sizeof(prefix) - 1u + length, suffix);
+      selector_program_destroy(program);
+    }
+  }
+
+  it("keeps diagnostics after mixed whitespace and rejects other controls") {
+    char source[18];
+    for (size_t i = 0u; i < 16u; ++i) source[i] = " \t\r\n"[i % 4u];
+    source[16] = '\v';
+    source[17] = '\0';
+    selector_schema_v1_t schema = test_schema();
+    selector_program_t *program = NULL;
+    selector_diagnostic_v1_t diagnostic = {.size = SALTS_SELECTOR_DIAGNOSTIC_V1_SIZE};
+    check_equal(selector_compile_v1(source, 17u, &schema, &program, &diagnostic),
+                  SALTS_SELECTOR_SYNTAX_ERROR);
+    check_null(program);
+    check_equal(diagnostic.byte_offset, 16u);
+    check_equal(diagnostic.line, 5u);
+    check_equal(diagnostic.column, 1u);
+  }
+
   describe("re2c and Lemon compilation") {
     it("compiles precedence and renders a deterministic canonical form") {
       static const char source[] =

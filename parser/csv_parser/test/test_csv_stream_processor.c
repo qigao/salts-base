@@ -5,7 +5,7 @@
 
 #include <csv_stream_processor.h>
 #include "tinytest.h"
-#include <salts/fmt.h>
+#include <core/fmt.h>
 #include <string.h>
 #include <stdio.h>
 

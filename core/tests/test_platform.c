@@ -1,7 +1,7 @@
-#include <salts/clock.h>
+#include <core/clock.h>
 #include <tinytest.h>
-#include <salts/error_codes.h>
-#include <salts/platform.h>
+#include <core/error_codes.h>
+#include <core/platform.h>
 #include <threads/threads.h>
 
 #include <atomic/atomic.h>

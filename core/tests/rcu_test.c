@@ -1,6 +1,6 @@
-#include <salts/rcu.h>
+#include <core/rcu.h>
 #include <threads/threads.h>
-#include <salts/clock.h>
+#include <core/clock.h>
 #include "tinytest.h"
 #include <atomic/atomic.h>
 #include <stdlib.h>

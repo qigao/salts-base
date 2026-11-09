@@ -54,3 +54,7 @@ foreach(_parser IN ITEMS ini_parser json_parser xml_parser csv_parser tlv_parser
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.h")
 endforeach()
 
+if(BUILD_BENCHMARKS)
+  add_subdirectory(benchmarks)
+endif()
+

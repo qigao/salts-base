@@ -10,14 +10,14 @@
 #include "json_types.h"
 #include "json_unicode.h"
 #include <errno.h>
-#include <salts/fmt.h>
+#include <core/fmt.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <threads/threads.h>
-#include <salts/tstr.h>
+#include <core/tstr.h>
 
 #define MAX_ERROR_LEN 512
 #define JSON_ARRAY_INDEX_THRESHOLD 8U

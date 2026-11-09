@@ -1,5 +1,6 @@
 // re2c --lang c --utf8 --encoding-policy fail
 #include <unicode.h>
+#include "unicode_ascii_internal.h"
 #include "unicode_emoji.h"
 
 #include <stddef.h>
@@ -197,6 +198,23 @@ unicode_status unicode_trim_whitespace(vstr input, vstr *output) {
     return SALTS_UNICODE_ERR_INVALID_ARGUMENT;
 
   while (cursor < input.len) {
+    if ((unsigned char)input.data[cursor] < 0x80u) {
+      size_t ascii;
+      status = unicode_ascii_prefix(input.data + cursor, input.len - cursor, &ascii);
+      if (status != SALTS_UNICODE_OK) return status;
+      size_t first = 0u;
+      while (first < ascii &&
+             unicode_ascii_whitespace((unsigned char)input.data[cursor + first])) ++first;
+      if (first < ascii) {
+        size_t last = ascii;
+        while (unicode_ascii_whitespace((unsigned char)input.data[cursor + last - 1u])) --last;
+        if (!saw_non_whitespace) first_non_whitespace = cursor + first;
+        last_non_whitespace = cursor + last;
+        saw_non_whitespace = 1;
+      }
+      cursor += ascii;
+      if (cursor == input.len) break;
+    }
     status = unicode_utf8_next(input, &cursor, &scalar);
     if (status != SALTS_UNICODE_OK) return status;
     if ((scalar.properties & SALTS_UNICODE_PROPERTY_WHITE_SPACE) == 0u) {
@@ -256,6 +274,19 @@ unicode_status unicode_is_xid(vstr input, int *result) {
     return SALTS_UNICODE_ERR_INVALID_ARGUMENT;
 
   while (cursor < input.len) {
+    if ((unsigned char)input.data[cursor] < 0x80u) {
+      size_t ascii;
+      status = unicode_ascii_prefix(input.data + cursor, input.len - cursor, &ascii);
+      if (status != SALTS_UNICODE_OK) return status;
+      for (size_t i = 0u; i < ascii; ++i) {
+        const unsigned char byte = (unsigned char)input.data[cursor + i];
+        if (!(scalar_index == 0u && i == 0u ? unicode_ascii_xid_start(byte) :
+                                            unicode_ascii_xid_continue(byte))) is_xid = 0;
+      }
+      scalar_index += ascii;
+      cursor += ascii;
+      if (cursor == input.len) break;
+    }
     status = unicode_utf8_next(input, &cursor, &scalar);
     if (status != SALTS_UNICODE_OK) return status;
     if (scalar_index == 0u) {

@@ -7,11 +7,11 @@
   #define _GNU_SOURCE
 #endif
 
-#include <salts/process.h>
+#include <core/process.h>
 
-#include <salts/error_codes.h>
+#include <core/error_codes.h>
 #include <threads/threads.h>
-#include <salts/clock.h>
+#include <core/clock.h>
 
 #include <errno.h>
 #include <limits.h>

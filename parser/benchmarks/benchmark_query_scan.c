@@ -1,7 +1,7 @@
 #include <cmd_arger_internal.h>
 #include <cyaml_ypath_lexer.h>
 #include <dsv_filter.h>
-#include <salts/tstr.h>
+#include <core/tstr.h>
 #include <selector.h>
 #include <tinytest.h>
 
@@ -31,6 +31,12 @@ static tstr query_fixture(const char *prefix, const char *fill, size_t count,
     const char *fields[] = {"region"}; \
     const selector_schema_v1_t schema = { \
         .size = SALTS_SELECTOR_SCHEMA_V1_SIZE, .allowed_fields = fields, .allowed_field_count = 1u}; \
+    for (size_t warmup = 0u; warmup < 64u; ++warmup) { \
+      selector_program_t *program = NULL; \
+      selector_diagnostic_v1_t diagnostic = {.size = SALTS_SELECTOR_DIAGNOSTIC_V1_SIZE}; \
+      check_equal(selector_compile_v1(source, tstr_len(source), &schema, &program, &diagnostic), SALTS_SELECTOR_OK); \
+      selector_program_destroy(program); \
+    } \
     size_t failures = 0u; \
     benchmark_ops("compile selector", 64, 8) { \
       for (size_t operation = 0u; operation < 8u; ++operation) { \
@@ -78,13 +84,12 @@ suite("YPath scan workloads") {
   bench(title_) { \
     tstr source = query_fixture(prefix_, fill_, count_, suffix_); \
     check_not_null(source); \
-    const char *input_end = source + tstr_len(source); \
     size_t failures = 0u; \
     benchmark_ops("scan response arguments", 64, 8) { \
       for (size_t operation = 0u; operation < 8u; ++operation) { \
         const char *cursor = source, *start; \
         size_t length, tokens = 0u, bytes = 0u; \
-        while ((length = lex_next_arg(&cursor, input_end, &start)) != 0u) { ++tokens; bytes += length; } \
+        while ((length = lex_next_arg(&cursor, &start)) != 0u) { ++tokens; bytes += length; } \
         if (tokens != (tokens_) || bytes != (bytes_)) ++failures; \
         query_scan_result = bytes; \
       } \

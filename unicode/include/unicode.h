@@ -6,7 +6,7 @@
 #ifndef SALTS_UNICODE_H
 #define SALTS_UNICODE_H
 
-#include <salts/vstr.h>
+#include <core/vstr.h>
 
 #include <stddef.h>
 #include <stdint.h>

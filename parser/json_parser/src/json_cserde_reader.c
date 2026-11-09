@@ -1,4 +1,5 @@
 #include <json_cserde_reader.h>
+#include <core/scan.h>
 
 #include "json_types.h"
 
@@ -73,8 +74,7 @@ static cserde_status json_cserde_number_token(const json_value_t *value, cserde_
     len = (size_t)generated_len;
   }
 
-  if (memchr(text, '.', len) == NULL && memchr(text, 'e', len) == NULL &&
-      memchr(text, 'E', len) == NULL)
+  if (scan_to_any3(text, text + len, '.', 'e', 'E') == text + len)
     return json_cserde_integer_token(text, len, out);
 
   out->kind = CSERDE_FLOAT;

@@ -269,6 +269,32 @@ spec("ini_parser") {
     }
   }
 
+  it("preserves key boundaries around vector widths and mixed separators") {
+    const size_t lengths[] = {1u, 15u, 16u, 17u, 31u, 32u, 33u, 255u, 4096u};
+    const char *suffixes[] = {"=value\n", " \t=value\n", "\t= value\n"};
+    const char prefix[] = "[scan]\n";
+    char key[4097];
+    char content[4224];
+
+    for (size_t i = 0u; i < sizeof(lengths) / sizeof(lengths[0]); ++i) {
+      const size_t length = lengths[i];
+      memset(key, 'k', length);
+      key[length] = '\0';
+      for (size_t j = 0u; j < sizeof(suffixes) / sizeof(suffixes[0]); ++j) {
+        const size_t suffix_length = strlen(suffixes[j]);
+        memcpy(content, prefix, sizeof(prefix) - 1u);
+        memcpy(content + sizeof(prefix) - 1u, key, length);
+        memcpy(content + sizeof(prefix) - 1u + length, suffixes[j], suffix_length);
+        ini_t *ini = ini_parse(content, sizeof(prefix) - 1u + length + suffix_length);
+        check_not_null(ini);
+        check_equal(ini_key_count(ini, "scan"), 1);
+        check_equal(ini_key_name(ini, "scan", 0), key);
+        check_equal(ini_get(ini, "scan", key), "value");
+        ini_free(ini);
+      }
+    }
+  }
+
   it("should preserve a long value while skipping whitespace and comments") {
     enum { VALUE_BYTES = 4096 };
     const char prefix[] = "  # ignored comment\n[simd]\nvalue = ";

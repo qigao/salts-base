@@ -2,6 +2,7 @@
 
 #include "cyaml_internal.h"
 #include "cyaml_ypath_lexer.h"
+#include <core/scan.h>
 
 #include <math.h>
 
@@ -71,7 +72,20 @@ void ypath_lex_next(ypath_lexer_t* lexer)
     const char* token_start;
 
 scan:
+    if (YYCURSOR < YYLIMIT && (*YYCURSOR == ' ' || *YYCURSOR == '\t'))
+        YYCURSOR = scan_skip_sp_tab(YYCURSOR, YYLIMIT);
     token_start = YYCURSOR;
+    if (YYCURSOR < YYLIMIT && (*YYCURSOR == '"' || *YYCURSOR == '\'')) {
+        const char quote = *YYCURSOR;
+        const char* end = scan_to_any3(YYCURSOR + 1u, YYLIMIT, quote, '\\', '\0');
+        if (end < YYLIMIT && *end == quote) {
+            lexer->tok.type = YPATH_TOK_STRING;
+            lexer->tok.start = YYCURSOR + 1u;
+            lexer->tok.len = (uint32_t)(end - lexer->tok.start);
+            lexer->cur = end + 1u;
+            return;
+        }
+    }
 
     /*!re2c
         re2c:define:YYCTYPE = "unsigned char";

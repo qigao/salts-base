@@ -1,4 +1,4 @@
-#include <salts/fmt.h>
+#include <core/fmt.h>
 #include <tinytest.h>
 #include <string.h>
 

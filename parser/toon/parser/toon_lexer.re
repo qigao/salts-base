@@ -1,7 +1,7 @@
 // re2c $INPUT -o $OUTPUT
 #include "toon_lexer.h"
 #include "toon_grammar_gen.h"
-#include <salts/scan.h>
+#include <core/scan.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

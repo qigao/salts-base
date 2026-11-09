@@ -17,10 +17,10 @@
 #include <string.h>
 #include <time.h>
 #include <limits.h>
-#include <salts/clock.h>
+#include <core/clock.h>
 #include <threads/threads.h>
-#include <salts/tlog.h>
-#include <salts/fmt.h>
+#include <core/tlog.h>
+#include <core/fmt.h>
 #include "log_pattern_lexer.h"
 #include <memory/buffer.h>
 #include <atomic/atomic.h>

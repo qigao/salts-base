@@ -1,6 +1,7 @@
 // re2c $INPUT -o $OUTPUT
 #include "selector_internal.h"
 #include "selector_v1_grammar_gen.h"
+#include <core/scan.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -38,6 +39,12 @@ int selector_lexer_next(selector_lexer_t *lexer,
   YYLIMIT = lexer->limit;
 
 again:
+  if ((size_t)(YYLIMIT - YYCURSOR) >= SELECTOR_SCAN_MIN_BYTES && (*YYCURSOR == ' ' || *YYCURSOR == '\t' ||
+                            *YYCURSOR == '\r' || *YYCURSOR == '\n')) {
+    YYCURSOR = scan_skip_sp_tab_cr_lf(YYCURSOR, YYLIMIT);
+    lexer->cursor = YYCURSOR;
+    lexer->marker = YYMARKER;
+  }
   memset(token, 0, sizeof(*token));
   token->node = SELECTOR_NO_NODE;
   token_start = YYCURSOR;

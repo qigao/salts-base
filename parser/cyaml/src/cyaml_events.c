@@ -1,4 +1,5 @@
 #include "cyaml_internal.h"
+#include <core/scan.h>
 
 // #region Event Buffer
 
@@ -172,10 +173,7 @@ static char* resolve_flow_scalar(const char* s, size_t len, cyaml_style_t style,
     while (pos < len) {
         // Find end of current line
         size_t line_start = pos;
-        size_t line_end = pos;
-        while (line_end < len && s[line_end] != C_LF && s[line_end] != C_CR) {
-            line_end++;
-        }
+        size_t line_end = (size_t)(scan_to_any2(s + pos, s + len, C_LF, C_CR) - s);
 
         // Content of this line (before any trailing whitespace trimming)
         size_t content_start = line_start;
@@ -183,9 +181,7 @@ static char* resolve_flow_scalar(const char* s, size_t len, cyaml_style_t style,
 
         // Trim leading whitespace on continuation lines (not first line)
         if (!first_line) {
-            while (content_start < content_end && (s[content_start] == C_SP || s[content_start] == C_TAB)) {
-                content_start++;
-            }
+            content_start = (size_t)(scan_skip_sp_tab(s + content_start, s + content_end) - s);
         }
 
         // Trim trailing whitespace (but not on last segment before close quote)
@@ -208,13 +204,16 @@ static char* resolve_flow_scalar(const char* s, size_t len, cyaml_style_t style,
         if (content_len > 0) {
             // Handle escaped quotes for single-quoted style
             if (style == CYAML_SINGLE) {
-                for (size_t i = content_start; i < content_end; i++) {
-                    if (s[i] == '\'' && i + 1 < content_end && s[i + 1] == '\'') {
-                        out[out_pos++] = '\'';
-                        i++; // Skip second quote
-                    } else {
-                        out[out_pos++] = s[i];
-                    }
+                const char* p = s + content_start;
+                while (p < s + content_end) {
+                    const char* quote = scan_to_char(p, s + content_end, '\'');
+                    size_t run = (size_t)(quote - p);
+                    if (run) memcpy(out + out_pos, p, run);
+                    out_pos += run;
+                    if (quote == s + content_end) break;
+                    out[out_pos++] = '\'';
+                    p = quote + 1u;
+                    if (p < s + content_end && *p == '\'') ++p;
                 }
             } else {
                 memcpy(out + out_pos, s + content_start, content_len);
@@ -236,8 +235,7 @@ static char* resolve_flow_scalar(const char* s, size_t len, cyaml_style_t style,
             size_t scan = pos;
             while (scan < len) {
                 // Skip leading whitespace
-                while (scan < len && (s[scan] == C_SP || s[scan] == C_TAB))
-                    scan++;
+                scan = (size_t)(scan_skip_sp_tab(s + scan, s + len) - s);
 
                 // Check if this is an empty line
                 if (scan < len && (s[scan] == C_LF || s[scan] == C_CR)) {
@@ -538,9 +536,7 @@ static bool event_scalar(event_buf_t* e, const cyaml_node_t* n, int depth)
 
             // Copy line content until break
             size_t line_start = pos;
-            while (pos < slen && s[pos] != C_LF && s[pos] != C_CR) {
-                pos++;
-            }
+            pos = (size_t)(scan_to_any2(s + pos, s + slen, C_LF, C_CR) - s);
 
             // Check if this is an empty line (no content after indent strip)
             bool empty_line = (pos == line_start);

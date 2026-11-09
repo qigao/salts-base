@@ -4,8 +4,9 @@
  */
 
 #include <csv_parser.h>
+#include "../parser/csv_lexer.h"
 #include "tinytest.h"
-#include <salts/fmt.h>
+#include <core/fmt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,6 +85,30 @@ static int on_row_end(void *ctx, size_t row_index, size_t field_count) {
 }
 
 spec("csv_parser") {
+  it("preserves positions and escaping for quoted fields followed by an error") {
+    const char input[] = "\"123456789012345\r\n\"\"x\",\"\"\n\"";
+    csv_lexer_t lexer;
+    csv_token_t token;
+    csv_lexer_reset_state();
+    csv_lexer_init(&lexer, input, sizeof(input) - 1u);
+    check_equal(csv_lexer_next(&lexer, &token), 1);
+    check_equal(token.length, 20u);
+    check_equal(token.needs_unescape, 1);
+    check_equal(lexer.line, 2);
+    check_equal(lexer.column, 5);
+    check_equal(csv_lexer_next(&lexer, &token), 1);
+    check_equal(csv_lexer_next(&lexer, &token), 1);
+    check_equal(token.length, 0u);
+    check_equal(token.needs_unescape, 0);
+    check_equal(lexer.column, 8);
+    check_equal(csv_lexer_next(&lexer, &token), 1);
+    check_equal(lexer.line, 3);
+    check_equal(lexer.column, 1);
+    check_equal(csv_lexer_next(&lexer, &token), -1);
+    check_contains(lexer.error, "line 3, column 1");
+    csv_lexer_reset_state();
+  }
+
   describe("Basic Parsing") {
     it("should parse a simple CSV string correctly") {
       const char *csv = "a,b,c\n1,2,3\n";

@@ -6,7 +6,7 @@ endforeach()
 unset(_fixture)
 
 foreach(_name IN ITEMS test_unicode test_unicode_normalize
-    test_unicode_casefold test_unicode_combined_abi
+    test_unicode_casefold test_unicode_ascii_simd test_unicode_combined_abi
     test_unicode_category_conformance
     test_unicode_grapheme test_unicode_grapheme_conformance
     test_unicode_word test_unicode_word_conformance

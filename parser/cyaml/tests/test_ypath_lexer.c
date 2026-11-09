@@ -2,8 +2,51 @@
 #include "tinytest.h"
 
 #include <stdint.h>
+#include <string.h>
 
 suite("cyaml YPATH re2c lexer") {
+    it("keeps counted string slices around vector widths for either quote") {
+        const size_t lengths[] = {0u, 15u, 16u, 17u, 31u, 32u, 33u, 257u};
+        const char quotes[] = {'\'', '"'};
+        char source[288];
+        for (size_t q = 0u; q < sizeof(quotes); ++q) {
+            for (size_t i = 0u; i < sizeof(lengths) / sizeof(lengths[0]); ++i) {
+                const size_t length = lengths[i];
+                source[0] = quotes[q];
+                memset(source + 1u, 'x', length);
+                if (length >= 2u) {
+                    source[1] = (char)0xc3;
+                    source[2] = (char)0xa9;
+                }
+                source[length + 1u] = quotes[q];
+                memcpy(source + length + 2u, " field", 7u);
+                ypath_lexer_t lexer;
+                ypath_lex_init(&lexer, source);
+                ypath_lex_next(&lexer);
+                check_equal(lexer.tok.type, YPATH_TOK_STRING);
+                check_true(lexer.tok.start == source + 1u);
+                check_equal(lexer.tok.len, length);
+                check_true(lexer.cur == source + length + 2u);
+                ypath_lex_next(&lexer);
+                check_equal(lexer.tok.type, YPATH_TOK_IDENT);
+                check_equal(lexer.tok.len, 5u);
+            }
+        }
+    }
+
+    it("preserves unterminated strings and the two-byte whitespace class") {
+        const char source[] = " \t'12345678901234567";
+        ypath_lexer_t lexer;
+        ypath_lex_init(&lexer, source);
+        ypath_lex_next(&lexer);
+        check_equal(lexer.tok.type, YPATH_TOK_STRING);
+        check_true(lexer.tok.start == source + 3u);
+        check_equal(lexer.tok.len, 17u);
+        ypath_lex_init(&lexer, " \t\r");
+        ypath_lex_next(&lexer);
+        check_equal(lexer.tok.type, YPATH_TOK_ERROR);
+    }
+
     it("distinguishes path slash from filter division") {
         ypath_lexer_t lexer;
 

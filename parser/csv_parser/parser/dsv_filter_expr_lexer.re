@@ -1,6 +1,7 @@
 // re2c $INPUT -o $OUTPUT
 #include "dsv_filter_expr_lexer.h"
 #include "dsv_filter_expr_grammar_gen.h"
+#include <core/scan.h>
 #include <stdio.h>
 
 void dsv_expr_lexer_init(dsv_expr_lexer_t *lexer, const char *input, size_t len) {
@@ -24,6 +25,12 @@ int dsv_expr_lexer_next(dsv_expr_lexer_t *lexer, dsv_expr_token_t *token) {
     YYLIMIT = lexer->limit;
 
 again:
+    if (YYCURSOR < YYLIMIT && (*YYCURSOR == ' ' || *YYCURSOR == '\t' ||
+                              *YYCURSOR == '\r' || *YYCURSOR == '\n')) {
+        YYCURSOR = scan_skip_sp_tab_cr_lf(YYCURSOR, YYLIMIT);
+        lexer->cursor = YYCURSOR;
+        lexer->marker = YYMARKER;
+    }
     token->type = 0;
     token->value = NULL;
     token->length = 0;

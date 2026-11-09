@@ -1,6 +1,7 @@
 #include <markdown.h>
 #include <unicode.h>
-#include <salts/vstr.h>
+#include <core/vstr.h>
+#include <core/scan.h>
 #include "markdown_entities.h"
 
 #include <ctype.h>
@@ -1241,7 +1242,9 @@ static bool md_email_autolink(const char *s,size_t n,size_t at,
 static size_t md_code_span_close(const char *s,size_t n,size_t begin,
                                  size_t marker_size) {
     for(size_t p=begin;p<n;) {
-        if(s[p]!=(char)0x60) { ++p;continue; }
+        const char *marker=scan_char(s+p,s+n,(char)0x60);
+        if(!marker)return SIZE_MAX;
+        p=(size_t)(marker-s);
         size_t end=p+1u;
         while(end<n && s[end]==(char)0x60) ++end;
         if(end-p==marker_size) return p;
@@ -1259,8 +1262,7 @@ static size_t md_code_span_close(const char *s,size_t n,size_t begin,
 static void md_code_span_text(md_document *d,uint32_t parent,
                               const char *s,size_t start,size_t end) {
     const size_t n=end-start;
-    const bool multiline=memchr(s+start,'\n',n)!=NULL ||
-                         memchr(s+start,'\r',n)!=NULL;
+    const bool multiline=scan_to_any2(s+start,s+end,'\n','\r')!=s+end;
     char *normalized=NULL;
     const char *text=s+start;
     size_t begin=0u,bytes=n;
@@ -1268,13 +1270,18 @@ static void md_code_span_text(md_document *d,uint32_t parent,
         normalized=(char*)malloc(n+1u);
         if(!normalized) {md_error(d,SALTS_MD_OUT_OF_MEMORY);return;}
         bytes=0u;
-        for(size_t i=start;i<end;++i) {
-            const char c=s[i];
-            if(c=='\r') {
-                if(i+1u<end && s[i+1u]=='\n') ++i;
-                normalized[bytes++]=' ';
-            } else if(c=='\n') normalized[bytes++]=' ';
-            else normalized[bytes++]=c;
+        const char *p=s+start;
+        while(p<s+end) {
+            const char *line_end=scan_to_any2(p,s+end,'\n','\r');
+            const size_t run=(size_t)(line_end-p);
+            /* Literal runs are copied unchanged; normalization never grows
+             * beyond the admitted payload length, including CRLF pairs. */
+            if(run)memcpy(normalized+bytes,p,run);
+            bytes+=run;
+            if(line_end==s+end)break;
+            p=line_end+1u;
+            if(*line_end=='\r' && p<s+end && *p=='\n')++p;
+            normalized[bytes++]=' ';
         }
         text=normalized;
     }

@@ -2411,6 +2411,56 @@ void test_path_large_exponent(void)
 #define CYAML_CASE(name) it(#name) { test_##name(); }
 
 suite("cyaml API") {
+    it("preserves comment spans and tab indentation errors after bulk scanning") {
+        const size_t lengths[] = {15u, 16u, 17u, 255u, 4096u};
+        char source[4224];
+        for (size_t i = 0u; i < sizeof(lengths) / sizeof(lengths[0]); ++i) {
+            const size_t length = lengths[i];
+            source[0] = '#';
+            memset(source + 1u, 'x', length);
+            const char suffix[] = "\r\nkey: value\n";
+            memcpy(source + length + 1u, suffix, sizeof(suffix));
+            for (int preserve = 0; preserve <= 1; ++preserve) {
+                cyaml_opts_t opts = CYAML_OPTS_DEFAULT;
+                opts.preserve_comments = preserve != 0;
+                cyaml_error_t error = {0};
+                cyaml_doc_t *document = cyaml_parse(source, length + sizeof(suffix), &opts, &error);
+                check_not_null(document);
+                check_true(cyaml_is_map(cyaml_root(document)));
+                check_equal(cyaml_comment_count(document), (uint32_t)preserve);
+                if (preserve) {
+                    cyaml_span_t span = cyaml_comment_at(document, 0u);
+                    check_equal(span.off, 0u);
+                    check_equal(span.len, length + 1u);
+                    check_equal(span.start_line, 1u);
+                    check_equal(span.start_col, 1u);
+                    check_equal(span.end_col, length + 2u);
+                }
+                cyaml_free(document);
+            }
+            const char invalid[] = "\r\n\tkey: value\n";
+            memcpy(source + length + 1u, invalid, sizeof(invalid));
+            cyaml_error_t error = {0};
+            cyaml_doc_t *document = cyaml_parse(source, length + sizeof(invalid), NULL, &error);
+            check_null(document);
+            check_equal(error.span.start_line, 2u);
+            /* The existing scanner reports the colon after the leading tab. */
+            check_equal(error.span.start_col, 5u);
+        }
+    }
+
+    it("resolves quoted scalar segments without changing folding or escaped quotes") {
+        const char input[] = "key: '123456789012345''x\r\n  next'\n";
+        cyaml_doc_t *document = cyaml_parse(input, sizeof(input) - 1u, NULL, NULL);
+        check_not_null(document);
+        size_t length = 0u;
+        char *events = cyaml_events(document, false, &length);
+        check_not_null(events);
+        check_contains(events, "123456789012345'x next");
+        free(events);
+        cyaml_free(document);
+    }
+
     group("parser regressions") {
         CYAML_CASE(parse_tag_offbyone);
         CYAML_CASE(parse_deep_nesting);

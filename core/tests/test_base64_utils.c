@@ -1,5 +1,5 @@
 /* Original tn_base64_* contract, plus strict caller-owned counted byte ABI. */
-#include <salts/base64.h>
+#include <core/base64.h>
 #include <tinytest.h>
 #include <stdint.h>
 #include <stdio.h>

@@ -1,6 +1,6 @@
 #include <shell.h>
-#include <salts/clock.h>
-#include <salts/error_codes.h>
+#include <core/clock.h>
+#include <core/error_codes.h>
 #include <threads/threads.h>
 #include "tinytest.h"
 

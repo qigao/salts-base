@@ -1,4 +1,4 @@
-#include <salts/tlog.h>
+#include <core/tlog.h>
 #include "tinytest.hpp"
 #include <string>
 #include <cstdio>

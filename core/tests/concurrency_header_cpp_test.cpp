@@ -5,7 +5,7 @@
 #include <queue/disruptor.h>
 #include <queue/spsc_ring.h>
 #include <threads/thread_pool.h>
-#include <salts/rcu.h>
+#include <core/rcu.h>
 #include <tinytest.hpp>
 #include <type_traits>
 

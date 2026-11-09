@@ -20,8 +20,9 @@ static volatile size_t unicode_result;
     size_t required = 0u; \
     check_equal(unicode_case_fold(view, NULL, 0u, &required), SALTS_UNICODE_OK); \
     size_t failures = 0u; \
-    benchmark_ops("counted full case fold", 32, 4) { \
-      for (size_t operation = 0u; operation < 4u; ++operation) { \
+    const size_t operations = ascii < 256u ? 1024u : 4u; \
+    benchmark_ops("counted full case fold", 32, operations) { \
+      for (size_t operation = 0u; operation < operations; ++operation) { \
         size_t written = 0u; \
         if (unicode_case_fold(view, unicode_output, sizeof(unicode_output), &written) != SALTS_UNICODE_OK || \
             written != required) ++failures; \

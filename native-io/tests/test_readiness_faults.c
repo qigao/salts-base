@@ -3,7 +3,7 @@
  * old Salts library, test adapter or provider fallback is involved.
  */
 #include "readiness_internal.h"
-#include <salts/error_codes.h>
+#include <core/error_codes.h>
 #include <readiness.h>
 #include <stddef.h>
 #include <stdint.h>

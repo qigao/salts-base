@@ -1,7 +1,7 @@
 #ifndef SALTS_DISRUPTOR_H
 #define SALTS_DISRUPTOR_H
 
-#include <salts/api.h>
+#include <core/api.h>
 
 #include <stddef.h>
 #include <stdint.h>

@@ -3,11 +3,11 @@
  */
 
 #include "tinytest.h"
-#include <salts/tlog.h>
+#include <core/tlog.h>
 #include "serial_internal.h"
 #include "serial_test.h"
 #include <threads/threads.h>
-#include <salts/clock.h>
+#include <core/clock.h>
 
 #include <stdatomic.h>
 #include <string.h>

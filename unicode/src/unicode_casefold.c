@@ -1,4 +1,5 @@
 #include <unicode.h>
+#include "unicode_ascii_internal.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -71,6 +72,16 @@ unicode_status unicode_case_fold(
   }
 
   while (cursor < input.len) {
+    if ((unsigned char)input.data[cursor] < 0x80u) {
+      size_t ascii;
+      const unicode_status status = unicode_ascii_prefix(
+          input.data + cursor, input.len - cursor, &ascii);
+      if (status != SALTS_UNICODE_OK) return status;
+      if (ascii > SIZE_MAX - required) return SALTS_UNICODE_ERR_CAPACITY;
+      required += ascii;
+      cursor += ascii;
+      if (cursor == input.len) break;
+    }
     unicode_scalar current;
     const unicode_fold_mapping *mapped;
     unicode_status status = unicode_utf8_next(input, &cursor, &current);
@@ -95,6 +106,20 @@ unicode_status unicode_case_fold(
   cursor = 0u;
   size_t written = 0u;
   while (cursor < input.len) {
+    if ((unsigned char)input.data[cursor] < 0x80u) {
+      size_t ascii;
+      const unicode_status status = unicode_ascii_prefix(
+          input.data + cursor, input.len - cursor, &ascii);
+      if (status != SALTS_UNICODE_OK) return status;
+      for (size_t i = 0u; i < ascii; ++i) {
+        const unsigned char byte = (unsigned char)input.data[cursor + i];
+        output[written + i] = (char)(byte >= 'A' && byte <= 'Z' ?
+                                    byte + ('a' - 'A') : byte);
+      }
+      written += ascii;
+      cursor += ascii;
+      if (cursor == input.len) break;
+    }
     unicode_scalar current;
     const unicode_fold_mapping *mapped;
     unicode_status status = unicode_utf8_next(input, &cursor, &current);

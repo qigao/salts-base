@@ -4,6 +4,39 @@
 #include "tinytest.h"
 
 spec("toml_parser") {
+  it("preserves literal strings at vector boundaries and leaves triple quotes to the grammar") {
+    const size_t lengths[] = {0u, 1u, 15u, 16u, 17u, 31u, 32u, 33u, 4096u};
+    const char prefix[] = "key = '";
+    const char suffix[] = "'\n";
+    char source[4224];
+    for (size_t i = 0u; i < sizeof(lengths) / sizeof(lengths[0]); ++i) {
+      const size_t length = lengths[i];
+      memcpy(source, prefix, sizeof(prefix) - 1u);
+      memset(source + sizeof(prefix) - 1u, 'x', length);
+      memcpy(source + sizeof(prefix) - 1u + length, suffix, sizeof(suffix));
+      char error[256];
+      toml_table_t *table = toml_parse(source, error, sizeof(error));
+      check_not_null(table);
+      toml_value_t value = toml_table_string(table, "key");
+      check_true(value.ok);
+      check_equal(strlen(value.u.s), length);
+      check_equal(value.u.s, source + sizeof(prefix) - 1u, length);
+      free(value.u.s);
+      toml_free(table);
+    }
+    char multiline[] = "key = '''123456789012345\nnext'''\n";
+    char error[256];
+    toml_table_t *table = toml_parse(multiline, error, sizeof(error));
+    check_not_null(table);
+    toml_value_t value = toml_table_string(table, "key");
+    check_true(value.ok);
+    /* Preserve the existing triple-literal decoder result; the scan change
+     * only accelerates single-line literals and leaves this grammar path alone. */
+    check_equal(value.u.s, "''123456789012345\nnext''");
+    free(value.u.s);
+    toml_free(table);
+  }
+
   describe("Basic Types") {
     it("should parse strings, integers, floats, booleans, and timestamps correctly") {
         char errbuf[200];

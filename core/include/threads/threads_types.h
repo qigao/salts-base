@@ -5,9 +5,9 @@
 #ifndef SALTS_CORE_THREADS_TYPES_H
 #define SALTS_CORE_THREADS_TYPES_H
 
-#include <salts/api.h>
+#include <core/api.h>
 #include <atomic/atomic.h>
-#include <salts/error_codes.h>
+#include <core/error_codes.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

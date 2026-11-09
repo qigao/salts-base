@@ -1,7 +1,7 @@
 #ifndef SALTS_SHELL_H
 #define SALTS_SHELL_H
 
-#include <salts/api.h>
+#include <core/api.h>
 
 #include <process_async.h>
 

@@ -2,8 +2,8 @@
 #define SALTS_H
 
 /* Core SDK umbrella. Other modules expose their own public headers. */
-#include <salts/api.h>
-#include <salts/error_codes.h>
+#include <core/api.h>
+#include <core/error_codes.h>
 #include <atomic/atomic.h>
 
 #include <threads/threads.h>
@@ -18,28 +18,28 @@
 #include <queue/disruptor.h>
 #include <threads/thread_pool.h>
 
-#include <salts/base64.h>
+#include <core/base64.h>
 #include <memory/buffer.h>
-#include <salts/bytes.h>
-#include <salts/clock.h>
-#include <salts/error.h>
-#include <salts/fmt.h>
+#include <core/bytes.h>
+#include <core/clock.h>
+#include <core/error.h>
+#include <core/fmt.h>
 #include <file/fs.h>
 #include <file/fs_watch.h>
 #include <memory/memory_pool.h>
 #include <memory/mmap.h>
 #include <memory/object_pool.h>
-#include <salts/platform.h>
-#include <salts/process.h>
-#include <salts/rcu.h>
-#include <salts/re.h>
-#include <salts/scan.h>
-#include <salts/tlog.h>
-#include <salts/tlog_helper.h>
-#include <salts/tstr.h>
-#include <salts/utf8.h>
-#include <salts/uuid.h>
-#include <salts/vstr.h>
-#include <salts/zstd.h>
+#include <core/platform.h>
+#include <core/process.h>
+#include <core/rcu.h>
+#include <core/re.h>
+#include <core/scan.h>
+#include <core/tlog.h>
+#include <core/tlog_helper.h>
+#include <core/tstr.h>
+#include <core/utf8.h>
+#include <core/uuid.h>
+#include <core/vstr.h>
+#include <core/zstd.h>
 
 #endif /* SALTS_H */

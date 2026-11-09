@@ -1,61 +1,61 @@
-#include <salts/uuid.h>
-#include <salts/platform.h>
-#include <salts/clock.h>
+#include <core/uuid.h>
+#include <core/platform.h>
+#include <core/clock.h>
 
 #include <string.h>
 
 #define SALTS_UUID_V7_TIMESTAMP_MAX UINT64_C(0x0000ffffffffffff)
 
-static int uuid128_hex_value(char value) {
+static int uuid_hex_value(char value) {
   if (value >= '0' && value <= '9') return value - '0';
   if (value >= 'a' && value <= 'f') return value - 'a' + 10;
   if (value >= 'A' && value <= 'F') return value - 'A' + 10;
   return -1;
 }
 
-int uuid128_v4_generate(uuid128_t *out) {
-  uuid128_t generated;
+int uuid_v4_generate(uuid_t out) {
+  uuid_t generated;
   int rc;
 
   if (!out) return SALTS_EINVAL;
 
-  rc = secure_random(generated.bytes, sizeof(generated.bytes));
+  rc = secure_random(generated, sizeof(generated));
   if (rc != SALTS_OK) return rc;
 
-  generated.bytes[6] = (uint8_t)((generated.bytes[6] & 0x0fU) | 0x40U);
-  generated.bytes[8] = (uint8_t)((generated.bytes[8] & 0x3fU) | 0x80U);
-  *out = generated;
+  generated[6] = (uint8_t)((generated[6] & 0x0fU) | 0x40U);
+  generated[8] = (uint8_t)((generated[8] & 0x3fU) | 0x80U);
+  memcpy(out, generated, sizeof(generated));
   return SALTS_OK;
 }
 
-int uuid128_v7_generate(uuid128_t *out) {
-  uuid128_t generated;
+int uuid_v7_generate(uuid_t out) {
+  uuid_t generated;
   uint64_t timestamp;
   int rc;
 
   if (!out) return SALTS_EINVAL;
 
-  rc = secure_random(generated.bytes, sizeof(generated.bytes));
+  rc = secure_random(generated, sizeof(generated));
   if (rc != SALTS_OK) return rc;
 
   timestamp = realtime_ms();
   if (timestamp > SALTS_UUID_V7_TIMESTAMP_MAX) return SALTS_ERANGE;
 
-  generated.bytes[0] = (uint8_t)(timestamp >> 40);
-  generated.bytes[1] = (uint8_t)(timestamp >> 32);
-  generated.bytes[2] = (uint8_t)(timestamp >> 24);
-  generated.bytes[3] = (uint8_t)(timestamp >> 16);
-  generated.bytes[4] = (uint8_t)(timestamp >> 8);
-  generated.bytes[5] = (uint8_t)timestamp;
-  generated.bytes[6] = (uint8_t)((generated.bytes[6] & 0x0fU) | 0x70U);
-  generated.bytes[8] = (uint8_t)((generated.bytes[8] & 0x3fU) | 0x80U);
-  *out = generated;
+  generated[0] = (uint8_t)(timestamp >> 40);
+  generated[1] = (uint8_t)(timestamp >> 32);
+  generated[2] = (uint8_t)(timestamp >> 24);
+  generated[3] = (uint8_t)(timestamp >> 16);
+  generated[4] = (uint8_t)(timestamp >> 8);
+  generated[5] = (uint8_t)timestamp;
+  generated[6] = (uint8_t)((generated[6] & 0x0fU) | 0x70U);
+  generated[8] = (uint8_t)((generated[8] & 0x3fU) | 0x80U);
+  memcpy(out, generated, sizeof(generated));
   return SALTS_OK;
 }
 
-int uuid128_parse(const char *text, uuid128_t *out) {
+int uuid_parse_text(const char *text, uuid_t out) {
   static const size_t group_ends[] = {4U, 6U, 8U, 10U};
-  uuid128_t parsed;
+  uuid_t parsed;
   size_t text_index = 0U;
   size_t group_index = 0U;
   size_t byte_index;
@@ -73,20 +73,20 @@ int uuid128_parse(const char *text, uuid128_t *out) {
       ++group_index;
     }
 
-    high = uuid128_hex_value(text[text_index++]);
-    low = uuid128_hex_value(text[text_index++]);
+    high = uuid_hex_value(text[text_index++]);
+    low = uuid_hex_value(text[text_index++]);
     if (high < 0 || low < 0) return SALTS_EINVAL;
-    parsed.bytes[byte_index] = (uint8_t)((high << 4) | low);
+    parsed[byte_index] = (uint8_t)((high << 4) | low);
   }
 
-  *out = parsed;
+  memcpy(out, parsed, sizeof(parsed));
   return SALTS_OK;
 }
 
-int uuid128_format(const uuid128_t *uuid, char *out, size_t out_size) {
+int uuid_format(const uuid_t uuid, char *out, size_t out_size) {
   static const char hex[] = "0123456789abcdef";
   static const size_t group_ends[] = {4U, 6U, 8U, 10U};
-  uuid128_t value;
+  uuid_t value;
   size_t text_index = 0U;
   size_t group_index = 0U;
   size_t byte_index;
@@ -94,21 +94,21 @@ int uuid128_format(const uuid128_t *uuid, char *out, size_t out_size) {
   if (!uuid || !out) return SALTS_EINVAL;
   if (out_size < SALTS_UUID_STRING_SIZE) return SALTS_ENOSPC;
 
-  value = *uuid;
+  memcpy(value, uuid, sizeof(value));
   for (byte_index = 0U; byte_index < SALTS_UUID_SIZE; ++byte_index) {
     if (group_index < sizeof(group_ends) / sizeof(group_ends[0]) &&
         byte_index == group_ends[group_index]) {
       out[text_index++] = '-';
       ++group_index;
     }
-    out[text_index++] = hex[value.bytes[byte_index] >> 4];
-    out[text_index++] = hex[value.bytes[byte_index] & 0x0fU];
+    out[text_index++] = hex[value[byte_index] >> 4];
+    out[text_index++] = hex[value[byte_index] & 0x0fU];
   }
   out[text_index] = '\0';
   return SALTS_OK;
 }
 
-bool uuid128_equal(const uuid128_t *left, const uuid128_t *right) {
+bool uuid_equal(const uuid_t left, const uuid_t right) {
   if (!left || !right) return false;
-  return memcmp(left->bytes, right->bytes, SALTS_UUID_SIZE) == 0;
+  return memcmp(left, right, SALTS_UUID_SIZE) == 0;
 }

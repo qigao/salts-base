@@ -1,6 +1,6 @@
 // re2c --lang c
 #include "dotenv_lexer.h"
-#include <salts/scan.h>
+#include <core/scan.h>
 #include <string.h>
 
 void dotenv_lexer_init(dotenv_lexer_t *lexer, const char *input, size_t length) {
@@ -17,9 +17,10 @@ static int dotenv_lex(dotenv_lexer_t *lexer, dotenv_token_t *token) {
   const char *YYMARKER;
   const char *YYLIMIT = lexer->limit;
   const char *token_start;
+  const char *whitespace_end;
 
 lex_start:
-  const char *whitespace_end = scan_skip_sp_tab(YYCURSOR, YYLIMIT);
+  whitespace_end = scan_skip_sp_tab(YYCURSOR, YYLIMIT);
   if (whitespace_end > YYCURSOR) {
     YYCURSOR = whitespace_end;
     goto lex_start;
@@ -80,11 +81,9 @@ lex_start:
       // Key = pattern
       key ws* "=" {
           token->type = DOTENV_TOKEN_KEY;
-          // Trim trailing ws and '='
-          const char *key_end = token_start;
-          while (*key_end && *key_end != '=' && *key_end != ' ' && *key_end != '\t') {
-              key_end++;
-          }
+          // Search only the matched token; whitespace and '=' stay outside the key.
+          const char *key_end = scan_to_any4(token_start, YYCURSOR,
+                                               '=', ' ', '\t', '\0');
           token->value = token_start;
           token->length = (size_t)(key_end - token_start);
           lexer->cursor = YYCURSOR;

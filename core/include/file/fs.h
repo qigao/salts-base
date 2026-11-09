@@ -9,7 +9,7 @@
 #ifndef SALTS_FS_H
 #define SALTS_FS_H
 
-#include <salts/api.h>
+#include <core/api.h>
 
 #include <stddef.h>
 #include <stdint.h>

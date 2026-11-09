@@ -4,7 +4,7 @@
 #define FieldMeta(...) 104
 #define FieldFind(...) 105
 
-#include <salts/tlog.h>
+#include <core/tlog.h>
 #include "tinytest.h"
 
 enum {

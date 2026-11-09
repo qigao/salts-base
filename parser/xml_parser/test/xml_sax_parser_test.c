@@ -62,6 +62,45 @@ static const xml_sax_handler_t handler = {
 };
 
 spec("Salts native XML SAX") {
+  it("keeps quote/bracket state and terminators stable across vector and feed boundaries") {
+    const char input[] =
+        "<!DOCTYPE root [<!ENTITY value '123456789012345[>6789'>]>"
+        "<root attr='1234567890123456789'>"
+        "<!--1234567890123456789--><![CDATA[1234567890123456789]]>"
+        "<?p 1234567890123456789?></root>";
+    const xml_sax_handler_t structural = {.on_element_start = start, .on_element_end = end};
+    for (size_t step = 1u; step <= 33u; ++step) {
+      struct events e = {0};
+      xml_sax_parser_t *p = xml_sax_parser_create(&structural, &e, sizeof(input));
+      check_not_null(p);
+      for (size_t offset = 0u; offset < sizeof(input) - 1u; offset += step) {
+        size_t length = sizeof(input) - 1u - offset;
+        if (length > step) length = step;
+        check_equal(xml_sax_parser_feed(p, input + offset, length), 0);
+      }
+      check_equal(xml_sax_parser_finish(p), 0);
+      check_equal(e.starts, 1u);
+      check_equal(e.ends, 1u);
+      xml_sax_parser_destroy(p);
+    }
+  }
+
+  it("retains errors for invalid attributes and incomplete terminators") {
+    const char *inputs[] = {"<r a='123456789012345<bad'/>", "<r><!--123456789012345--",
+                            "<r><![CDATA[123456789012345]]", "<!DOCTYPE r [<'123456789012345'>"};
+    const char *errors[] = {"Invalid <", "comment", "CDATA", "DOCTYPE"};
+    const xml_sax_handler_t structural = {0};
+    for (size_t i = 0u; i < sizeof(inputs) / sizeof(inputs[0]); ++i) {
+      xml_sax_parser_t *p = xml_sax_parser_create(&structural, NULL, 256u);
+      check_not_null(p);
+      int status = xml_sax_parser_feed(p, inputs[i], strlen(inputs[i]));
+      if (status == 0) status = xml_sax_parser_finish(p);
+      check_not_equal(status, 0);
+      check_contains(xml_sax_parser_error(p), errors[i]);
+      xml_sax_parser_destroy(p);
+    }
+  }
+
   it("keeps raw lexical events stable at every chunk size") {
     const char input[] =
         "<root><item name='a\"b'>A&amp;B</item><!--c--><![CDATA[x<y]]><?p d?></root>";

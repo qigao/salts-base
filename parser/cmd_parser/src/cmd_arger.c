@@ -1,6 +1,6 @@
 #include <cmd_arger.h>
 #include "cmd_arger_internal.h"
-#include <salts/tstr.h>
+#include <core/tstr.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>

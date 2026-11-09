@@ -11,7 +11,7 @@
 #include "jsonpath_contains.h"
 #include "jsonpath_utf8.h"
 #include <query_vm.h>
-#include <salts/re.h>
+#include <core/re.h>
 #include <ctype.h>
 #include <limits.h>
 #include <stdarg.h>

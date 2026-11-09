@@ -68,7 +68,7 @@ def mechanical_native_source(original: str, relative: str) -> str:
                 .replace('"salts/thread.h"', '"thread.h"')
                 .replace('"salts/clock.h"', '"clock.h"'))
     if relative == "serial.c":
-        result = original.replace('#include <salts/platform.h>\n', "").replace('#include <cstl.h>\n', "")
+        result = original.replace('#include <core/platform.h>\n', "").replace('#include <cstl.h>\n', "")
         result = result.replace(
             "result = serial_result_from_stl(\n      serial_port_info_vec_t_init(&list->items));",
             "result = serial_port_info_vec_t_init(&list->items);")

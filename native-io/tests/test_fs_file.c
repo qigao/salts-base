@@ -1,6 +1,6 @@
 #include <fs_file.h>
 #include <threads/threads.h>
-#include <salts/clock.h>
+#include <core/clock.h>
 #include <tinytest.h>
 #include <stdio.h>
 #include <stdlib.h>

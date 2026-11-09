@@ -13,6 +13,38 @@ static void check_next_kind(cserde_reader *reader, cserde_token_kind kind, cserd
 }
 
 spec("JSON CSerde reader") {
+  it("classifies decimal and exponent markers across vector boundaries") {
+    static const struct {
+      const char *text;
+      cserde_token_kind kind;
+    } cases[] = {
+        {"0", CSERDE_UINT}, {"-0", CSERDE_SINT},
+        {"123456789012345", CSERDE_UINT},
+        {"1234567890123456", CSERDE_UINT},
+        {"12345678901234567", CSERDE_UINT},
+        {"18446744073709551615", CSERDE_UINT},
+        {"-9223372036854775808", CSERDE_SINT},
+        {"1.0", CSERDE_FLOAT}, {"1e0", CSERDE_FLOAT}, {"1E+10", CSERDE_FLOAT},
+        {"123456789012345.0", CSERDE_FLOAT},
+        {"1234567890123456.0", CSERDE_FLOAT},
+        {"12345678901234567.0", CSERDE_FLOAT},
+        {"123456789012345e0", CSERDE_FLOAT},
+        {"1234567890123456e0", CSERDE_FLOAT},
+        {"12345678901234567E0", CSERDE_FLOAT}};
+
+    for (size_t i = 0u; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+      json_value_t *root = json_parse(cases[i].text, strlen(cases[i].text));
+      check_not_null(root);
+      cserde_reader *reader = json_cserde_reader_create(root, 0u);
+      cserde_token token = {0};
+      check_not_null(reader);
+      check_next_kind(reader, cases[i].kind, &token);
+      check_equal(cserde_reader_next(reader, &token), CSERDE_DONE);
+      json_cserde_reader_destroy(reader);
+      json_free(root);
+    }
+  }
+
   it("emits a canonical token stream with stable DOM slices") {
     static const char json[] = "{\"name\":\"Ada\",\"active\":true,\"values\":[null,-7,"
                                "18446744073709551615,1.5]}";

@@ -1,4 +1,5 @@
-#include <salts/scan.h>
+#include <core/scan.h>
+#include <core/vstr.h>
 #include <tinytest.h>
 #include "scan_internal.h"
 #include <string.h>
@@ -10,6 +11,27 @@
 #endif
 
 spec("Canonical bounded byte scanning") {
+  it("skips only the four XML/JSON whitespace bytes at every vector boundary") {
+    char storage[112];
+    const char whitespace[] = {' ', '\t', '\r', '\n'};
+    const char stops[] = {'\0', '\v', '\f', (char)0x80, 'x'};
+    for (size_t alignment = 0u; alignment < 16u; ++alignment) {
+      char *p = storage + alignment;
+      for (size_t length = 0u; length <= 80u; ++length) {
+        for (size_t stop = 0u; stop < sizeof(stops); ++stop) {
+          for (size_t at = 0u; at <= length; ++at) {
+            for (size_t i = 0u; i < length; ++i) p[i] = whitespace[i % sizeof(whitespace)];
+            if (at < length) p[at] = stops[stop];
+            check(scan_skip_sp_tab_cr_lf(p, p + length) == p + at);
+          }
+        }
+      }
+    }
+    check(scan_skip_sp_tab_cr_lf(NULL, storage) == storage);
+    check(scan_skip_sp_tab_cr_lf(storage, NULL) == NULL);
+    check(scan_skip_sp_tab_cr_lf(storage + 1, storage) == storage);
+  }
+
   it("retains the seven-function scan semantics including NUL and boundaries") {
     const char bytes[] = {'a', '\0', 'b', '{', '}', ' ', '\t', '\r', '\n', 'c'};
     const char *end = bytes + sizeof(bytes);
@@ -106,6 +128,7 @@ spec("Scalar and SIMDe scanning equivalence") {
       check(scan_scalar_skip_sp_tab(p, end) == end);
       check(scan_simde_skip_sp_tab(p, end) == end);
       check(scan_skip_sp_tab(p, end) == end);
+      check(scan_skip_sp_tab_cr_lf(p, end) == end);
       check(scan_scalar_to_any4(p, end, 'a', 'b', 'c', 'd') == end);
       check(scan_simde_to_any4(p, end, 'a', 'b', 'c', 'd') == end);
       check(scan_to_any4(p, end, 'a', 'b', 'c', 'd') == end);
@@ -160,6 +183,13 @@ spec("Bounded scanning at protected memory") {
     for (size_t length = 0; length <= 80u; ++length) {
       char *p = end - length;
       memset(p, 'x', length);
+      check(scan_char(p, end, '\0') == NULL);
+      check(scan_to_any2(p, end, '\0', '\n') == end);
+      check(scan_to_any3(p, end, '\0', '\n', '#') == end);
+      check(scan_mem(p, length, "x\n", 2u) == NULL);
+      check_equal(vstr_find(vstr_from_buf(p, length), vstr_from_buf("x\n", 2u)), VSTR_NPOS);
+      check_equal(vstr_find_char(vstr_from_buf(p, length), '\0'), VSTR_NPOS);
+      check_equal(vstr_find_any(vstr_from_buf(p, length), vstr_from_buf("\0\r\n#", 4u)), VSTR_NPOS);
       check(scan_scalar_to_any4(p, end, '\0', '\r', '\n', '#') == end);
       check(scan_simde_to_any4(p, end, '\0', '\r', '\n', '#') == end);
       check(scan_to_any4(p, end, '\0', '\r', '\n', '#') == end);
@@ -168,6 +198,14 @@ spec("Bounded scanning at protected memory") {
       check(scan_to_any5(p, end, '\0', '\r', '\n', '#', ':') == end);
       if (length != 0u) {
         end[-1] = '\n';
+        check(scan_to_any2(p, end, '\0', '\n') == end - 1);
+        check(scan_to_any3(p, end, '\0', '\n', '#') == end - 1);
+        check_equal(vstr_find_any(vstr_from_buf(p, length), vstr_from_buf("\0\n", 2u)), length - 1u);
+        check_equal(vstr_find(vstr_from_buf(p, length), vstr_from_buf("\n", 1u)), length - 1u);
+        if (length >= 2u) {
+          check(scan_mem(p, length, "x\n", 2u) == end - 2);
+          check_equal(vstr_find(vstr_from_buf(p, length), vstr_from_buf("x\n", 2u)), length - 2u);
+        }
         check(scan_to_any4(p, end, '\0', '\r', '\n', '#') == end - 1);
         check(scan_to_any5(p, end, '\0', '\r', '\n', '#', ':') == end - 1);
       }
@@ -175,6 +213,12 @@ spec("Bounded scanning at protected memory") {
       check(scan_scalar_skip_sp_tab(p, end) == end);
       check(scan_simde_skip_sp_tab(p, end) == end);
       check(scan_skip_sp_tab(p, end) == end);
+      for (size_t i = 0u; i < length; ++i) p[i] = " \t\r\n"[i % 4u];
+      check(scan_skip_sp_tab_cr_lf(p, end) == end);
+      if (length != 0u) {
+        end[-1] = '\f';
+        check(scan_skip_sp_tab_cr_lf(p, end) == end - 1);
+      }
     }
   }
 }

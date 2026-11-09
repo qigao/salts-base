@@ -20,6 +20,7 @@
 #include "csv_lexer.h"
 #include "csv_lexer_simde.h"
 #include "csv_grammar_gen.h"
+#include <core/scan.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -34,13 +35,16 @@ void csv_lexer_init(csv_lexer_t *lexer, const char *input, size_t length) {
     lexer->error[0] = '\0';
 }
 
+/* Inlined tails avoid shared-library call overhead for one-vector payloads. */
+enum { CSV_QUOTED_SCALAR_LIMIT = 16 };
+
 static inline int has_escaped_quote(const char *p, size_t len) {
-    const char *end = p + len;
-    while (p < end - 1) {
-        if (p[0] == '"' && p[1] == '"') return 1;
-        p++;
+    if (len <= CSV_QUOTED_SCALAR_LIMIT) {
+        for (size_t i = 1u; i < len; ++i)
+            if (p[i - 1u] == '"' && p[i] == '"') return 1;
+        return 0;
     }
-    return 0;
+    return scan_mem(p, len, "\"\"", 2u) != NULL;
 }
 
 // State tracking for empty fields
@@ -168,12 +172,22 @@ int csv_lexer_next(csv_lexer_t *lexer, csv_token_t *token) {
             token->value = token_start + 1;
             token->length = (size_t)(YYCURSOR - token_start - 2);
             token->needs_unescape = has_escaped_quote(token->value, token->length);
-            for (const char *p = token_start; p < YYCURSOR; p++) {
-                if (*p == '\n') {
+            if (token->length <= CSV_QUOTED_SCALAR_LIMIT) {
+                for (const char *p = token_start; p < YYCURSOR; ++p) {
+                    if (*p == '\n') {
+                        lexer->line++;
+                        lexer->column = 1;
+                    } else lexer->column++;
+                }
+            } else {
+                const char *p = token_start;
+                while (p < YYCURSOR) {
+                    const char *newline = scan_to_char(p, YYCURSOR, '\n');
+                    lexer->column += (int)(newline - p);
+                    if (newline == YYCURSOR) break;
                     lexer->line++;
                     lexer->column = 1;
-                } else {
-                    lexer->column++;
+                    p = newline + 1u;
                 }
             }
             lexer->cursor = YYCURSOR;

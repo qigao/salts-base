@@ -1,7 +1,7 @@
 #ifndef JSONPATH_CONTAINS_H
 #define JSONPATH_CONTAINS_H
 
-#include <salts/scan.h>
+#include <core/scan.h>
 
 #include <stddef.h>
 #include <string.h>

@@ -5,7 +5,7 @@
 
 #include <json_parser.h>
 #include "tinytest.h"
-#include <salts/fmt.h>
+#include <core/fmt.h>
 #include <stdlib.h>
 #include <string.h>
 

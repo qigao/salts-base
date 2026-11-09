@@ -44,6 +44,32 @@ static inline const char *scan_simde_skip_sp_tab(const char *p, const char *end)
   return scan_scalar_skip_sp_tab(p, end);
 }
 
+static inline const char *scan_simde_skip_sp_tab_cr_lf(const char *p, const char *end) {
+  if (!p || !end || p > end) return end;
+  const simde__m128i space = simde_mm_set1_epi8(' ');
+  const simde__m128i tab = simde_mm_set1_epi8('\t');
+  const simde__m128i cr = simde_mm_set1_epi8('\r');
+  const simde__m128i lf = simde_mm_set1_epi8('\n');
+  while ((size_t)(end - p) >= sizeof(simde__m128i)) {
+    const simde__m128i bytes = simde_mm_loadu_si128((const simde__m128i *)p);
+    const simde__m128i whitespace = simde_mm_or_si128(
+        simde_mm_or_si128(simde_mm_cmpeq_epi8(bytes, space), simde_mm_cmpeq_epi8(bytes, tab)),
+        simde_mm_or_si128(simde_mm_cmpeq_epi8(bytes, cr), simde_mm_cmpeq_epi8(bytes, lf)));
+    unsigned int mask = (unsigned int)simde_mm_movemask_epi8(whitespace);
+    if (mask == 0xFFFFU) {
+      p += sizeof(simde__m128i);
+      continue;
+    }
+    while ((mask & 1U) != 0U) {
+      ++p;
+      mask >>= 1;
+    }
+    return p;
+  }
+  while (p < end && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) ++p;
+  return p;
+}
+
 static inline const char *scan_scalar_to_any4(const char *p, const char *end,
                                                   char first, char second, char third,
                                                   char fourth) {

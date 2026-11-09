@@ -1,6 +1,6 @@
 #include <process_async.h>
 #include <threads/threads.h>
-#include <salts/clock.h>
+#include <core/clock.h>
 #define TINYTEST_NO_MAIN
 #include <tinytest.h>
 #include <stdio.h>

@@ -16,7 +16,7 @@
 
 #include <threads/threads.h>
 #include <capture.h>
-#include <salts/tlog.h>
+#include <core/tlog.h>
 
 /* =============================================================================
  * Screen Capture Context
