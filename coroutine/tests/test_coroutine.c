@@ -1,6 +1,6 @@
-#include <core/coro.h>
+#include <salts/coro.h>
 #include <tinytest.h>
-#include <core/coro_executor.h>
+#include <salts/coro_executor.h>
 #include <core/error_codes.h>
 #include <threads/threads.h>
 
