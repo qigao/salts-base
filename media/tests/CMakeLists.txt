@@ -89,3 +89,23 @@ add_test(NAME saltscore.playback_original_lifecycle COMMAND playback_lifecycle_t
 set_tests_properties(saltscore.playback_original_buffer
   saltscore.playback_original_lifecycle PROPERTIES TIMEOUT 30)
 
+
+if(SALTSCORE_ENABLE_TSAN)
+  # The root sanitizer preset instruments the one Media archive, including
+  # miniaudio. The private null monitor never opens a physical audio device.
+  find_program(SALTS_CAPTURE_BASH bash REQUIRED)
+  find_program(SALTS_CAPTURE_PULSEAUDIO pulseaudio REQUIRED)
+  find_program(SALTS_CAPTURE_PACTL pactl REQUIRED)
+  find_program(SALTS_CAPTURE_PACAT pacat REQUIRED)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_executable(salts_capture_native_tsan_regression native_tsan/test_native_capture_tsan.c)
+  target_link_libraries(salts_capture_native_tsan_regression PRIVATE
+    Salts::Media Salts::TinyTest Threads::Threads)
+  set_target_properties(salts_capture_native_tsan_regression PROPERTIES
+    C_STANDARD_REQUIRED ON C_EXTENSIONS OFF FOLDER "media/tests")
+  add_test(NAME salts_capture_native_tsan_virtual_monitor
+    COMMAND "${SALTS_CAPTURE_BASH}" "${CMAKE_CURRENT_SOURCE_DIR}/native_tsan/run_private_pulse.sh"
+      $<TARGET_FILE:salts_capture_native_tsan_regression> "${Python3_EXECUTABLE}")
+  set_tests_properties(salts_capture_native_tsan_virtual_monitor PROPERTIES TIMEOUT 60)
+endif()
+

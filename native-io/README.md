@@ -30,3 +30,13 @@ and linkage; the CNet owner suite covers the real external-listener lifecycle.
 Rollback requires removing the dependent CNet change together with this header
 move and using a separate installation prefix. Keep exactly one NativeIO
 implementation; do not install or compile a compatibility backend.
+
+## Startup repair retained during extraction
+
+The extracted runtime also retains the upstream bootstrap cancellation repair:
+an accepted executor bootstrap publishes its original cancellation status and
+terminal flag before creation joins and reclaims borrowed shard storage. Failed
+creation leaves the result NULL. A vacant Disruptor consumer slot uses strong
+compare-exchange because each candidate slot is attempted once. The formal
+Core registration test keeps the one-slot/four-slot 4096-round regression;
+CNet's repeated sharded lifecycle/isolation cases exercise the composition.
