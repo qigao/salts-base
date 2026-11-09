@@ -63,8 +63,8 @@ native_io_socket_result native_io_socket_listen(uintptr_t socket, size_t backlog
 
 /** Single nonblocking accept. ETIMEDOUT means no accepted handle; EINTR is
  * returned without a handle. Optional peer storage is copied before return.
- * POSIX nonblocking flags are applied before transfer; preparation failure
- * closes the new handle while preserving the original failure status. */
+ * Accepted handles retain native accept flags; the owner applies nonblocking
+ * and inheritance policy through management calls before adoption. */
 native_io_socket_result native_io_socket_accept(uintptr_t socket, uintptr_t *out_socket,
     void *peer, size_t capacity, size_t *out_length);
 /** Bounded readiness wait; EINTR consumes the original deadline. */

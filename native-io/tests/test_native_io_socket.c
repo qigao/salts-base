@@ -90,6 +90,8 @@ static int connect_pair(void) {
   if (!ready) return SALTS_ETIMEDOUT;
   status = native_io_socket_accept(fixture.sockets[0], &fixture.sockets[1], NULL, 0, NULL).status;
   if (status != SALTS_OK) return status;
+  status = native_io_socket_nonblocking(fixture.sockets[1]).status;
+  if (status != SALTS_OK) return status;
   const native_io_stream_socket_options options = NATIVE_IO_STREAM_SOCKET_OPTIONS_INIT;
   status = native_io_transport_adopt_tcp(&fixture.streams[1], &fixture.backend,
                                          fixture.sockets[1], &options);

@@ -296,13 +296,6 @@ native_io_socket_result native_io_socket_accept(uintptr_t handle, uintptr_t *out
       result.status = SALTS_ETIMEDOUT;
     return result;
   }
-#if !defined(_WIN32)
-  native_io_socket_result prepared = native_io_socket_nonblocking((uintptr_t)accepted);
-  if (prepared.status != SALTS_OK) {
-    (void)native_io_socket_close((uintptr_t)accepted);
-    return prepared;
-  }
-#endif
   *out_socket = (uintptr_t)accepted;
   if (peer) *out_length = (size_t)length;
   return socket_status(SALTS_OK);
