@@ -27,7 +27,7 @@ spec("FMT C++ Tests") {
     void *ptr = &value;
     const void *const_ptr = &value;
     vstr view = vstr_from_cstr("view");
-    time_value_t time_value = {42, 7};
+    wall_time_t time_value = {42, 7};
 
     check_equal(FMT_ARG(static_cast<char>('a')).type, FMT_TYPE_CHAR);
     check_equal(FMT_ARG(static_cast<signed char>(-1)).type, FMT_TYPE_CHAR);

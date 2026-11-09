@@ -1,3 +1,6 @@
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#endif
 #include <salts.h>
 #include <threads/threads.h>
 #include <mutex>
@@ -8,7 +11,7 @@
 #include <ctime>
 #include <type_traits>
 
-static_assert(std::is_standard_layout_v<time_value_t>);
+static_assert(std::is_standard_layout_v<wall_time_t>);
 static_assert(std::is_standard_layout_v<timezone_info_t>);
 static_assert(std::is_standard_layout_v<cpu_info_t>);
 static_assert(std::is_standard_layout_v<memory_info_t>);
@@ -17,7 +20,7 @@ static_assert(std::is_standard_layout_v<network_interface_t>);
 
 spec("Platform native C++17 public ABI") {
   it("retains all exported native function signatures and runtime thread state") {
-  int (*gettimeofday_fn)(time_value_t *, timezone_info_t *) =
+  int (*gettimeofday_fn)(wall_time_t *, timezone_info_t *) =
       &timeval_now;
   int (*gmtime_fn)(std::time_t, std::tm *) = &time_utc;
   int (*localtime_fn)(std::time_t, std::tm *) = &time_local;

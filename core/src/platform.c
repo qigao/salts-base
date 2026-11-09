@@ -119,7 +119,7 @@ static int windows_version(char *buffer, size_t buffer_size) {
 #endif
 
 #ifdef _WIN32
-int timeval_now(time_value_t *tv, timezone_info_t *tz) {
+int timeval_now(wall_time_t *tv, timezone_info_t *tz) {
   UNUSED(tz);
   if (tv) {
     FILETIME ft;
@@ -136,7 +136,7 @@ int timeval_now(time_value_t *tv, timezone_info_t *tz) {
   return 0;
 }
 #else
-int timeval_now(time_value_t *tv, timezone_info_t *tz) {
+int timeval_now(wall_time_t *tv, timezone_info_t *tz) {
   UNUSED(tz);
   struct timeval system_tv;
   int result = gettimeofday(&system_tv, NULL);

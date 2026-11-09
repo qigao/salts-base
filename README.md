@@ -299,10 +299,13 @@ The time/system API in `<salts/platform.h>` uses `timeval_now`, `time_utc`,
 `time_local`, `time_from_utc`, `time_from_local`, `time_format_utc/local`,
 `os_name`, `os_version`, `cpu_arch`, `user_name`, `host_name`, `cpu_info`,
 `memory_info`, `load_average` and `network_interfaces`. Time values use
-`time_value_t`; timezone information uses `timezone_info_t`. These names avoid
+`wall_time_t`; timezone information uses `timezone_info_t`. These names avoid
 colliding with libc functions having different signatures. `secure_random` has
-one OS-backed implementation. Its declaration and the `time_value_t` definition
+one OS-backed implementation. Its declaration and the `wall_time_t` definition
 are both provided by `<salts/platform.h>`.
+The `wall_time_t` source name replaces `time_value_t` to coexist with macOS
+Mach headers. Update type declarations when migrating; the `int64_t tv_sec`
+and `int32_t tv_usec` layout and `timeval_now()` function ABI are preserved.
 `<salts/clock.h>` owns monotonic/realtime clock queries and the `native_timer_*`
 API. Its Windows timer-queue and POSIX manager-thread implementations live in
 `core/src/clock.c`, including callback completion and destroy coordination.

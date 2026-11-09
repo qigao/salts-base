@@ -9,6 +9,7 @@
 #include <salts/error_codes.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <linux/io_uring.h>
 #include <poll.h>

@@ -42,17 +42,17 @@ extern "C" {
 #endif
 
 /* Fixed-width Unix seconds and microseconds, independent of CRT timeval. */
-typedef struct time_value {
+typedef struct wall_time {
   int64_t tv_sec;
   int32_t tv_usec;
-} time_value_t;
+} wall_time_t;
 
 typedef struct timezone_info {
   int tz_minuteswest;
   int tz_dsttime;
 } timezone_info_t;
 
-SALTS_API int timeval_now(time_value_t *tv, timezone_info_t *tz);
+SALTS_API int timeval_now(wall_time_t *tv, timezone_info_t *tz);
 SALTS_API int time_utc(time_t value, struct tm *out);
 SALTS_API int time_local(time_t value, struct tm *out);
 SALTS_API time_t time_from_utc(const struct tm *value);

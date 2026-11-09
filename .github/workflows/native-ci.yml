@@ -46,7 +46,10 @@ jobs:
           path: |
             build/ci-inputs/blobs
             build/ci-inputs/unicode-data
-          key: shared-inputs-v1-${{ hashFiles('cmake/*.lock.json', 'cmake/dependencies/*.lock.json', 'unicode/data/sources.lock.json', 'build/ci-infrastructure/vcpkg-cache/compiler-contracts/release-obfuscation.json') }}
+            build/ci-inputs/python-wheels
+          key: shared-inputs-v1-${{ hashFiles('cmake/*.lock.json', 'cmake/dependencies/*.lock.json', 'unicode/data/sources.lock.json', 'parser/markdown/tests/oracle-requirements.txt', 'build/ci-infrastructure/vcpkg-cache/compiler-contracts/release-obfuscation.json') }}
+          restore-keys: |
+            shared-inputs-v1-
       - name: Download locked dependency archives and host-tool packages
         run: |
           $ErrorActionPreference = 'Stop'
@@ -77,6 +80,14 @@ jobs:
             ConvertTo-Json -Depth 4 | Set-Content build/ci-inputs/compiler.lock.json -Encoding utf8
           & python $reader download build/ci-inputs/compiler.lock.json --destination build/ci-inputs/blobs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Download native test oracle wheels once
+        run: |
+          foreach ($platform in @('manylinux2014_x86_64', 'win_amd64', 'macosx_11_0_arm64')) {
+            & python -m pip download --only-binary=:all: --python-version 3.12 `
+              --platform $platform --dest build/ci-inputs/python-wheels `
+              --requirement parser/markdown/tests/oracle-requirements.txt
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
       - name: Download pinned Unicode inputs
         run: |
           $data = [IO.Path]::GetFullPath('build/ci-inputs/unicode-data/17.0.0')
@@ -179,6 +190,14 @@ jobs:
           Copy-Item -LiteralPath build/ci-inputs/unicode-data -Destination build/unicode-data -Recurse
           $cacheSource = (Resolve-Path 'build/ci-infrastructure/vcpkg-cache').Path.Replace('\', '/')
           "VCPKG_CACHE_REPOSITORY_ROOT=$cacheSource" >> $env:GITHUB_ENV
+
+      - name: Install prepared native test oracles offline
+        if: matrix.test
+        run: |
+          & python -m pip install --no-index --only-binary=:all: `
+            --find-links build/ci-inputs/python-wheels `
+            --requirement parser/markdown/tests/oracle-requirements.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Restore the preinstalled dependency SDK
         id: dependencies
