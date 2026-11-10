@@ -27,6 +27,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Android")
+  # Android SDK libraries must be loadable on both 4 KiB and 16 KiB devices.
+  add_link_options("LINKER:-z,max-page-size=16384" "LINKER:-z,common-page-size=16384")
+endif()
+
 # Enable folder organization in IDEs
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "cmake")

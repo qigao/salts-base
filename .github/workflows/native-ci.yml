@@ -390,6 +390,24 @@ jobs:
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Verify installed Android ELF load alignment
+        if: startsWith(matrix.id, 'android-')
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $readelf = Join-Path $env:ANDROID_NDK_HOME 'toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf'
+          foreach ($library in @('libsalts.so', 'libserial.so')) {
+            $path = "build/$env:CI_PRESET/stage/lib/$library"
+            $headers = & $readelf --program-headers --wide $path
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $loads = $headers | Select-String '^\s*LOAD\s+.+\s0x([0-9a-fA-F]+)\s*$'
+            if (!$loads) { throw "No ELF LOAD segments in $path" }
+            foreach ($load in $loads) {
+              $alignment = [Convert]::ToInt32($load.Matches[0].Groups[1].Value, 16)
+              if ($alignment -lt 16384) { throw "$path has a LOAD segment aligned to $alignment bytes" }
+            }
+            Write-Host "$library uses at least 16 KiB alignment for each LOAD segment"
+          }
+
       - name: Archive SDK with file modes and symlinks
         run: |
           $archive = [IO.Path]::GetFullPath("build/$env:CI_PRESET/salts-base-sdk.tar")

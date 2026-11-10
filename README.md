@@ -130,8 +130,8 @@ Apply the same Python test-oracle setup described above.
 | Linux ARM64 / Clang | `ci-llvm-native-release-user` | Native ARM64 build, CTest, install |
 | Linux ARM64 / GCC | `ci-gcc-arm64-release-user` | Native ARM64 build, CTest, install |
 | macOS ARM64 / Clang | `ci-llvm-native-release-user` | Build, CTest, install |
-| Android arm64-v8a | `ci-android-arm64-release-user` | Cross-build, install |
-| Android x86_64 | `ci-android-x64-release-user` | Cross-build, install |
+| Android arm64-v8a | `ci-android-arm64-release-user` | Cross-build, install, 16 KiB ELF load alignment |
+| Android x86_64 | `ci-android-x64-release-user` | Cross-build, install, 16 KiB ELF load alignment |
 
 Android profiles use `ANDROID_NDK_HOME`; target tests require a device runner.
 Windows and named Android profiles select their triplets automatically.
