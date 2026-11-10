@@ -318,3 +318,13 @@ of uniform end-to-end speedups.
 SaltsBase is licensed under [Apache License 2.0](LICENSE).
 Bundled third-party components retain their upstream licenses; dependency
 licenses are also installed with the SDK.
+
+## Thread-pool callback identity
+
+`<threads/thread_pool.h>` exposes `threadpool_is_current(pool)` for consumers
+that must reject a synchronous wait on their current pool. It returns 1 during
+that pool's run/cancel/finalize callback and 0 for other live pools, outside
+callbacks or for NULL. It borrows the pool for the call and performs no work
+submission or ownership transfer. The existing Core thread-local owner remains
+the sole authority across linked DSOs. Both ordinary and Leader/Followers pool
+profiles have formal run/cancel/finalize and foreign-pool controls.
