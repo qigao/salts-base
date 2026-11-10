@@ -9,7 +9,7 @@ if [[ "$#" != 2 ]]; then
 fi
 exe="$1"
 python="$2"
-root="$(cd "$(dirname "$0")/../../../.." && pwd)"
+fixture_dir="$(cd "$(dirname "$0")" && pwd)"
 private="$(mktemp -d "${RUNNER_TEMP:-/tmp}/salts-capture-tsan.XXXXXX")"
 export XDG_RUNTIME_DIR="$private/xdg"
 export PULSE_RUNTIME_PATH="$private/pulse"
@@ -67,7 +67,7 @@ pactl list sources | grep -F 'CaptureTsanVirtualAudioSink'
 echo 'PASS CI-owned software null monitor only, no physical audio cards'
 
 (
-  "$python" -u "$root/media/tests/native_tsan/feed_private_null.py" |
+  "$python" -u "$fixture_dir/feed_private_null.py" |
     pacat --playback --device=capture_tsan_sink \
       --format=s16le --rate=16000 --channels=1 > /dev/null 2>&1
 ) &
