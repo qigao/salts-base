@@ -726,8 +726,10 @@ static void identity_case(int leader_followers, int cancel) {
     const threadpool_config_t ordinary = {1, 2};
     const threadpool_lf_config_t lf = {sizeof(lf), SALTS_THREADPOOL_LF_VERSION, 1, 2, 1};
     const threadpool_task_t task = {identity_run, identity_cancel, identity_finalize, NULL};
-    identity_pools[0] = leader_followers ? threadpool_create_leader_followers(&lf)
-                                       : threadpool_create_with_config(&ordinary);
+    if (leader_followers)
+        check_equal(threadpool_create_leader_followers(&lf, &identity_pools[0]), SALTS_OK);
+    else
+        identity_pools[0] = threadpool_create_with_config(&ordinary);
     identity_pools[1] = threadpool_create_with_config(&ordinary);
     check_not_null(identity_pools[0]);
     check_not_null(identity_pools[1]);
