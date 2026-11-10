@@ -200,6 +200,11 @@ jobs:
             profile: llvm-native-release-user
             triplet: x64-linux
             test: true
+          - id: linux-clang-x64-tsan
+            runner: ubuntu-24.04
+            profile: llvm-native-tsan-user
+            triplet: x64-linux
+            test: true
           - id: linux-gcc-x64
             runner: ubuntu-24.04
             profile: gcc-release-user
@@ -337,7 +342,12 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends pkg-config libpipewire-0.3-dev libx11-dev libxext-dev
+          packages=(pkg-config libpipewire-0.3-dev libx11-dev libxext-dev)
+          if [[ '${{ matrix.profile }}' == llvm-native-tsan-user ]]; then
+            # The existing TSan Media regression uses a private virtual monitor.
+            packages+=(pulseaudio pulseaudio-utils)
+          fi
+          sudo apt-get install --yes --no-install-recommends "${packages[@]}"
 
       - name: Configure complete build graph
         env:
