@@ -55,9 +55,8 @@ void threadpool_call_internal(threadpool_t *owner,
   threadpool_current = previous;
 }
 
-/* Private cross-library query used by CFlow to reject synchronous joins that
- * cannot make progress from the same pool callback. */
-int threadpool_is_current_internal(const threadpool_t *pool) {
+/* The pool owns callback identity across run/cancel/finalize and linked DSOs. */
+int threadpool_is_current(const threadpool_t *pool) {
   return pool != NULL && threadpool_current == pool;
 }
 

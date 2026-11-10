@@ -174,6 +174,13 @@ SALTS_API int64_t threadpool_cancelled(threadpool_t *pool);
 SALTS_API int threadpool_size(threadpool_t *pool);
 SALTS_API size_t threadpool_capacity(threadpool_t *pool);
 SALTS_API int threadpool_is_accepting(threadpool_t *pool);
+/** Return 1 while this thread runs, cancels or finalizes a callback on pool;
+ * otherwise return 0, including for NULL or another live pool. Pure observation:
+ * no scheduling, waiting, allocation or ownership transfer. The caller keeps
+ * pool alive for the call. Example: reject a synchronous join when
+ * threadpool_is_current(pool) is nonzero; do not cache this thread-local result.
+ */
+SALTS_API int threadpool_is_current(const threadpool_t *pool);
 SALTS_API void threadpool_get_stats(threadpool_t *pool, threadpool_stats_t *stats);
 
 

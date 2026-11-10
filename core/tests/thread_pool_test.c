@@ -694,3 +694,89 @@ spec("Thread Pool Tests") {
         threadpool_destroy(pool);
     }
 }
+
+/* Query through Core's public ABI in both native pool implementations. */
+typedef struct pool_identity_probe {
+    threadpool_t *pool;
+    threadpool_t *other;
+    atomic_uint observed;
+} pool_identity_probe;
+static threadpool_t *identity_pools[2];
+static pool_identity_probe identity_probe;
+enum { IDENTITY_RUN = 1, IDENTITY_CANCEL = 2, IDENTITY_FINALIZE = 4,
+       IDENTITY_WRONG = 8, IDENTITY_WAIT_ATTEMPTS = 2000 };
+static void identity_record(unsigned phase) {
+    if (threadpool_is_current(identity_probe.pool) != 1 ||
+        threadpool_is_current(identity_probe.other) != 0 ||
+        threadpool_is_current(NULL) != 0)
+        phase |= IDENTITY_WRONG;
+    atomic_fetch_or(&identity_probe.observed, phase);
+}
+static void identity_run(void *arg) { (void)arg; identity_record(IDENTITY_RUN); }
+static void identity_cancel(void *arg) { (void)arg; identity_record(IDENTITY_CANCEL); }
+static void identity_finalize(void *arg) { (void)arg; identity_record(IDENTITY_FINALIZE); }
+static void identity_cleanup(void) {
+    atomic_store(&gate_open, 1);
+    for (unsigned i = 0; i < 2; ++i) {
+        if (identity_pools[i]) threadpool_destroy(identity_pools[i]);
+        identity_pools[i] = NULL;
+    }
+}
+static void identity_case(int leader_followers, int cancel) {
+    const threadpool_config_t ordinary = {1, 2};
+    const threadpool_lf_config_t lf = {sizeof(lf), SALTS_THREADPOOL_LF_VERSION, 1, 2, 1};
+    const threadpool_task_t task = {identity_run, identity_cancel, identity_finalize, NULL};
+    if (leader_followers)
+        check_equal(threadpool_create_leader_followers(&lf, &identity_pools[0]), SALTS_OK);
+    else
+        identity_pools[0] = threadpool_create_with_config(&ordinary);
+    identity_pools[1] = threadpool_create_with_config(&ordinary);
+    check_not_null(identity_pools[0]);
+    check_not_null(identity_pools[1]);
+    identity_probe.pool = identity_pools[0];
+    identity_probe.other = identity_pools[1];
+    atomic_store(&identity_probe.observed, 0);
+    atomic_store(&gate_open, 0);
+    check_equal(threadpool_is_current(NULL), 0);
+    check_equal(threadpool_is_current(identity_pools[0]), 0);
+    check_equal(threadpool_is_current(identity_pools[1]), 0);
+    if (cancel) {
+        threadpool_stats_t stats = {0};
+        unsigned attempts = 0;
+        check_equal(threadpool_submit(identity_pools[0], gated_task, NULL), SALTS_OK);
+        do {
+            threadpool_get_stats(identity_pools[0], &stats);
+            if (stats.active_tasks == 1) break;
+            sleep_ms(1);
+        } while (++attempts < IDENTITY_WAIT_ATTEMPTS);
+        check_equal(stats.active_tasks, (int64_t)1);
+    }
+    check_equal(threadpool_submit_task(identity_pools[0], &task), SALTS_OK);
+    if (cancel) {
+        check_equal(threadpool_shutdown_with_policy(identity_pools[0],
+            SALTS_THREADPOOL_SHUTDOWN_CANCEL_PENDING), SALTS_OK);
+        check_equal(threadpool_is_current(identity_pools[0]), 0);
+        atomic_store(&gate_open, 1);
+    }
+    check_equal(threadpool_wait_status(identity_pools[0]), SALTS_OK);
+    check_equal(atomic_load(&identity_probe.observed),
+        (unsigned)((cancel ? IDENTITY_CANCEL : IDENTITY_RUN) | IDENTITY_FINALIZE));
+    check_equal(threadpool_is_current(identity_pools[0]), 0);
+    check_equal(threadpool_is_current(identity_pools[1]), 0);
+    identity_cleanup();
+}
+spec("Thread pool callback identity") {
+    after_each() { identity_cleanup(); }
+    it("reports ordinary run and finalize without retaining callback identity") {
+        identity_case(0, 0);
+    }
+    it("reports ordinary cancellation and finalize without retaining callback identity") {
+        identity_case(0, 1);
+    }
+    it("reports leader/followers run and finalize through the same owner") {
+        identity_case(1, 0);
+    }
+    it("reports leader/followers cancellation and finalize through the same owner") {
+        identity_case(1, 1);
+    }
+}
