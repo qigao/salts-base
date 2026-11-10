@@ -30,7 +30,7 @@ permissions:
   contents: read
 
 env:
-  VCPKG_CACHE_RELEASE: v0.1.2
+  VCPKG_CACHE_VERSION: ${{ vars.VCPKG_CACHE_VERSION }}
 
 jobs:
   changes:
@@ -101,7 +101,7 @@ jobs:
         uses: actions/checkout@v7.0.1
         with:
           repository: qigao/vcpkg-cache
-          ref: ${{ env.VCPKG_CACHE_RELEASE }}
+          ref: v${{ env.VCPKG_CACHE_VERSION }}
           path: build/ci-infrastructure/vcpkg-cache
           persist-credentials: false
       - uses: actions/setup-python@v7.1.0
@@ -114,7 +114,7 @@ jobs:
             build/ci-inputs/blobs
             build/ci-inputs/unicode-data
             build/ci-inputs/python-wheels
-          key: shared-inputs-v1-${{ hashFiles('cmake/*.lock.json', 'cmake/dependencies/*.lock.json', 'unicode/data/sources.lock.json', 'parser/markdown/tests/oracle-requirements.txt', 'build/ci-infrastructure/vcpkg-cache/compiler-contracts/release-obfuscation.json') }}
+          key: shared-inputs-v2-${{ env.VCPKG_CACHE_VERSION }}-${{ hashFiles('cmake/*.lock.json', 'cmake/dependencies/*.lock.json', 'unicode/data/sources.lock.json', 'parser/markdown/tests/oracle-requirements.txt', 'build/ci-infrastructure/vcpkg-cache/compiler-contracts/release-obfuscation.json') }}
           restore-keys: |
             shared-inputs-v1-
       - name: Download locked dependency archives and host-tool packages
@@ -123,7 +123,10 @@ jobs:
           $reader = 'build/ci-infrastructure/vcpkg-cache/scripts/restore-native-dependency.py'
           $locks = @(Get-ChildItem -LiteralPath cmake/dependencies -Filter '*.lock.json')
           foreach ($lock in $locks) {
-            & python $reader download $lock.FullName --destination build/ci-inputs/blobs
+            $resolved = "build/ci-inputs/locks/$($lock.Name)"
+            & python $reader resolve-release $lock.FullName --output-lock $resolved
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & python $reader download $resolved --destination build/ci-inputs/blobs
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           foreach ($lock in (Get-Item cmake/lemon.lock.json, cmake/re2c.lock.json)) {
@@ -131,7 +134,7 @@ jobs:
             $restoreArguments = @('download', $lock.FullName, '--destination', 'build/ci-inputs/blobs')
             if (-not (Test-Path -LiteralPath "build/ci-inputs/blobs/$($identity.sha256)" -PathType Leaf)) {
               $name = "$($identity.source.id).$($identity.source.version).nupkg"
-              & gh release download $env:VCPKG_CACHE_RELEASE --repo qigao/vcpkg-cache `
+              & gh release download "v$env:VCPKG_CACHE_VERSION" --repo qigao/vcpkg-cache `
                 --pattern $name --dir build/ci-host-tool-archives
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
               $restoreArguments += @('--archive', "build/ci-host-tool-archives/$name")
@@ -290,7 +293,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           & python "$env:VCPKG_CACHE_REPOSITORY_ROOT/scripts/restore-native-dependency.py" `
-            locked "cmake/dependencies/$env:VCPKG_TARGET_TRIPLET.lock.json" `
+            locked "build/ci-inputs/locks/$env:VCPKG_TARGET_TRIPLET.lock.json" `
             --destination "build/$env:CI_PRESET-dependencies" `
             --payload vcpkg_installed --github-output
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

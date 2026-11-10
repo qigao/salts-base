@@ -1,5 +1,47 @@
 # SaltsBase
 
+## Upstream dependency versions
+
+Select the upstream SDK release through `VCPKG_CACHE_VERSION` in the parent
+environment (for example, by loading the local `.env`). Use the same version
+for the `VCPKG_CACHE_REPOSITORY_ROOT` checkout. Values contain the version
+without the `v` prefix; missing variables fail rather than choosing `latest`.
+The shared `resolve-release` entry point is required (not present in v0.1.2).
+
+The per-triplet files in `cmake/dependencies/` are release descriptors. Their
+historical `.lock.json` suffix is retained; `source.kind=github-release`
+distinguishes them from generated literal URL/hash locks. Resolve the selected
+release into the build directory before restoring it:
+
+```sh
+python "$VCPKG_CACHE_REPOSITORY_ROOT/scripts/restore-native-dependency.py" resolve-release \
+  "cmake/dependencies/$VCPKG_TARGET_TRIPLET.lock.json" \
+  --output-lock "build/dependencies/$VCPKG_TARGET_TRIPLET.lock.json"
+python "$VCPKG_CACHE_REPOSITORY_ROOT/scripts/restore-native-dependency.py" locked \
+  "build/dependencies/$VCPKG_TARGET_TRIPLET.lock.json" \
+  --destination "build/dependencies/$VCPKG_TARGET_TRIPLET-$VCPKG_CACHE_VERSION" \
+  --payload vcpkg_installed
+```
+
+Set `VCPKG_INSTALLED_DIR` to the reported root for the selected preset. The
+resolver requires the published asset's SHA-256 digest; the existing restore
+checks downloaded bytes and preserves immutable installations. Changing a
+version never overwrites an old SDK. CMake does not load `.env` or download
+the dependency SDK implicitly. Existing host-tool package locks remain exact.
+
+CI uses the same named repository Actions variables and selects local shared
+actions from the chosen infrastructure checkout. SaltsBase and SaltsCore
+prepare jobs resolve once, then distribute generated locks and verified blobs
+to all matrix workers. Set the CI variables before enabling these changes;
+the selected infrastructure release must contain `resolve-release`.
+
+This keeps consumer version policy in the environment, asset digests in the
+upstream release, and generated restore locks in build inputs. Updating a
+release no longer requires editing a digest table for every platform. SDK
+manifests, compiler/ABI selection and product tests remain mandatory. To roll
+back, choose the previous exact release and restore into its own directory.
+
+
 [![Native and Android CI](https://github.com/qigao/salts-base/actions/workflows/native-ci.yml/badge.svg)](https://github.com/qigao/salts-base/actions/workflows/native-ci.yml)
 [![C11](https://img.shields.io/badge/C-11-A8B9CC?logo=c&logoColor=white)](CMakeLists.txt)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
@@ -59,7 +101,7 @@ expose their own headers.
 - CMake **3.27+**, Ninja, Git and Python **3.12+**.
 - A supported compiler: MSVC, Clang, GCC or LLVM-MinGW; Android builds use the NDK.
 - The matching preinstalled dependencies and infrastructure from
-  [vcpkg-cache v0.1.2](https://github.com/qigao/vcpkg-cache/releases/tag/v0.1.2).
+  [vcpkg-cache](https://github.com/qigao/vcpkg-cache/releases) release selected by `VCPKG_CACHE_VERSION`.
 - On Linux, the Media development packages listed in the
   [CI setup guide](.github/README.md#compilers-and-system-packages).
 
@@ -77,7 +119,7 @@ Use the same preinstalled-dependency profile as CI, with your restored paths:
 git clone https://github.com/qigao/salts-base.git
 cd salts-base
 
-export VCPKG_CACHE_REPOSITORY_ROOT=/absolute/path/to/vcpkg-cache-v0.1.2
+export VCPKG_CACHE_REPOSITORY_ROOT=/absolute/path/to/vcpkg-cache
 export SALTS_CI_VCPKG_INSTALLED_DIR=/absolute/path/to/vcpkg_installed
 export VCPKG_TARGET_TRIPLET=x64-linux  # arm64-linux on Linux ARM64; arm64-osx on macOS ARM64
 
@@ -102,7 +144,7 @@ dependency paths set in the parent PowerShell session:
 
 ```powershell
 $env:VSDEVCMD_BAT = "C:/path/to/VisualStudio/Common7/Tools/VsDevCmd.bat"
-$env:VCPKG_CACHE_REPOSITORY_ROOT = "C:/path/to/vcpkg-cache-v0.1.2"
+$env:VCPKG_CACHE_REPOSITORY_ROOT = "C:/path/to/vcpkg-cache"
 $env:SALTS_CI_VCPKG_INSTALLED_DIR = "C:/path/to/vcpkg_installed"
 
 cmake\WithVs.cmd cmake --preset ci-msvc-release-user

@@ -8,6 +8,7 @@
       "name": "vcpkg-cache",
       "hidden": true,
       "environment": {
+        "VCPKG_CACHE_VERSION": "$penv{VCPKG_CACHE_VERSION}",
         "VCPKG_CACHE_REPOSITORY_ROOT": "$penv{VCPKG_CACHE_REPOSITORY_ROOT}",
         "VCPKG_INSTALLED_DIR": "${sourceDir}/build/${presetName}/vcpkg_installed",
         "VCPKG_TARGET_TRIPLET": "$penv{VCPKG_TARGET_TRIPLET}"
