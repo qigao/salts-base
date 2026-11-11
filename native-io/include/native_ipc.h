@@ -160,6 +160,18 @@ bool ipc_pipe_server_get_stats(const ipc_pipe_server *server,
 int ipc_pipe_server_destroy(ipc_pipe_server *server);
 
 /**
+ * Creates one local overlapped byte-mode Windows server instance, using the
+ * same name, direction and buffer rules as ipc_pipe_server_init(). Initialize
+ * out_endpoint to its invalid state before calling. Success transfers the
+ * unaccepted instance to the caller, who may attach it to a NativeIO IOCP
+ * backend and submit an accept. Failure transfers no handle. Other platforms
+ * return SALTS_ENOTSUP.
+ */
+int ipc_named_pipe_create_instance(const char *name, ipc_pipe_direction direction,
+                                   size_t input_buffer_size, size_t output_buffer_size,
+                                   ipc_pipe_endpoint *out_endpoint);
+
+/**
  * Performs one Windows CreateFile attempt and never waits or retries. Success
  * transfers one overlapped endpoint to out_endpoint. Missing/busy instances
  * return SALTS_ENOENT/SALTS_EBUSY; non-Windows hosts return SALTS_ENOTSUP.

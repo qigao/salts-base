@@ -391,6 +391,17 @@ int native_io_internal_take_stream_accept(
       impl, request, out_transport);
 }
 
+int native_io_internal_submit_pipe_accept(native_io_backend *backend,
+                                          native_io_endpoint endpoint,
+                                          native_io_request *out_request) {
+  io_impl *impl = native_io_impl(backend);
+  if (out_request != NULL) *out_request = (native_io_request){0};
+  if (impl == NULL || impl->ops == NULL || !native_io_endpoint_valid(endpoint) ||
+      out_request == NULL) return SALTS_EINVAL;
+  if (impl->ops->submit_pipe_accept == NULL) return SALTS_ENOTSUP;
+  return impl->ops->submit_pipe_accept(impl, endpoint, out_request);
+}
+
 int native_io_backend_submit(native_io_backend *backend, const native_io_operation *operation,
                              native_io_request *out_request) {
   io_impl *impl = native_io_impl(backend);

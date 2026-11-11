@@ -47,6 +47,20 @@ int native_io_internal_take_stream_accept(
     native_io_request request,
     uintptr_t *out_transport);
 
+/** Submit one accept on a fresh overlapped Windows named-pipe server instance
+ * already attached with native_io_backend_attach_pipe(). Use the default IOCP
+ * notification mode. The caller owns the native handle throughout. Keep the
+ * attachment and handle live until observing the matching completion, including
+ * after cancellation. Success connects the same attachment for pipe data I/O.
+ * Transfer the endpoint token together with the native handle to the same
+ * backend's data owner. The attachment allows one successful accept.
+ * Pending accepts block other operations on this endpoint. Non-IOCP backends
+ * return SALTS_ENOTSUP. Failure admits no request and clears out_request.
+ */
+int native_io_internal_submit_pipe_accept(native_io_backend *backend,
+                                          native_io_endpoint endpoint,
+                                          native_io_request *out_request);
+
 #ifdef __cplusplus
 }
 #endif
