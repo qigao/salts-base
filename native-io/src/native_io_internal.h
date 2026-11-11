@@ -73,6 +73,8 @@ typedef struct io_impl_ops {
                               native_io_request *out_request);
   int (*take_stream_accept)(io_impl *impl, native_io_request request,
                             uintptr_t *out_transport);
+  int (*submit_pipe_accept)(io_impl *impl, native_io_endpoint endpoint,
+                            native_io_request *out_request);
   int (*attach_file)(io_impl *impl, uintptr_t native_handle,
                      native_io_endpoint *out_endpoint);
   int (*release_file)(io_impl *impl, native_io_endpoint endpoint);

@@ -57,6 +57,7 @@ typedef struct iocp_request_record {
   SOCKET accepted_socket;
   unsigned char accept_address[SALTS_IOCP_ACCEPT_ADDRESS_BYTES * 2u];
   bool stream_accept;
+  bool pipe_accept;
 } iocp_request_record;
 
 typedef struct iocp_accept_result {
@@ -434,7 +435,10 @@ static int iocp_release_pipe(io_impl *base, native_io_endpoint endpoint_handle) 
 static void iocp_release_request(iocp_impl *impl, iocp_request_record *request,
                                  uint32_t index) {
   iocp_endpoint_record *endpoint = iocp_endpoint(impl, request->endpoint);
-  if (endpoint != NULL && endpoint->active_requests != 0u) --endpoint->active_requests;
+  if (endpoint != NULL && endpoint->active_requests != 0u) {
+    --endpoint->active_requests;
+    if (request->pipe_accept) endpoint->connect_active = false;
+  }
   if (request->accepted_socket != INVALID_SOCKET) {
     (void)closesocket(request->accepted_socket);
     request->accepted_socket = INVALID_SOCKET;
@@ -447,6 +451,7 @@ static void iocp_release_request(iocp_impl *impl, iocp_request_record *request,
   request->address_length = 0;
   request->user_data = 0u;
   request->stream_accept = false;
+  request->pipe_accept = false;
   impl->free_requests[impl->free_request_count] = index;
   ++impl->free_request_count;
   --impl->active_requests;
@@ -500,6 +505,8 @@ static int iocp_submit(io_impl *base, const native_io_operation *operation,
   if (endpoint == NULL) return SALTS_ENOENT;
   if (native_io_operation_resource_kind(operation->kind) != endpoint->resource_kind)
     return SALTS_EINVAL;
+  if (endpoint->resource_kind == SALTS_IO_RESOURCE_BYTE_PIPE && endpoint->connect_active)
+    return SALTS_EBUSY;
   if (operation->kind == NATIVE_IO_OPERATION_FILE_FLUSH) return SALTS_ENOTSUP;
   if (operation->kind == NATIVE_IO_OPERATION_STREAM_CONNECT) {
     if (endpoint->connected || endpoint->connect_active) return SALTS_EALREADY;
@@ -732,6 +739,54 @@ static bool iocp_supports_vector_write(const io_impl *base,
          endpoint->resource_kind == SALTS_IO_RESOURCE_STREAM_SOCKET;
 }
 
+static int iocp_submit_pipe_accept(io_impl *base, native_io_endpoint endpoint_handle,
+                                   native_io_request *out_request) {
+  iocp_impl *impl = (iocp_impl *)base;
+  if (!impl->admission_open) return SALTS_ESHUTDOWN;
+  iocp_endpoint_record *endpoint = iocp_endpoint(impl, endpoint_handle);
+  if (endpoint == NULL) return SALTS_ENOENT;
+  if (endpoint->resource_kind != SALTS_IO_RESOURCE_BYTE_PIPE) return SALTS_EINVAL;
+  if (endpoint->connected) return SALTS_EALREADY;
+  if (endpoint->active_requests != 0u) return SALTS_EBUSY;
+  if (impl->free_request_count == 0u) {
+    iocp_counter_increment(&impl->rejected_full);
+    return SALTS_ENOBUFS;
+  }
+
+  const uint32_t index = impl->free_requests[--impl->free_request_count];
+  iocp_request_record *request = &impl->requests[index];
+  memset(&request->overlapped, 0, sizeof(request->overlapped));
+  request->phase = SALTS_IOCP_RECORD_PENDING;
+  request->request = (native_io_request){index + 1u, iocp_next_generation(request->request.generation)};
+  request->endpoint = endpoint_handle;
+  request->operation_kind = (native_io_operation_kind)0;
+  request->native_handle = endpoint->native_handle;
+  request->user_data = 0u;
+  request->pipe_accept = true;
+  endpoint->connect_active = true;
+  ++endpoint->active_requests;
+  ++impl->active_requests;
+
+  DWORD error = ERROR_SUCCESS;
+  if (!ConnectNamedPipe((HANDLE)request->native_handle, &request->overlapped)) {
+    error = GetLastError();
+    if (error == ERROR_PIPE_CONNECTED) {
+      /* A client won the create/accept race. Win32 queued no packet for
+       * this result, so publish one through the same completion queue. */
+      error = PostQueuedCompletionStatus(impl->port, 0u, (ULONG_PTR)endpoint_handle.slot,
+                                         &request->overlapped) ? ERROR_SUCCESS : GetLastError();
+    }
+  }
+  if (error != ERROR_SUCCESS && error != ERROR_IO_PENDING) {
+    iocp_release_request(impl, request, index);
+    iocp_counter_increment(&impl->native_submit_errors);
+    return iocp_native_error(error);
+  }
+  iocp_counter_increment(&impl->submitted);
+  *out_request = request->request;
+  return SALTS_OK;
+}
+
 static int iocp_submit_stream_accept(
     io_impl *base, native_io_endpoint listener_handle,
     native_io_request *out_request) {
@@ -924,7 +979,7 @@ static void iocp_make_completion(iocp_impl *impl, iocp_request_record *request,
       setsockopt((SOCKET)request->native_handle, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL,
                  0) == SOCKET_ERROR)
     native_error = (DWORD)WSAGetLastError();
-  if (request->operation_kind == NATIVE_IO_OPERATION_STREAM_CONNECT) {
+  if (request->pipe_accept || request->operation_kind == NATIVE_IO_OPERATION_STREAM_CONNECT) {
     iocp_endpoint_record *endpoint = iocp_endpoint(impl, request->endpoint);
     if (endpoint != NULL) {
       endpoint->connect_active = false;
@@ -1093,7 +1148,8 @@ static const io_impl_ops iocp_ops = {
     .submit_vector = iocp_submit_vector,
     .supports_vector_write = iocp_supports_vector_write,
     .submit_stream_accept = iocp_submit_stream_accept,
-    .take_stream_accept = iocp_take_stream_accept};
+    .take_stream_accept = iocp_take_stream_accept,
+    .submit_pipe_accept = iocp_submit_pipe_accept};
 
 bool native_io_platform_backend_supported(native_io_backend_kind kind) {
   return kind == NATIVE_IO_BACKEND_IOCP;

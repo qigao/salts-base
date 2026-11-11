@@ -23,6 +23,11 @@ bool ipc_platform_server_is_quiescent(const ipc_pipe_server *server);
 bool ipc_platform_server_get_stats(const ipc_pipe_server *server,
                                          ipc_pipe_server_stats *out_stats);
 int ipc_platform_server_destroy(ipc_pipe_server *server);
+#if defined(_WIN32)
+int ipc_platform_named_pipe_create_instance(const char *name, ipc_pipe_direction direction,
+                                            size_t input_buffer_size, size_t output_buffer_size,
+                                            ipc_pipe_endpoint *out_endpoint);
+#endif
 int ipc_platform_named_pipe_connect(const char *name, ipc_pipe_direction direction,
                                           ipc_pipe_endpoint *out_endpoint);
 int ipc_platform_fifo_open(const char *path, ipc_pipe_direction direction,
@@ -122,6 +127,22 @@ bool ipc_pipe_server_get_stats(const ipc_pipe_server *server,
 int ipc_pipe_server_destroy(ipc_pipe_server *server) {
   if (server == NULL || server->impl == NULL) return SALTS_EINVAL;
   return ipc_platform_server_destroy(server);
+}
+
+int ipc_named_pipe_create_instance(const char *name, ipc_pipe_direction direction,
+                                   size_t input_buffer_size, size_t output_buffer_size,
+                                   ipc_pipe_endpoint *out_endpoint) {
+  if (!ipc_name_valid(name) || !ipc_direction_valid(direction) ||
+      input_buffer_size == 0u || input_buffer_size > UINT32_MAX ||
+      output_buffer_size == 0u || output_buffer_size > UINT32_MAX ||
+      out_endpoint == NULL || ipc_pipe_endpoint_valid(out_endpoint))
+    return SALTS_EINVAL;
+#if defined(_WIN32)
+  return ipc_platform_named_pipe_create_instance(name, direction, input_buffer_size,
+                                                 output_buffer_size, out_endpoint);
+#else
+  return SALTS_ENOTSUP;
+#endif
 }
 
 int ipc_named_pipe_connect(const char *name, ipc_pipe_direction direction,

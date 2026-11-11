@@ -60,6 +60,24 @@ static DWORD ipc_server_access(ipc_pipe_direction direction) {
   return PIPE_ACCESS_DUPLEX;
 }
 
+static HANDLE ipc_windows_create_instance(const char *name, ipc_pipe_direction direction,
+                                          size_t input_buffer_size, size_t output_buffer_size) {
+  return CreateNamedPipeA(name, ipc_server_access(direction) | FILE_FLAG_OVERLAPPED,
+                          PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+                          PIPE_UNLIMITED_INSTANCES, (DWORD)output_buffer_size,
+                          (DWORD)input_buffer_size, 0u, NULL);
+}
+
+int ipc_platform_named_pipe_create_instance(const char *name, ipc_pipe_direction direction,
+                                            size_t input_buffer_size, size_t output_buffer_size,
+                                            ipc_pipe_endpoint *out_endpoint) {
+  HANDLE handle = ipc_windows_create_instance(name, direction, input_buffer_size,
+                                               output_buffer_size);
+  if (handle == INVALID_HANDLE_VALUE) return ipc_windows_error(GetLastError());
+  *out_endpoint = (ipc_pipe_endpoint){(uintptr_t)handle, NATIVE_IO_PIPE_ENDPOINT_ASYNC_CAPABLE};
+  return SALTS_OK;
+}
+
 static DWORD ipc_client_access(ipc_pipe_direction direction) {
   DWORD access = 0u;
   if ((direction & SALTS_IPC_PIPE_READ) != 0u) access |= GENERIC_READ;
@@ -162,11 +180,8 @@ int ipc_platform_server_try_accept(ipc_pipe_server *server,
   if (slot->event == NULL) return ipc_windows_error(GetLastError());
   memset(&slot->overlapped, 0, sizeof(slot->overlapped));
   slot->overlapped.hEvent = slot->event;
-  handle =
-      CreateNamedPipeA(impl->name, ipc_server_access(impl->direction) | FILE_FLAG_OVERLAPPED,
-                       PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-                       PIPE_UNLIMITED_INSTANCES, (DWORD)impl->output_buffer_size,
-                       (DWORD)impl->input_buffer_size, 0u, NULL);
+  handle = ipc_windows_create_instance(impl->name, impl->direction, impl->input_buffer_size,
+                                       impl->output_buffer_size);
   if (handle == INVALID_HANDLE_VALUE) {
     error = GetLastError();
     ipc_slot_release(slot, false);
