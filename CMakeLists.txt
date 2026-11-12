@@ -5,7 +5,7 @@ endif()
 
 set(SALTSCORE_NATIVE_SOVERSION 0.1)
 include(CMakeOptions.cmake)
-project(SaltsBase VERSION 0.1.5
+project(SaltsBase VERSION 0.1.6
         DESCRIPTION
         "Higher-level utilities for cross-platform purpose and c11 developments"
         HOMEPAGE_URL "https://github.com/qigao/salts-base" LANGUAGES
