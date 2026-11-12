@@ -469,7 +469,14 @@ static int threadpool_submit_internal(threadpool_t *pool,
                : SALTS_ENOBUFS;
   }
 
-  while (!disruptor_publisher_try_claim(pool->queue, &cursor)) {
+  /* Disruptor try-claim can fail on a competing publisher CAS, even with
+   * free capacity. The pool's ENOBUFS contract means full, not contention.
+   * Serialize its short claim/copy/publish transfer with the existing queue
+   * dispatch monitor. Release it before any capacity wait or callback. */
+  for (;;) {
+    sync_mutex_lock(&pool->dispatch_mutex);
+    if (disruptor_publisher_try_claim(pool->queue, &cursor)) break;
+    sync_mutex_unlock(&pool->dispatch_mutex);
     if (!blocking || threadpool_current == pool ||
         !atomic_load(&pool->accepting) ||
         atomic_load(&pool->shutdown)) {
@@ -496,6 +503,7 @@ static int threadpool_submit_internal(threadpool_t *pool,
         pool, submitted - atomic_load(&pool->tasks_completed));
   }
   (void)disruptor_publisher_publish(pool->queue, &cursor);
+  sync_mutex_unlock(&pool->dispatch_mutex);
   threadpool_signal_task_available(pool);
   return SALTS_OK;
 }
