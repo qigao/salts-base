@@ -3,6 +3,7 @@
  * @brief Thread pool unit tests
  */
 
+#include <core/clock.h>
 #include <threads/threads.h>
 #include <threads/thread_pool.h>
 #include "tinytest.h"
@@ -778,5 +779,97 @@ spec("Thread pool callback identity") {
     }
     it("reports leader/followers cancellation and finalize through the same owner") {
         identity_case(1, 1);
+    }
+}
+
+/* Four producers each hold at most one unsettled task. Even allowing callbacks
+ * to return after their last atomic publication, queue occupancy stays below
+ * the configured 16 entries. A failed admission is recorded, never retried. */
+enum { ADMISSION_PRODUCERS = 4, ADMISSION_TASKS = 4096 };
+typedef struct admission_producer {
+    threadpool_t *pool;
+    atomic_int done;
+    int status;
+    unsigned submitted;
+} admission_producer;
+static threadpool_t *admission_pool;
+static admission_producer admission_producers[ADMISSION_PRODUCERS];
+static sync_thread_t admission_threads[ADMISSION_PRODUCERS];
+static int admission_started[ADMISSION_PRODUCERS];
+static atomic_int admission_start;
+
+static void admission_finish(void *arg) {
+    admission_producer *producer = arg;
+    atomic_store_explicit(&producer->done, 1, memory_order_release);
+}
+static void admission_noop(void *arg) { (void)arg; }
+static void admission_produce(void *arg) {
+    admission_producer *producer = arg;
+    while (!atomic_load_explicit(&admission_start, memory_order_acquire)) sync_thread_yield();
+    const uint64_t deadline = monotonic_ms() + 60000u;
+    for (unsigned i = 0u; i < ADMISSION_TASKS; ++i) {
+        atomic_store_explicit(&producer->done, 0, memory_order_relaxed);
+        const threadpool_task_t task = {.run = admission_noop, .finalize = admission_finish, .arg = producer};
+        producer->status = threadpool_try_submit_task(producer->pool, &task);
+        if (producer->status != SALTS_OK) return;
+        ++producer->submitted;
+        while (!atomic_load_explicit(&producer->done, memory_order_acquire)) {
+            if (monotonic_ms() >= deadline) { producer->status = SALTS_ETIMEDOUT; return; }
+            sync_thread_yield();
+        }
+    }
+}
+
+spec("Thread pool concurrent admission") {
+    before_each() {
+        admission_pool = NULL;
+        atomic_init(&admission_start, 0);
+        for (unsigned i = 0u; i < ADMISSION_PRODUCERS; ++i) {
+            admission_producers[i] = (admission_producer){0};
+            atomic_init(&admission_producers[i].done, 0);
+            admission_threads[i] = (sync_thread_t){0};
+            admission_started[i] = 0;
+        }
+    }
+    after_each() {
+        atomic_store_explicit(&admission_start, 1, memory_order_release);
+        for (unsigned i = 0u; i < ADMISSION_PRODUCERS; ++i) {
+            if (admission_started[i]) {
+                check_equal(sync_thread_join(&admission_threads[i]), SALTS_OK);
+                sync_thread_destroy(&admission_threads[i]);
+            }
+        }
+        if (admission_pool != NULL) {
+            check_equal(threadpool_shutdown_with_policy(admission_pool, SALTS_THREADPOOL_SHUTDOWN_DRAIN), SALTS_OK);
+            check_equal(threadpool_wait_status(admission_pool), SALTS_OK);
+            threadpool_destroy(admission_pool);
+        }
+    }
+    it("does not report a full queue when simultaneous producers have bounded outstanding work") {
+        const threadpool_config_t config = {.num_threads = 4, .queue_capacity = 16u};
+        admission_pool = threadpool_create_with_config(&config);
+        check_not_null(admission_pool);
+        for (unsigned i = 0u; i < ADMISSION_PRODUCERS; ++i) {
+            admission_producers[i].pool = admission_pool;
+            check_equal(sync_thread_create(&admission_threads[i], admission_produce, &admission_producers[i]), SALTS_OK);
+            admission_started[i] = 1;
+        }
+        atomic_store_explicit(&admission_start, 1, memory_order_release);
+        for (unsigned i = 0u; i < ADMISSION_PRODUCERS; ++i) {
+            check_equal(sync_thread_join(&admission_threads[i]), SALTS_OK);
+            sync_thread_destroy(&admission_threads[i]);
+            admission_started[i] = 0;
+        }
+        check_equal(threadpool_wait_status(admission_pool), SALTS_OK);
+        for (unsigned i = 0u; i < ADMISSION_PRODUCERS; ++i) {
+            check_equal(admission_producers[i].status, SALTS_OK);
+            check_equal(admission_producers[i].submitted, (unsigned)ADMISSION_TASKS);
+        }
+        threadpool_stats_t stats = {0};
+        threadpool_get_stats(admission_pool, &stats);
+        check_equal(stats.submitted_tasks, (int64_t)(ADMISSION_PRODUCERS * ADMISSION_TASKS));
+        check_equal(stats.completed_tasks, stats.submitted_tasks);
+        check_equal(stats.rejected_tasks, INT64_C(0));
+        check_equal(stats.pending_tasks, INT64_C(0));
     }
 }

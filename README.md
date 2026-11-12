@@ -328,3 +328,23 @@ callbacks or for NULL. It borrows the pool for the call and performs no work
 submission or ownership transfer. The existing Core thread-local owner remains
 the sole authority across linked DSOs. Both ordinary and Leader/Followers pool
 profiles have formal run/cancel/finalize and foreign-pool controls.
+
+## Thread-pool concurrent admission
+
+The ordinary bounded pool serializes its short Disruptor claim/copy/publication
+transfer with the existing dispatch monitor. Disruptor's one-shot try-claim may
+lose a publisher CAS while capacity is available; the pool must not translate
+that producer contention into its documented queue-full `SALTS_ENOBUFS` result.
+The monitor is released before waiting for capacity, waking workers, or executing
+run/cancel/finalize callbacks. Queued-work capacity, callback identity, terminal
+ownership and the explicit Leader/Followers implementation are unchanged.
+
+This keeps the change inside the pool instead of changing shared Disruptor
+try-claim semantics or adding consumer retries. It serializes fixed-size metadata
+transfer, not business work; contention cost needs measurement rather than a
+lock-free or throughput claim. The formal existing thread-pool CTest includes
+four producers, each with one unsettled submission, against capacity 16. Every
+admission must succeed once and every accepted callback must settle; rejected
+admissions are recorded without retries. Existing actual-full and callback
+self-blocking controls remain in the same suite. Reverting this fix restores the
+old false-full risk; consumers must not hide it with retry or executor fallback.
