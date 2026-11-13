@@ -96,6 +96,18 @@ expose their own headers.
 
 ## Quick start
 
+All modules, tests and examples belong to the root `SaltsBase` CMake project.
+The root project version identifies the SDK package; module libraries use
+unversioned filenames and carry no separate ABI version. The former Serial
+filename `serial-0.1.dll` on MSVC becomes `serial.dll`; applications that load
+it by filename must use the new name. On Unix, rebuild and relink applications
+against the unversioned shared libraries when upgrading from a versioned SDK.
+
+Language standards, required-standard policy, position-independent code and
+output directories are set once by the root project. Public targets declare
+their consumer compile features; extension modes, symbol visibility and
+platform constraints remain with the targets that need them.
+
 ### Prerequisites
 
 - CMake **3.27+**, Ninja, Git and Python **3.12+**.

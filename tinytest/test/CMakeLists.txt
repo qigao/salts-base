@@ -4,9 +4,7 @@ foreach(_name IN ITEMS regression_fixes regression_runtime equality_test
     result_x_macro_test c11_generic_test)
   cmake_add_executable("tinytest_${_name}" SOURCES "${_name}.c"
     LIBS Salts::TinyTest FOLDER "tinytest/test")
-  target_compile_features("tinytest_${_name}" PRIVATE c_std_11)
-  set_target_properties("tinytest_${_name}" PROPERTIES
-    C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+  set_target_properties("tinytest_${_name}" PROPERTIES C_EXTENSIONS OFF)
   add_test(NAME "saltscore.native.tinytest_${_name}" COMMAND
            "tinytest_${_name}")
   set_tests_properties("saltscore.native.tinytest_${_name}" PROPERTIES TIMEOUT

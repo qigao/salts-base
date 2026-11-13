@@ -3,7 +3,6 @@ if(POLICY CMP0174)
   cmake_policy(SET CMP0174 OLD)
 endif()
 
-set(SALTSCORE_NATIVE_SOVERSION 0.1)
 include(CMakeOptions.cmake)
 project(SaltsBase VERSION 0.1.7
         DESCRIPTION

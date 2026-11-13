@@ -5,16 +5,13 @@ endif()
 cmake_add_source(media_sources DIRS src PATTERNS "*.c"
   EXCLUDES src/*_win32.c src/*_linux.c src/*_macos.c src/*_miniaudio.c)
 add_library(media STATIC ${media_sources})
-cmake_config_target(media ALIAS Salts::Media FOLDER "media")
-cmake_config_target(media
+cmake_config_target(media ALIAS Salts::Media FOLDER "media"
   EXPORT_NAME Media
-  OUTPUT_NAME saltscore_media)
-set_target_properties(media PROPERTIES
-  C_STANDARD_REQUIRED ON C_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON)
+  OUTPUT_NAME media)
+set_target_properties(media PROPERTIES C_EXTENSIONS OFF)
 cmake_add_source(module_headers RECURSE DIRS include PATTERNS "*.h" "*.hpp")
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${module_headers})
 target_sources(media PRIVATE ${module_headers})
-target_compile_features(media PUBLIC c_std_11)
 target_include_directories(media
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -31,9 +28,6 @@ endif()
 # compiled only once into the Media archive, including on iOS.
 find_path(SALTS_MEDIA_MINIAUDIO_INCLUDE_DIR NAMES miniaudio.h
   PATHS "${SALTS_DEPENDENCY_PREFIX}/include" NO_DEFAULT_PATH REQUIRED)
-find_file(SALTS_MEDIA_MINIAUDIO_LICENSE NAMES copyright
-  PATHS "${SALTS_MEDIA_MINIAUDIO_INCLUDE_DIR}/../share/miniaudio"
-  NO_DEFAULT_PATH REQUIRED)
 target_include_directories(media PRIVATE
   ${SALTS_MEDIA_MINIAUDIO_INCLUDE_DIR})
 set_source_files_properties(src/miniaudio_impl.c
@@ -41,9 +35,6 @@ set_source_files_properties(src/miniaudio_impl.c
 if(APPLE)
   set_source_files_properties(src/miniaudio_impl.c PROPERTIES LANGUAGE OBJC)
 endif()
-install(FILES "${SALTS_MEDIA_MINIAUDIO_LICENSE}"
-  DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/SaltsCore/miniaudio"
-  RENAME LICENSE)
 
 # The static owner publishes actual link dependencies. The installed package
 # resolves them explicitly rather than serializing build-machine archive paths.

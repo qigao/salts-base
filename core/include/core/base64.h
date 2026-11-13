@@ -2,8 +2,8 @@
  * Restored to the single SaltsCore native owner after Salts 3.0 extraction.
  * No other repository should compile or export a Base64 encoder/decoder.
  */
-#ifndef SALTSCORE_BASE64_UTILS_H
-#define SALTSCORE_BASE64_UTILS_H
+#ifndef BASE64_UTILS_H
+#define BASE64_UTILS_H
 
 #include <core/api.h>
 #include <stdbool.h>
@@ -74,4 +74,4 @@ SALTS_C_API tn_base64_error_t tn_base64_decode_buf_ex(const char *input,
 #ifdef __cplusplus
 }
 #endif
-#endif /* SALTSCORE_BASE64_UTILS_H */
+#endif /* BASE64_UTILS_H */

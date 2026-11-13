@@ -8,7 +8,6 @@ cmake_add_source(SALTS_CXML_SOURCES
   PATTERNS "*.c")
 
 add_library(cxml OBJECT ${SALTS_CXML_SOURCES})
-target_compile_features(cxml PRIVATE c_std_11)
 target_include_directories(cxml PRIVATE
   ${SALTS_CXML_ROOT}/include)
 target_link_libraries(cxml PRIVATE

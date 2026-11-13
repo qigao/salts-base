@@ -4,7 +4,6 @@ cmake_add_executable(junit_to_html
   LIBS Salts::Core Salts::CmdParser Salts::XmlParser
   FOLDER "tools/junit_to_html")
 
-target_compile_features(junit_to_html PRIVATE c_std_11)
 set_target_properties(junit_to_html PROPERTIES MACOSX_BUNDLE FALSE)
 
 add_custom_command(

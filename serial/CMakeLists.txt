@@ -10,14 +10,11 @@ endif()
 list(APPEND serial_sources ${serial_backend_sources})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${serial_sources})
 add_library(serial SHARED ${serial_sources})
-cmake_config_target(serial ALIAS Salts::Serial FOLDER "serial")
+cmake_config_target(serial ALIAS Salts::Serial FOLDER "serial"
+  EXPORT_NAME Serial)
 target_compile_features(serial PUBLIC c_std_11)
-cmake_config_target(serial
-  EXPORT_NAME Serial
-  VERSION "${PROJECT_VERSION}"
-  SOVERSION "${SALTSCORE_NATIVE_SOVERSION}")
 set_target_properties(serial PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF DEFINE_SYMBOL SALTS_SERIAL_EXPORTS C_VISIBILITY_PRESET hidden POSITION_INDEPENDENT_CODE ON)
+  C_EXTENSIONS OFF DEFINE_SYMBOL SALTS_SERIAL_EXPORTS C_VISIBILITY_PRESET hidden)
 target_include_directories(serial PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
@@ -29,8 +26,6 @@ if(WIN32)
 endif()
 if(MSVC)
   target_compile_options(serial PRIVATE /wd4996)
-  cmake_config_target(serial
-    OUTPUT_NAME "serial-${SALTSCORE_NATIVE_SOVERSION}")
 elseif(UNIX)
   # Darwin hides the original high-baud termios constants in strict POSIX mode.
   target_compile_definitions(serial PRIVATE

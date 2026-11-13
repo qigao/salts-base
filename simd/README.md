@@ -135,7 +135,7 @@ unaligned buffers, failure output preservation and null boundaries. It also
 checks signed-minimum abs/neg and modular add/subtract/multiply at 8/16/32/64
 bits against an independent unsigned oracle, including rejection and output
 preservation for unsupported 8-bit multiplication. Enabling
-`SALTSCORE_BUILD_TINYTEST=ON` also registers:
+`BUILD_TESTS=ON` also registers:
 
 - `saltscore.simd_original_c11`: the original 25 case names; 24 numeric test
   bodies retain original behavior after descriptor identifier substitution.

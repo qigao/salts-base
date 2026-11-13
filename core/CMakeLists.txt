@@ -28,11 +28,9 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
   FILES ${core_sources} ${core_public_headers} ${core_private_headers})
 add_library(salts SHARED ${core_sources} ${core_public_headers} ${core_private_headers})
 cmake_config_target(salts ALIAS Salts::Core FOLDER "core"
-  EXPORT_NAME Core VERSION "${PROJECT_VERSION}"
-  SOVERSION "${SALTSCORE_NATIVE_SOVERSION}")
+  EXPORT_NAME Core)
 set_target_properties(salts PROPERTIES
-  C_STANDARD_REQUIRED ON C_EXTENSIONS OFF
-  C_VISIBILITY_PRESET default WINDOWS_EXPORT_ALL_SYMBOLS ON)
+  C_EXTENSIONS OFF WINDOWS_EXPORT_ALL_SYMBOLS ON)
 target_compile_features(salts PUBLIC c_std_11)
 target_compile_definitions(salts PRIVATE SALTS_CORE_BUILD=1)
 target_include_directories(salts
@@ -70,7 +68,7 @@ if(CMAKE_EXECUTABLE_FORMAT STREQUAL "ELF")
   target_link_options(salts PRIVATE
     "LINKER:--exclude-libs,$<TARGET_FILE_NAME:zstd::libzstd_static>")
 endif()
-target_compile_definitions(salts PUBLIC SALTSCORE_HAS_ZSTD=1)
+target_compile_definitions(salts PUBLIC HAS_ZSTD=1)
 
 install(TARGETS salts EXPORT SaltsBaseTargets
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -79,10 +77,7 @@ install(TARGETS salts EXPORT SaltsBaseTargets
 # include/ is exclusively SDK payload; implementation-only files belong in
 # src/ or parser/. Install the complete directory without filtering exceptions.
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-install(FILES "${zstd_DIR}/copyright"
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/SaltsBase/zstd RENAME LICENSE)
-install(FILES sds/LICENSE
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/SaltsBase/sds)
+
 add_subdirectory(parser)
 if(BUILD_TESTS)
   add_subdirectory(tests)

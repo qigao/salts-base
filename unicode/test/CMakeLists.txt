@@ -15,9 +15,7 @@ foreach(_name IN ITEMS test_unicode test_unicode_normalize
     test_unicode_emoji test_unicode_emoji_conformance)
   cmake_add_executable("${_name}" SOURCES "${_name}.c"
     LIBS Salts::Unicode Salts::TinyTest FOLDER "unicode/test")
-  target_compile_features("${_name}" PRIVATE c_std_11)
-  set_target_properties("${_name}" PROPERTIES
-    C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+  set_target_properties("${_name}" PROPERTIES C_EXTENSIONS OFF)
   add_test(NAME "saltscore.native.${_name}" COMMAND "${_name}")
   set_tests_properties("saltscore.native.${_name}" PROPERTIES TIMEOUT 300)
 endforeach()
@@ -41,6 +39,5 @@ target_compile_definitions(test_unicode_emoji_conformance PRIVATE
 
 cmake_add_executable(test_unicode_header_cpp SOURCES test_unicode_header_cpp.cpp
   LIBS Salts::Unicode Salts::TinyTest FOLDER "unicode/test")
-target_compile_features(test_unicode_header_cpp PRIVATE cxx_std_17)
 add_test(NAME saltscore.native.test_unicode_header_cpp COMMAND test_unicode_header_cpp)
 set_tests_properties(saltscore.native.test_unicode_header_cpp PROPERTIES TIMEOUT 120)

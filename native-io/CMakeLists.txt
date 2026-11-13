@@ -41,9 +41,7 @@ if(NOT native_io_backend_sources)
   message(FATAL_ERROR "NativeIO backend implementations are missing for ${CMAKE_SYSTEM_NAME}: ${native_io_backend_patterns}")
 endif()
 target_sources(native_io PRIVATE ${native_io_backend_sources})
-set_target_properties(native_io PROPERTIES
-  C_STANDARD_REQUIRED ON C_EXTENSIONS OFF
-  C_VISIBILITY_PRESET default)
+set_target_properties(native_io PROPERTIES C_EXTENSIONS OFF)
 cmake_add_source(module_headers RECURSE DIRS include PATTERNS "*.h" "*.hpp")
 cmake_add_source(native_io_private_headers RECURSE DIRS src PATTERNS "*.h")
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"

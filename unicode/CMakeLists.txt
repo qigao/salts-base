@@ -91,11 +91,9 @@ list(APPEND unicode_sources ${unicode_sources_headers})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${unicode_sources})
 source_group("Generated" FILES ${saltscore_unicode_LEXER_GEN})
 add_library(saltscore_unicode STATIC ${unicode_sources} ${saltscore_unicode_LEXER_GEN})
-cmake_config_target(saltscore_unicode ALIAS Salts::Unicode FOLDER "unicode")
-cmake_config_target(saltscore_unicode
+cmake_config_target(saltscore_unicode ALIAS Salts::Unicode FOLDER "unicode"
   EXPORT_NAME Unicode)
-set_target_properties(saltscore_unicode PROPERTIES
-  C_STANDARD_REQUIRED ON C_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON)
+set_target_properties(saltscore_unicode PROPERTIES C_EXTENSIONS OFF)
 target_compile_features(saltscore_unicode PUBLIC c_std_11)
 target_include_directories(saltscore_unicode
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"

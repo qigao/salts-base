@@ -1,26 +1,21 @@
 cmake_add_executable(saltscore_runtime_abi_test SOURCES test_runtime_abi.c
   FOLDER "core/tests")
-target_compile_features(saltscore_runtime_abi_test PRIVATE c_std_11)
 target_link_libraries(saltscore_runtime_abi_test PRIVATE Salts::Core Salts::TinyTest)
-set_target_properties(saltscore_runtime_abi_test PROPERTIES
-  C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_runtime_abi_test PROPERTIES C_EXTENSIONS OFF)
 add_test(NAME saltscore.runtime_abi_0_1 COMMAND saltscore_runtime_abi_test)
 
 # Plain C11 borrowed string view: no reflection headers, allocator or ABI shim.
 cmake_add_executable(saltscore_vstr_contract_test SOURCES test_vstr_contract.c
   FOLDER "core/tests")
 target_link_libraries(saltscore_vstr_contract_test PRIVATE Salts::Core Salts::TinyTest)
-set_target_properties(saltscore_vstr_contract_test PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_vstr_contract_test PROPERTIES C_EXTENSIONS OFF)
 add_test(NAME saltscore.vstr_c11 COMMAND saltscore_vstr_contract_test)
 
 # Base64 must remain one installed native owner, no unrelated vendor codec.
 cmake_add_executable(saltscore_base64_test SOURCES test_base64_utils.c
   FOLDER "core/tests")
-target_compile_features(saltscore_base64_test PRIVATE c_std_11)
 target_link_libraries(saltscore_base64_test PRIVATE Salts::Core Salts::TinyTest)
-set_target_properties(saltscore_base64_test PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_base64_test PROPERTIES C_EXTENSIONS OFF)
 if(MSVC)
   target_compile_options(saltscore_base64_test PRIVATE /W4 /WX)
 elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
@@ -32,38 +27,32 @@ add_test(NAME saltscore.base64_unique_owner COMMAND saltscore_base64_test)
 cmake_add_executable(saltscore_bytes_test SOURCES test_bytes.c
   FOLDER "core/tests")
 target_link_libraries(saltscore_bytes_test PRIVATE Salts::Core Salts::TinyTest)
-set_target_properties(saltscore_bytes_test PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_bytes_test PROPERTIES C_EXTENSIONS OFF)
 add_test(NAME saltscore.bytes COMMAND saltscore_bytes_test)
 
 # Preserve the original error registry and borrowed diagnostic lifetimes.
 # The native contract includes INT_MIN decoding and concurrent registration.
 cmake_add_executable(saltscore_error_contract SOURCES error_native_contract.c
   FOLDER "core/tests")
-target_compile_features(saltscore_error_contract PRIVATE c_std_11)
 target_link_libraries(saltscore_error_contract PRIVATE Salts::Core Salts::TinyTest)
-set_target_properties(saltscore_error_contract PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_error_contract PROPERTIES C_EXTENSIONS OFF)
 add_test(NAME saltscore.error_native_contract COMMAND saltscore_error_contract)
 set_tests_properties(saltscore.error_native_contract PROPERTIES TIMEOUT 30)
 cmake_add_executable(saltscore_original_error_test SOURCES test_error.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_error_test PRIVATE c_std_11)
 target_link_libraries(saltscore_original_error_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_error COMMAND saltscore_original_error_test)
 
 cmake_add_executable(saltscore_buffer_test SOURCES test_buffer.c
   FOLDER "core/tests")
 target_link_libraries(saltscore_buffer_test PRIVATE Salts::Core Salts::TinyTest)
-set_target_properties(saltscore_buffer_test PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_buffer_test PROPERTIES C_EXTENSIONS OFF)
 add_test(NAME saltscore.buffer COMMAND saltscore_buffer_test)
 
 cmake_add_executable(saltscore_ring_test SOURCES test_ring.c
   FOLDER "core/tests")
 target_link_libraries(saltscore_ring_test PRIVATE Salts::Core Salts::TinyTest)
-set_target_properties(saltscore_ring_test PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_ring_test PROPERTIES C_EXTENSIONS OFF)
 add_test(NAME saltscore.ring COMMAND saltscore_ring_test)
 
 # Restore original tstr/vstr/memory-pool behavior, not just public headers.
@@ -72,7 +61,6 @@ add_test(NAME saltscore.ring COMMAND saltscore_ring_test)
 # Optional TinyTest profile runs source-parity expectations; never a stub.
 cmake_add_executable(saltscore_original_tstr_v2_contract SOURCES test_tstr_v2_contract.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_tstr_v2_contract PRIVATE c_std_11)
 target_link_libraries(saltscore_original_tstr_v2_contract PRIVATE
   Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_tstr_v2_contract
@@ -83,7 +71,6 @@ add_test(NAME saltscore.original_tstr_v2_contract
 
 cmake_add_executable(saltscore_original_object_pool_contract SOURCES test_object_pool.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_object_pool_contract PRIVATE c_std_11)
 target_link_libraries(saltscore_original_object_pool_contract PRIVATE
   Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_object_pool_contract
@@ -95,7 +82,6 @@ set_tests_properties(saltscore.original_object_pool_contract PROPERTIES TIMEOUT 
 
 cmake_add_executable(saltscore_original_priority_queue_contract SOURCES test_bucket_priority_queue.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_priority_queue_contract PRIVATE c_std_11)
 target_link_libraries(saltscore_original_priority_queue_contract PRIVATE
   Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_priority_queue_contract
@@ -104,12 +90,10 @@ add_test(NAME saltscore.original_priority_queue_contract
 # Original formatter lexer and C11 smoke both execute through TinyTest.
 cmake_add_executable(saltscore_fmt_lexer_smoke SOURCES test_fmt_lexer_smoke.c
   FOLDER "core/tests")
-target_compile_features(saltscore_fmt_lexer_smoke PRIVATE c_std_11)
 target_link_libraries(saltscore_fmt_lexer_smoke PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_fmt_lexer_smoke COMMAND saltscore_fmt_lexer_smoke)
 cmake_add_executable(saltscore_original_fmt_lexer_test SOURCES test_fmt_re2c.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_fmt_lexer_test PRIVATE c_std_11)
 target_link_libraries(saltscore_original_fmt_lexer_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_fmt_lexer_contract COMMAND saltscore_original_fmt_lexer_test)
 
@@ -117,32 +101,27 @@ add_test(NAME saltscore.original_fmt_lexer_contract COMMAND saltscore_original_f
 # rendering, invalid specifier rejection, time formatting, dynamic tstr and views.
 cmake_add_executable(saltscore_original_fmt_test SOURCES test_fmt.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_fmt_test PRIVATE c_std_11)
 target_link_libraries(saltscore_original_fmt_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_fmt_c11 COMMAND saltscore_original_fmt_test)
 
 cmake_add_executable(saltscore_original_fmt_cpp_test SOURCES test_fmt_cpp.cpp
   FOLDER "core/tests")
-target_compile_features(saltscore_original_fmt_cpp_test PRIVATE cxx_std_17)
 target_link_libraries(saltscore_original_fmt_cpp_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_fmt_cpp17 COMMAND saltscore_original_fmt_cpp_test)
 
 cmake_add_executable(saltscore_original_fmt_view_test SOURCES test_fmt_vstr_pattern.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_fmt_view_test PRIVATE c_std_11)
 target_link_libraries(saltscore_original_fmt_view_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_fmt_bounded_vstr COMMAND saltscore_original_fmt_view_test)
 # Original formatter contract: TinyTest is the mandatory source assertion runner.
 cmake_add_executable(saltscore_fmt_smoke SOURCES test_fmt_smoke.c
   FOLDER "core/tests")
-target_compile_features(saltscore_fmt_smoke PRIVATE c_std_11)
 target_link_libraries(saltscore_fmt_smoke PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_fmt_smoke COMMAND saltscore_fmt_smoke)
 
 # Original log pattern lexer tokens, C11 parser/format ownership.
 cmake_add_executable(saltscore_log_pattern_lexer_test SOURCES test_log_pattern_lexer.c
   FOLDER "core/tests")
-target_compile_features(saltscore_log_pattern_lexer_test PRIVATE c_std_11)
 target_link_libraries(saltscore_log_pattern_lexer_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_log_pattern_lexer
   COMMAND saltscore_log_pattern_lexer_test)
@@ -156,14 +135,12 @@ endforeach()
 # real Disruptor/FS providers, thread drain, shutdown, not a logger mock.
 cmake_add_executable(saltscore_tlog_smoke SOURCES test_tlog_smoke.c
   FOLDER "core/tests")
-target_compile_features(saltscore_tlog_smoke PRIVATE c_std_11)
 target_link_libraries(saltscore_tlog_smoke PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_tlog_smoke COMMAND saltscore_tlog_smoke)
 set_tests_properties(saltscore.original_tlog_smoke PROPERTIES TIMEOUT 40)
 foreach(_tlog_suite IN ITEMS tlog tlog_vstr_abi tlog_header_collision)
   cmake_add_executable(saltscore_original_${_tlog_suite}_test SOURCES test_${_tlog_suite}.c
     FOLDER "core/tests")
-  target_compile_features(saltscore_original_${_tlog_suite}_test PRIVATE c_std_11)
   target_link_libraries(saltscore_original_${_tlog_suite}_test PRIVATE
     Salts::Core Salts::TinyTest)
   add_test(NAME saltscore.original_${_tlog_suite}
@@ -172,7 +149,6 @@ foreach(_tlog_suite IN ITEMS tlog tlog_vstr_abi tlog_header_collision)
 endforeach()
 cmake_add_executable(saltscore_original_tlog_cpp_test SOURCES test_tlog_cpp.cpp
   FOLDER "core/tests")
-target_compile_features(saltscore_original_tlog_cpp_test PRIVATE cxx_std_17)
 target_link_libraries(saltscore_original_tlog_cpp_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_tlog_cpp COMMAND saltscore_original_tlog_cpp_test)
 set_tests_properties(saltscore.original_tlog_cpp PROPERTIES TIMEOUT 120)
@@ -180,17 +156,14 @@ set_tests_properties(saltscore.original_tlog_cpp PROPERTIES TIMEOUT 120)
 # Original RFC 4122/9562 UUID v4/v7 and canonical parse/format.
 cmake_add_executable(saltscore_uuid_smoke SOURCES test_uuid_smoke.c
   FOLDER "core/tests")
-target_compile_features(saltscore_uuid_smoke PRIVATE c_std_11)
 target_link_libraries(saltscore_uuid_smoke PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_uuid_smoke COMMAND saltscore_uuid_smoke)
 cmake_add_executable(saltscore_original_uuid_test SOURCES test_uuid.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_uuid_test PRIVATE c_std_11)
 target_link_libraries(saltscore_original_uuid_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_uuid_c11 COMMAND saltscore_original_uuid_test)
 cmake_add_executable(saltscore_original_uuid_cpp_test SOURCES test_uuid_cpp.cpp
   FOLDER "core/tests")
-target_compile_features(saltscore_original_uuid_cpp_test PRIVATE cxx_std_17)
 target_link_libraries(saltscore_original_uuid_cpp_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_uuid_cpp17 COMMAND saltscore_original_uuid_cpp_test)
 
@@ -198,12 +171,10 @@ add_test(NAME saltscore.original_uuid_cpp17 COMMAND saltscore_original_uuid_cpp_
 # the borrowed-only core_bytes_view/slice contract.
 cmake_add_executable(saltscore_byte_buffer_smoke SOURCES test_byte_buffer_smoke.c
   FOLDER "core/tests")
-target_compile_features(saltscore_byte_buffer_smoke PRIVATE c_std_11)
 target_link_libraries(saltscore_byte_buffer_smoke PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_bytes_accumulator_smoke COMMAND saltscore_byte_buffer_smoke)
 cmake_add_executable(saltscore_original_bytes_accumulator SOURCES test_byte_buffer.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_bytes_accumulator PRIVATE c_std_11)
 target_link_libraries(saltscore_original_bytes_accumulator PRIVATE
   Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_bytes_accumulator_contract
@@ -212,7 +183,6 @@ add_test(NAME saltscore.original_bytes_accumulator_contract
 # Public scanning semantics plus private scalar/SIMDe kernel equivalence.
 cmake_add_executable(saltscore_simd_scan_contract SOURCES test_simd_scan_contract.c
   FOLDER "core/tests")
-target_compile_features(saltscore_simd_scan_contract PRIVATE c_std_11)
 target_link_libraries(saltscore_simd_scan_contract PRIVATE Salts::Core Salts::TinyTest)
 target_include_directories(saltscore_simd_scan_contract PRIVATE
   "${PROJECT_SOURCE_DIR}/core/src")
@@ -234,16 +204,13 @@ add_test(NAME saltscore.original_simd_scan_contract COMMAND saltscore_simd_scan_
 # Always-on compiled source/runtime; TinyTest retains all 25 donor test cases.
 cmake_add_executable(saltscore_original_re_smoke SOURCES test_re_smoke.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_re_smoke PRIVATE c_std_11)
-set_target_properties(saltscore_original_re_smoke PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_original_re_smoke PROPERTIES C_EXTENSIONS OFF)
 target_link_libraries(saltscore_original_re_smoke PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_re_smoke COMMAND saltscore_original_re_smoke)
 set_tests_properties(saltscore.original_re_smoke PROPERTIES TIMEOUT 25)
 
 cmake_add_executable(saltscore_original_re_contract SOURCES test_re.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_re_contract PRIVATE c_std_11)
 target_link_libraries(saltscore_original_re_contract PRIVATE
   Salts::Core Salts::TinyTest)
 # The first-byte scan is PRIVATE. Only the original tests may inspect it.
@@ -261,17 +228,13 @@ set_tests_properties(saltscore.original_re_25_case_contract
 # TinyTest is provided by the package root.
 cmake_add_executable(saltscore_original_zstd_test SOURCES test_zstd.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_zstd_test PRIVATE c_std_11)
-set_target_properties(saltscore_original_zstd_test PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_original_zstd_test PROPERTIES C_EXTENSIONS OFF)
 target_link_libraries(saltscore_original_zstd_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_zstd COMMAND saltscore_original_zstd_test)
 
 cmake_add_executable(saltscore_zstd_contract SOURCES zstd_native_contract.c
   FOLDER "core/tests")
-target_compile_features(saltscore_zstd_contract PRIVATE c_std_11)
-set_target_properties(saltscore_zstd_contract PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_zstd_contract PROPERTIES C_EXTENSIONS OFF)
 target_link_libraries(saltscore_zstd_contract PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.zstd_native_contract COMMAND saltscore_zstd_contract)
 
@@ -293,9 +256,7 @@ foreach(_case IN ITEMS disruptor_test thread_pool_test thread_pool_lf_test
   set(_target "saltscore_original_${_case}")
   cmake_add_executable(${_target} SOURCES "${_case}.c"
     FOLDER "core/tests")
-  target_compile_features(${_target} PRIVATE c_std_11)
-  set_target_properties(${_target} PROPERTIES
-    C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+  set_target_properties(${_target} PROPERTIES C_EXTENSIONS OFF)
   target_link_libraries(${_target} PRIVATE Salts::Core Salts::TinyTest)
   add_test(NAME "saltscore.original_concurrency.${_case}" COMMAND ${_target})
   set_tests_properties("saltscore.original_concurrency.${_case}" PROPERTIES TIMEOUT 120)
@@ -304,8 +265,7 @@ foreach(_case IN ITEMS concurrency_header_cpp_test typed_rcu_cpp_test)
   set(_target "saltscore_original_${_case}")
   cmake_add_executable(${_target} SOURCES "${_case}.cpp"
     FOLDER "core/tests")
-  target_compile_features(${_target} PRIVATE cxx_std_17)
-  set_target_properties(${_target} PROPERTIES CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+  set_target_properties(${_target} PROPERTIES CXX_EXTENSIONS OFF)
   target_link_libraries(${_target} PRIVATE Salts::Core Salts::TinyTest)
   add_test(NAME "saltscore.original_concurrency.${_case}" COMMAND ${_target})
   set_tests_properties("saltscore.original_concurrency.${_case}" PROPERTIES TIMEOUT 120)
@@ -315,21 +275,18 @@ endforeach()
 cmake_add_executable(saltscore_concurrency_test SOURCES test_concurrency.c
   FOLDER "core/tests")
 target_link_libraries(saltscore_concurrency_test PRIVATE Salts::Core Salts::TinyTest)
-set_target_properties(saltscore_concurrency_test PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_concurrency_test PROPERTIES C_EXTENSIONS OFF)
 add_test(NAME saltscore.concurrency COMMAND saltscore_concurrency_test)
 
 # Original native SPSC ring and bounded multi-priority SPSC queue. Their
 # behavior is exercised by the original TinyTest suites, not a mock backend.
 cmake_add_executable(saltscore_original_ring_spsc_test SOURCES test_ring_buffer_spsc.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_ring_spsc_test PRIVATE c_std_11)
 target_link_libraries(saltscore_original_ring_spsc_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_ring_spsc COMMAND saltscore_original_ring_spsc_test)
 
 cmake_add_executable(saltscore_original_bucket_spsc_test SOURCES test_bucket_priority_queue_spsc.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_bucket_spsc_test PRIVATE c_std_11)
 target_link_libraries(saltscore_original_bucket_spsc_test PRIVATE
   Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_bucket_priority_spsc
@@ -339,7 +296,6 @@ add_test(NAME saltscore.original_bucket_priority_spsc
 # module. The original native TinyTest contract exercises that canonical owner.
 cmake_add_executable(saltscore_original_bucket_mpmc_test SOURCES test_bucket_priority_queue_mpmc.c
   FOLDER "core/tests")
-target_compile_features(saltscore_original_bucket_mpmc_test PRIVATE c_std_11)
 target_link_libraries(saltscore_original_bucket_mpmc_test PRIVATE
   Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.original_bucket_mpmc COMMAND saltscore_original_bucket_mpmc_test)
@@ -356,39 +312,32 @@ set_tests_properties(saltscore.original_bucket_mpmc PROPERTIES TIMEOUT 30)
 cmake_add_executable(saltscore_platform_test SOURCES test_platform.c
   FOLDER "core/tests")
 target_link_libraries(saltscore_platform_test PRIVATE Salts::Core Salts::TinyTest)
-set_target_properties(saltscore_platform_test PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_platform_test PROPERTIES C_EXTENSIONS OFF)
 add_test(NAME saltscore.platform COMMAND saltscore_platform_test)
 
 cmake_add_executable(saltscore_original_platform_cpp_test SOURCES test_platform_original_cpp.cpp
   FOLDER "core/tests")
-target_compile_features(saltscore_original_platform_cpp_test PRIVATE cxx_std_17)
 target_link_libraries(saltscore_original_platform_cpp_test PRIVATE Salts::Core Salts::TinyTest)
-set_target_properties(saltscore_original_platform_cpp_test PROPERTIES
-  CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+set_target_properties(saltscore_original_platform_cpp_test PROPERTIES CXX_EXTENSIONS OFF)
 add_test(NAME saltscore.original_platform_cpp17
   COMMAND saltscore_original_platform_cpp_test)
 
 # Cross-compiler-compatible Atomic/Thread runtime; no consumer-native _Atomic.
 cmake_add_executable(saltscore_portable_concurrency_test SOURCES test_portable_concurrency.c
   FOLDER "core/tests")
-target_compile_features(saltscore_portable_concurrency_test PRIVATE c_std_11)
-set_target_properties(saltscore_portable_concurrency_test PROPERTIES
-  C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_portable_concurrency_test PROPERTIES C_EXTENSIONS OFF)
 target_link_libraries(saltscore_portable_concurrency_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.portable_concurrency COMMAND saltscore_portable_concurrency_test)
 
 # M1: relative monotonic timed wait / sleep, same C ABI across compilers.
 cmake_add_executable(saltscore_portable_timing_test SOURCES test_portable_timing.c
   FOLDER "core/tests")
-target_compile_features(saltscore_portable_timing_test PRIVATE c_std_11)
 target_link_libraries(saltscore_portable_timing_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.portable_timing COMMAND saltscore_portable_timing_test)
 
 # M1: provider-owned thread-specific keys and destructor lifetime barriers.
 cmake_add_executable(saltscore_portable_tss_test SOURCES test_portable_tss.c
   FOLDER "core/tests")
-target_compile_features(saltscore_portable_tss_test PRIVATE c_std_11)
 target_link_libraries(saltscore_portable_tss_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.portable_tss COMMAND saltscore_portable_tss_test)
 
@@ -396,7 +345,6 @@ add_test(NAME saltscore.portable_tss COMMAND saltscore_portable_tss_test)
 # Monotonic relative timed mutex (MSVC / Clang / TinyCC C ABI).
 cmake_add_executable(saltscore_portable_timed_mutex_test SOURCES test_portable_timed_mutex.c
   FOLDER "core/tests")
-target_compile_features(saltscore_portable_timed_mutex_test PRIVATE c_std_11)
 target_link_libraries(saltscore_portable_timed_mutex_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.portable_timed_mutex COMMAND saltscore_portable_timed_mutex_test)
 
@@ -407,8 +355,7 @@ cmake_add_executable(saltscore_c11_threads_test SOURCES test_c11_threads.c
 if(UNIX)
   target_sources(saltscore_c11_threads_test PRIVATE test_c11_sleep_posix.c)
 endif()
-set_target_properties(saltscore_c11_threads_test PROPERTIES
-  C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_c11_threads_test PROPERTIES C_EXTENSIONS OFF)
 target_link_libraries(saltscore_c11_threads_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.c11_threads_facade COMMAND saltscore_c11_threads_test)
 
@@ -416,7 +363,6 @@ add_test(NAME saltscore.c11_threads_facade COMMAND saltscore_c11_threads_test)
 # Regression for Windows hrtime once-atomic QPC frequency publication.
 cmake_add_executable(saltscore_clock_atomic_owner_test SOURCES test_clock_atomic_owner.c
   FOLDER "core/tests")
-target_compile_features(saltscore_clock_atomic_owner_test PRIVATE c_std_11)
 target_link_libraries(saltscore_clock_atomic_owner_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.clock_atomic_owner COMMAND saltscore_clock_atomic_owner_test)
 
@@ -440,9 +386,7 @@ set_tests_properties(saltscore.clock_atomic_owner PROPERTIES TIMEOUT 30)
 # Contracts migrated with the fs implementation into Core.
 cmake_add_executable(saltscore_fs_test SOURCES test_fs.c test_fs_capabilities.c
   FOLDER "core/tests")
-target_compile_features(saltscore_fs_test PRIVATE c_std_11)
-set_target_properties(saltscore_fs_test PROPERTIES
-  C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_fs_test PROPERTIES C_EXTENSIONS OFF)
 target_link_libraries(saltscore_fs_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.fs_owner_and_root COMMAND saltscore_fs_test)
 set_tests_properties(saltscore.fs_owner_and_root PROPERTIES TIMEOUT 25)
@@ -450,9 +394,7 @@ set_tests_properties(saltscore.fs_owner_and_root PROPERTIES TIMEOUT 25)
 cmake_add_test(saltscore_fs_watch_test
   SOURCES test_fs_watch.c test_fs_watch_init_failure.c
   LIBS Salts::Core Salts::TinyTest FOLDER "core/tests")
-target_compile_features(saltscore_fs_watch_test PRIVATE c_std_11)
-set_target_properties(saltscore_fs_watch_test PROPERTIES
-  C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_fs_watch_test PROPERTIES C_EXTENSIONS OFF)
 set_tests_properties(saltscore_fs_watch_test PROPERTIES TIMEOUT 60)
 target_include_directories(saltscore_fs_watch_test PRIVATE
   "${PROJECT_SOURCE_DIR}/core/src/file")
@@ -463,9 +405,7 @@ endif()
 # Contracts migrated with the process implementation into Core.
 cmake_add_executable(saltscore_process_test SOURCES test_process.c
   FOLDER "core/tests")
-target_compile_features(saltscore_process_test PRIVATE c_std_11)
-set_target_properties(saltscore_process_test PROPERTIES
-  C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+set_target_properties(saltscore_process_test PROPERTIES C_EXTENSIONS OFF)
 target_link_libraries(saltscore_process_test PRIVATE Salts::Core Salts::TinyTest)
 add_test(NAME saltscore.process_spawn_reap COMMAND saltscore_process_test)
 set_tests_properties(saltscore.process_spawn_reap PROPERTIES TIMEOUT 30)

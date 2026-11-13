@@ -15,12 +15,9 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${module_sources})
 list(APPEND module_sources ${ASN1_SCHEMA_LEXER_GEN} ${ASN1_SCHEMA_GRAMMAR_GEN})
 add_library(asn1 STATIC ${module_sources})
 add_dependencies(asn1 ${ASN1_SCHEMA_LEXER_TARGET} ${ASN1_SCHEMA_GRAMMAR_TARGET})
-cmake_config_target(asn1 ALIAS Salts::ASN1 FOLDER "asn1")
-cmake_config_target(asn1
-  OUTPUT_NAME asn1
+cmake_config_target(asn1 ALIAS Salts::ASN1 FOLDER "asn1"
   EXPORT_NAME ASN1)
-set_target_properties(asn1 PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON
-                      C_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON)
+set_target_properties(asn1 PROPERTIES C_EXTENSIONS OFF)
 target_compile_features(asn1 PUBLIC c_std_11)
 target_link_libraries(asn1 PRIVATE Salts::SIMD Salts::Core)
 target_include_directories(asn1 PUBLIC

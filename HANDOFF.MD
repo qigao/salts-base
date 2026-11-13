@@ -31,3 +31,18 @@
   had no CMAKE_PROJECT_NAME; retain migration-threadpool-admission-red-build.log.
   No product SDK/compiler fallback was added. No published SDK version or asset
   is changed by this source branch; downstream CHttp still uses released inputs.
+
+# Root CMake and example verification
+
+- `BUILD_TESTS=ON` does not compile example branches. Verify example CMake edits
+  through the existing root preset with `-DBUILD_EXAMPLES=ON`; retain explicit
+  `-DBUILD_TESTS=ON` because the Release preset resets tests to OFF.
+- This exposed the stale `<core/cron.h>` include in Cron's example. Its owner is
+  `cron/include/cron.h`, exposed as `<cron.h>`; fix the source include instead of
+  adding a compatibility include path. The failed build is preserved in
+  `build/cmake-cleanup-examples-build.log`.
+- `llvm-mingw-x64-release-user` passes the complete build and all 170 CTest
+  cases (`build/cmake-cleanup-ctest.log`). The complete example-enabled build
+  passes after the include fix (`build/cmake-cleanup-examples-fixed-build.log`),
+  followed by the formal Cron test passing 1/1. The local example setting is
+  restored to OFF after verification; no extra validation project is created.

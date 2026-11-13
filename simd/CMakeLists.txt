@@ -10,8 +10,8 @@ add_library(simd STATIC ${simd_sources})
 add_library(Salts::SIMD ALIAS simd)
 target_compile_features(simd PUBLIC c_std_11)
 set_target_properties(simd PROPERTIES
-  EXPORT_NAME SIMD C_STANDARD 11 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF
-  POSITION_INDEPENDENT_CODE ON C_VISIBILITY_PRESET hidden)
+  EXPORT_NAME SIMD C_EXTENSIONS OFF
+  C_VISIBILITY_PRESET hidden)
 target_include_directories(simd PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)

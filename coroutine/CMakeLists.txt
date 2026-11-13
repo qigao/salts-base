@@ -4,14 +4,9 @@ cmake_add_source(module_sources_headers RECURSE DIRS include PATTERNS "*.h" "*.h
 list(APPEND module_sources ${module_sources_headers})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${module_sources})
 add_library(coroutine STATIC ${module_sources})
-cmake_config_target(coroutine ALIAS Salts::Coroutine FOLDER "coroutine")
-cmake_config_target(coroutine
-  EXPORT_NAME Coroutine
-  VERSION "${PROJECT_VERSION}"
-  SOVERSION "${SALTSCORE_NATIVE_SOVERSION}")
-set_target_properties(coroutine PROPERTIES
-  C_STANDARD_REQUIRED ON C_EXTENSIONS OFF
-  C_VISIBILITY_PRESET default WINDOWS_EXPORT_ALL_SYMBOLS ON)
+cmake_config_target(coroutine ALIAS Salts::Coroutine FOLDER "coroutine"
+  EXPORT_NAME Coroutine)
+set_target_properties(coroutine PROPERTIES C_EXTENSIONS OFF)
 target_compile_features(coroutine PUBLIC c_std_11)
 target_include_directories(coroutine
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
