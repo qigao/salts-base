@@ -46,3 +46,11 @@
   passes after the include fix (`build/cmake-cleanup-examples-fixed-build.log`),
   followed by the formal Cron test passing 1/1. The local example setting is
   restored to OFF after verification; no extra validation project is created.
+
+- Installing the independently qualified local SDK through
+  `install-llvm-mingw-x64-release-user` exposed a bare `COMMAND mib_compiler`
+  in the ASN.1 fixture generator: that executable was not found through PATH.
+  Use `$<TARGET_FILE:mib_compiler>` with the existing target dependency so the
+  formal graph invokes its declared executable directly. The install then
+  passes (`build/local-sdk-fe1e96c-fixed-install.log`) and the formal
+  `asn1.mib_generated` CTest passes 1/1.

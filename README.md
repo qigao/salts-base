@@ -221,6 +221,10 @@ target_compile_features(example PRIVATE c_std_11)
 target_link_libraries(example PRIVATE Salts::Core Salts::IniParser)
 ```
 
+JPEG and libyuv belong to Media. Applications using other SaltsBase targets
+do not need to find either package. Applications linking `Salts::Media` must
+explicitly resolve `JPEG` and `libyuv` before linking that static target.
+
 Third-party packages remain in their preinstalled prefix. Make their shared
 libraries and the Core shared library available on the application's runtime
 search path. Build-tree and installed consumers use the same header paths.

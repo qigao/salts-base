@@ -25,7 +25,7 @@ foreach(_fixture IN ITEMS basic empty)
     "${CMAKE_CURRENT_BINARY_DIR}/${_module}.c"
     "${CMAKE_CURRENT_BINARY_DIR}/${_module}_runtime.c")
   add_custom_command(OUTPUT ${_outputs}
-    COMMAND mib_compiler -o "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/${_fixture}.mib"
+    COMMAND "$<TARGET_FILE:mib_compiler>" -o "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/${_fixture}.mib"
     DEPENDS mib_compiler "${CMAKE_CURRENT_SOURCE_DIR}/${_fixture}.mib"
     VERBATIM)
   list(APPEND mib_generated_sources ${_outputs})
