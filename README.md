@@ -83,7 +83,7 @@ Link the targets your application uses; CMake carries their link dependencies.
 | Parsers | `Salts::JsonParser`, `Salts::IniParser`, `Salts::XmlParser`, [and more](parser/) | `json_parser.h`, `ini_parser.h`, `xml_parser/xml_parser.h` |
 | Serialization | `Salts::CSerde` | [`cserde/cserde.h`](cserde/include/cserde/cserde.h) |
 | Unicode | `Salts::Unicode` | [`unicode.h`](unicode/include/unicode.h) |
-| ASN.1 BER/DER | `Salts::ASN1` | [`asn1.h`](asn1/include/asn1.h), `asn1_value.h` |
+| ASN.1 BER/DER, X.509 and MIB/OID tooling | `Salts::ASN1` | [`asn1.h`](asn1/include/asn1.h), `asn1_value.h`, `asn1/x509_cert.h`, [`mib_compiler.h`](asn1/include/mib_compiler.h) |
 | SIMD | `Salts::SIMD` | [`simd.h`](simd/include/simd.h) |
 | Serial ports | `Salts::Serial` | [`serial.h`](serial/include/serial.h) |
 | Media | `Salts::Media` | [`capture.h`](media/include/capture.h), `playback.h` |

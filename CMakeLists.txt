@@ -5,7 +5,7 @@ endif()
 
 set(SALTSCORE_NATIVE_SOVERSION 0.1)
 include(CMakeOptions.cmake)
-project(SaltsBase VERSION 0.1.6
+project(SaltsBase VERSION 0.1.7
         DESCRIPTION
         "Higher-level utilities for cross-platform purpose and c11 developments"
         HOMEPAGE_URL "https://github.com/qigao/salts-base" LANGUAGES
@@ -29,7 +29,8 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Android")
   # Android SDK libraries must be loadable on both 4 KiB and 16 KiB devices.
-  add_link_options("LINKER:-z,max-page-size=16384" "LINKER:-z,common-page-size=16384")
+  add_link_options("LINKER:-z,max-page-size=16384"
+                   "LINKER:-z,common-page-size=16384")
 endif()
 
 # Enable folder organization in IDEs

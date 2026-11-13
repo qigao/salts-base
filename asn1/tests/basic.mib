@@ -1,0 +1,7 @@
+Basic-MIB DEFINITIONS ::= BEGIN
+-- Numeric labels and references to earlier OID definitions.
+internet OBJECT IDENTIFIER ::= { iso(1) org(3) dod(6) internet(1) }
+example-root OBJECT IDENTIFIER ::= { internet 4 1 32473 }
+example-node OBJECT IDENTIFIER ::= { example-root 7 }
+Packet ::= SEQUENCE { id INTEGER, valid BOOLEAN, payload OCTET STRING }
+END
