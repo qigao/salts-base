@@ -324,8 +324,8 @@ of uniform end-to-end speedups.
 - [Unicode API and pinned data](unicode/README.md)
 - [ASN.1 BER/DER reader and owned values](asn1/README.md)
 - [Portable SIMD API](simd/README.md)
-- [Markdown](parser/markdown/README.md), [XML](parser/xml_parser/README.md),
-  [YAML](parser/cyaml/README.md), [TOML](parser/toml/README.md) and [TOON](parser/toon/README.md)
+- [Markdown](parser/markdown/README.md), [XML](parser/data/xml_parser/README.md),
+  [YAML](parser/data/cyaml/README.md), [TOML](parser/utils/toml/README.md) and [TOON](parser/utils/toon/README.md)
 - [Serial ports](serial/README.md), [Cron](cron/README.md) and [TinyTest](tinytest/README.md)
 - [Dependency restoration and hosted CI](.github/README.md)
 
