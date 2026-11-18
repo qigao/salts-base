@@ -265,6 +265,11 @@ struct timed_race {
     unsigned completed;
 };
 enum { RACE_ROUNDS = 192 };
+static int untimed_contender(void *arg) {
+    mtx_t *mutex = arg;
+    if (mtx_lock(mutex)) return 1;
+    return mtx_unlock(mutex);
+}
 static int race_waiter(void *arg) {
     struct timed_race *r = arg;
     for (unsigned i = 0; i < RACE_ROUNDS; ++i) {
@@ -296,15 +301,23 @@ spec("Windows deadline and release arbitration") {
             check_equal(cnd_init(&r.cv), thrd_success);
             check_equal(thrd_create(&worker, race_waiter, &r), thrd_success);
             for (unsigned i = 0; i < RACE_ROUNDS; ++i) {
+                thrd_t untimed;
                 if (!mode) check_equal(mtx_lock(&r.m), thrd_success);
                 SetEvent(r.start);
                 check_equal(WaitForSingleObject(r.registered, 5000), WAIT_OBJECT_0);
+                /* A single unlock must make progress for both a racing
+                 * timed waiter and a peer with no timeout of its own. */
+                if (!mode) check_equal(thrd_create(&untimed, untimed_contender, &r.m), thrd_success);
                 if ((i % 3) == 1) Sleep(1);
                 if (mode) {
                     check_equal(mtx_lock(&r.m), thrd_success);
                     check_equal(cnd_signal(&r.cv), thrd_success);
                 }
                 check_equal(mtx_unlock(&r.m), thrd_success);
+                if (!mode) {
+                    check_equal(thrd_join(untimed, &result), thrd_success);
+                    check_equal(result, thrd_success);
+                }
                 check_equal(WaitForSingleObject(r.finished, 5000), WAIT_OBJECT_0);
             }
             check_equal(thrd_join(worker, &result), thrd_success);

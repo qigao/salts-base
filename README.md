@@ -369,6 +369,9 @@ and [upstream architecture accessors](https://github.com/lhmouse/mcfgthread/blob
   the waiter removes its own registration without waiting for a releaser.
   If release precedes kernel registration, the releaser makes finite wake
   offers while the mutex is free and registered sleepers remain.
+  A waiter that has paired with a release claims an available mutex before
+  retiring its registration. This lets a second sleeper make progress if
+  the first waiter's deadline passes as the kernel wakes it.
 - A condition waiter lends one aligned stack record to its condition's FIFO
   before releasing the associated mutex. Signal selects the first registered
   waiter. Broadcast selects the current queue under the same lock. Each
@@ -410,6 +413,11 @@ on pthread-enabled toolchains, direct pthread calls use the same critical
 section for the immediate-response comparison. To roll back the Windows
 implementation, rebuild Core from the preceding revision and replace it after
 normal process shutdown.
+
+A separate 350 ms workload records reader and writer acquisition counts and
+the longest observed writer wait with seven concurrent readers. The readers
+stop independently so the measurement can finish even if the writer makes
+no progress during the window.
 
 The design references are [Windows runtime #17](https://github.com/qigao/salts-base/issues/17),
 [mcfgthread synchronization](https://github.com/lhmouse/mcfgthread), and

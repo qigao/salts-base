@@ -290,6 +290,7 @@ static void set_holder(struct mtx_state *m, uint64_t id) {
 }
 static int c11_result(int rc) {
     if (rc == SALTS_OK) return thrd_success;
+    if (rc == SALTS_ENOMEM) return thrd_nomem;
     return rc == SALTS_ETIMEDOUT ? thrd_timedout : thrd_error;
 }
 int mtx_init(mtx_t *m, int type) {

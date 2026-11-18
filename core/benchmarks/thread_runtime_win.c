@@ -294,7 +294,71 @@ static void measure_condition(enum backend api, LONGLONG frequency, unsigned cpu
     pthread_mutex_destroy(&p.lock.pthread);
 #endif
 }
+struct reader_load {
+    sync_rwlock_t lock;
+    volatile LONG ready, stop;
+    HANDLE start;
+};
+static int read_until_stopped(void *arg) {
+    struct reader_load *load = arg;
+    InterlockedIncrement(&load->ready);
+    if (WaitForSingleObject(load->start, INFINITE) != WAIT_OBJECT_0) abort();
+    unsigned count = 0;
+    while (!InterlockedCompareExchange(&load->stop, 0, 0)) {
+        sync_rwlock_rdlock(&load->lock);
+        ++count;
+        sync_rwlock_rdunlock(&load->lock);
+    }
+    return (int)count;
+}
+struct writer_sample {
+    struct reader_load *load;
+    unsigned completed;
+    LONGLONG longest;
+};
+static int sample_writer(void *arg) {
+    struct writer_sample *w = arg;
+    InterlockedIncrement(&w->load->ready);
+    if (WaitForSingleObject(w->load->start, INFINITE) != WAIT_OBJECT_0) abort();
+    while (!InterlockedCompareExchange(&w->load->stop, 0, 0)) {
+        LONGLONG before = clock_ticks();
+        sync_rwlock_wrlock(&w->load->lock);
+        LONGLONG elapsed = clock_ticks() - before;
+        if (elapsed > w->longest) w->longest = elapsed;
+        if (!InterlockedCompareExchange(&w->load->stop, 0, 0)) ++w->completed;
+        sync_rwlock_wrunlock(&w->load->lock);
+    }
+    return 0;
+}
 spec("Windows mutex contention") {
+    it("records writer progress with concurrent SRW readers") {
+        struct reader_load load = {0};
+        struct writer_sample writer = {&load, 0, 0};
+        thrd_t threads[WORKERS];
+        unsigned reads = 0;
+        LARGE_INTEGER frequency;
+        check(QueryPerformanceFrequency(&frequency));
+        check_equal(sync_rwlock_init(&load.lock), 0);
+        load.start = CreateEventW(NULL, TRUE, FALSE, NULL);
+        check(load.start != NULL);
+        for (int i = 1; i < WORKERS; ++i)
+            check_equal(thrd_create(&threads[i], read_until_stopped, &load), thrd_success);
+        check_equal(thrd_create(&threads[0], sample_writer, &writer), thrd_success);
+        while (InterlockedCompareExchange(&load.ready, 0, 0) != WORKERS) Sleep(1);
+        check(SetEvent(load.start));
+        Sleep(RUN_MS);
+        InterlockedExchange(&load.stop, 1);
+        check_equal(thrd_join(threads[0], NULL), thrd_success);
+        for (int i = 1; i < WORKERS; ++i) {
+            int count;
+            check_equal(thrd_join(threads[i], &count), thrd_success);
+            reads += (unsigned)count;
+        }
+        printf("Salts SRW readers=%d reads=%u writes_in_window=%u max_writer_wait_us=%.1f\n",
+               WORKERS - 1, reads, writer.completed, writer.longest * 1e6 / frequency.QuadPart);
+        CloseHandle(load.start);
+        sync_rwlock_destroy(&load.lock);
+    }
     it("measures uncontended, two-worker and oversubscribed acquisition") {
         DWORD_PTR available, system, mask;
         LARGE_INTEGER frequency;

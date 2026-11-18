@@ -39,7 +39,14 @@ int win_mutex_acquire(platform_mutex *m, const win_deadline *limit) {
             previous = InterlockedCompareExchange(&m->state, state + MUTEX_WAITER, state);
             if (previous == state) {
                 int rc = win_wait_key(m, limit);
+                /* A paired release has already committed this wake. Claim a
+                 * free mutex before retiring the registration. Checking the
+                 * deadline first could strand the other sleepers. If another
+                 * owner won, its unlock is responsible for the next wake. */
+                BOOL acquired = rc == SALTS_OK &&
+                    !(InterlockedOr(&m->state, MUTEX_HELD) & MUTEX_HELD);
                 InterlockedExchangeAdd(&m->state, -MUTEX_WAITER);
+                if (acquired) return SALTS_OK;
                 if (rc != SALTS_OK) return rc;
                 state = mutex_state(m);
                 spins = 0;
