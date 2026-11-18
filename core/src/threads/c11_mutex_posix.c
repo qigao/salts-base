@@ -297,6 +297,29 @@ int mtx_init(mtx_t *m, int type) {
     }
     return c11_result(rc);
 }
+#ifdef __APPLE__
+static int lock_walltime(dispatch_semaphore_t permit, const struct timespec *due) {
+    /* libdispatch encodes epoch nanoseconds 0 and 1 as FOREVER.
+     * Preserve the single immediate acquisition attempt for expired dates. */
+    if (due->tv_sec == 0 && due->tv_nsec <= 1)
+        return dispatch_semaphore_wait(permit, DISPATCH_TIME_NOW) ? SALTS_ETIMEDOUT : SALTS_OK;
+    if (due->tv_sec <= (INT64_MAX - due->tv_nsec) / 1000000000) {
+        return dispatch_semaphore_wait(permit, dispatch_walltime(due, 0))
+            ? SALTS_ETIMEDOUT : SALTS_OK;
+    }
+    /* Dates beyond the native nanosecond range still admit an unlock.
+     * Recheck only on expiration of a finite native wait. */
+    for (;;) {
+        struct timespec now;
+        if (clock_gettime(CLOCK_REALTIME, &now)) return SALTS_EIO;
+        if (now.tv_sec > due->tv_sec ||
+            (now.tv_sec == due->tv_sec && now.tv_nsec >= due->tv_nsec))
+            return SALTS_ETIMEDOUT;
+        dispatch_time_t interval = dispatch_time(DISPATCH_TIME_NOW, 86400LL * 1000000000);
+        if (!dispatch_semaphore_wait(permit, interval)) return SALTS_OK;
+    }
+}
+#endif
 static int acquire(mtx_t *m, int try_only, const struct timespec *due) {
     if (!m || !m->owner) return thrd_error;
     struct mtx_state *s = m->owner;
@@ -312,8 +335,7 @@ static int acquire(mtx_t *m, int try_only, const struct timespec *due) {
         if (rc == SALTS_ETIMEDOUT) return thrd_busy;
     } else if (!due) rc = platform_mutex_lock(s->lock);
 #ifdef __APPLE__
-    else rc = dispatch_semaphore_wait(s->lock->permit, dispatch_walltime(due, 0))
-                  ? SALTS_ETIMEDOUT : SALTS_OK;
+    else rc = lock_walltime(s->lock->permit, due);
 #else
     else rc = mutex_result(pthread_mutex_timedlock(&s->lock->native, due));
 #endif
