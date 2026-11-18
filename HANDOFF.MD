@@ -1,5 +1,53 @@
 # Native thread runtime verification
 
+## Reproducing short thread handoffs on ARM64
+
+- On Windows, count the initiating thread's committed keyed waits separately
+  from notifications observed before parking. Use consecutive reply marks
+  under the caller mutex to define a complete trip. Time one in eight trips
+  separately from the counter-only runs, and select the P98.5–P99.5 band by
+  full-trip duration before averaging phase times. A mean over all samples
+  above P99 also includes rare scheduler stalls. The process affinity mask
+  specifies the allowed logical processors for both threads.
+- With two allowed processors and immediate replies, 91.8% and 94.4% of
+  initiator waits committed to the kernel in two ARM64 jobs. In the second
+  job, 278 sampled trips fell in the near-P99 band over three runs. Medians
+  of the per-run means were 14.52 µs per trip, including 8.59 µs in the
+  keyed wait, 4.01 µs releasing the peer's key, 0.35 µs in
+  `SwitchToThread`, and 0.04 µs reacquiring the caller mutex. These are
+  elapsed intervals on the initiating thread. With one allowed processor,
+  the counter-only runs yielded to a runnable thread almost every time and
+  almost all notifications arrived before parking.
+  [First Windows log](https://github.com/qigao/salts-base/actions/runs/44275841956/job/134704399346)
+  and [repeat with phase samples](https://github.com/qigao/salts-base/actions/runs/44277383560/job/134709248330).
+- In three paired runs without per-trip probes, increasing ARM64 pre-yield
+  acquire loads from 128 to 512, 2,048 and 8,192 gave two-processor P99
+  medians of 13.9, 14.4, 17.8 and 13.7 µs. P99.9 rose from 17.3 µs at
+  128 loads to 14.0 ms at 8,192. The one-processor P99 rose from 1.8 to
+  6.7 µs. Keep these controls when evaluating future changes to parking.
+- To reproduce the diagnostic rows, use verification revision
+  [3a372d7](https://github.com/qigao/salts-base/commit/3a372d7) with the
+  job's configure and build presets. Run `ctest --preset
+  ci-llvm-mingw-arm64-release-user -R win_threads_benchmark -V` or
+  `ctest --preset ci-llvm-native-release-user -R posix_threads_benchmark -V`.
+  The verification job keeps the temporary counters and alternate policies
+  out of the shipped runtime.
+
+- For Darwin, instrument `dispatch_semaphore_signal` on mutex release and count
+  its nonzero results per thread. Read the counters after join. Run the same
+  `mtx_lock` / increment / `mtx_unlock` loop with a raw dispatch semaphore,
+  a plain C11 mutex, and a pthread mutex. Rotate their order across runs. In
+  four two-worker runs of 200,000 acquisitions each, the timed-capable C11
+  mutex woke a waiter 378,912 times (47.4%). The median of its per-run means
+  was 1,951 ns/acquisition, compared with 1,232 ns for raw dispatch and 43 ns
+  for plain C11. Both semaphore cases recorded zero wakes with one worker.
+  This isolates contention in ordinary lock/unlock on a timed-capable mutex.
+  The benchmark takes no deadline in that loop. [macOS CTest log](https://github.com/qigao/salts-base/actions/runs/44275841956/job/134704399032)
+  and [Apple signal return contract](https://github.com/apple-oss-distributions/libdispatch/blob/main/dispatch/semaphore.h#L90).
+  In a second job, the two timed-capable runs with 0.4–3.7% wakes measured
+  107–146 ns/acquisition. The two runs with 47–50% wakes measured
+  1,915–2,267 ns/acquisition. [Repeat macOS log](https://github.com/qigao/salts-base/actions/runs/44277383560/job/134709247505).
+
 ## Hosted validation and deadline edge cases
 
 The parser registration fix in PR #23 lets the normal presets build the full
