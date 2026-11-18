@@ -335,6 +335,18 @@ SaltsBase is licensed under [Apache License 2.0](LICENSE).
 Bundled third-party components retain their upstream licenses; dependency
 licenses are also installed with the SDK.
 
+## Choosing a C11 mutex
+
+Use `mtx_plain` for ordinary locking and for a predicate shared with a
+condition variable. Both `cnd_wait` and `cnd_timedwait` accept a plain mutex.
+Check the predicate under that mutex after every wake. For a timed wait,
+reuse the same absolute UTC deadline throughout the loop and check the
+predicate again under the reacquired mutex before acting on a timeout.
+
+Choose `mtx_timed` when a caller needs `mtx_timedlock` to put a deadline on
+acquiring the mutex itself. Add `mtx_recursive` when the same thread needs
+to acquire the mutex recursively.
+
 ## Windows thread runtime
 
 Core owns the Windows implementation of the C11 mutex, condition and once

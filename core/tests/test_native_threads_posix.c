@@ -152,26 +152,29 @@ spec("POSIX C11 blocking primitives") {
         check_equal(mtx_unlock(&r.mutex), thrd_success);
         mtx_destroy(&r.mutex);
     }
-    it("reuses the same condition and mutex across signal and timeout races") {
-        struct race r = {0};
-        check_equal(mtx_init(&r.mutex, mtx_timed), thrd_success);
-        check_equal(cnd_init(&r.changed), thrd_success);
-        for (unsigned i = 0; i < 120; ++i) {
-            thrd_t worker;
-            int result;
-            r.ready = 0;
-            r.budget = i % 2;
-            check_equal(thrd_create(&worker, condition_contender, &r), thrd_success);
-            check_equal(mtx_lock(&r.mutex), thrd_success);
-            while (!r.ready) check_equal(cnd_wait(&r.changed, &r.mutex), thrd_success);
-            r.ready = 2;
-            check_equal(cnd_signal(&r.changed), thrd_success);
-            check_equal(mtx_unlock(&r.mutex), thrd_success);
-            check_equal(thrd_join(worker, &result), thrd_success);
-            check(result == thrd_success || result == thrd_timedout);
+    it("reuses a condition with plain and timed mutexes across signal and timeout races") {
+        const int types[] = {mtx_plain, mtx_timed};
+        for (size_t t = 0; t < sizeof(types) / sizeof(types[0]); ++t) {
+            struct race r = {0};
+            check_equal(mtx_init(&r.mutex, types[t]), thrd_success);
+            check_equal(cnd_init(&r.changed), thrd_success);
+            for (unsigned i = 0; i < 120; ++i) {
+                thrd_t worker;
+                int result;
+                r.ready = 0;
+                r.budget = i % 2;
+                check_equal(thrd_create(&worker, condition_contender, &r), thrd_success);
+                check_equal(mtx_lock(&r.mutex), thrd_success);
+                while (!r.ready) check_equal(cnd_wait(&r.changed, &r.mutex), thrd_success);
+                r.ready = 2;
+                check_equal(cnd_signal(&r.changed), thrd_success);
+                check_equal(mtx_unlock(&r.mutex), thrd_success);
+                check_equal(thrd_join(worker, &result), thrd_success);
+                check(result == thrd_success || result == thrd_timedout);
+            }
+            cnd_destroy(&r.changed);
+            mtx_destroy(&r.mutex);
         }
-        cnd_destroy(&r.changed);
-        mtx_destroy(&r.mutex);
     }
     it("reuses a timed mutex after racing unlock with an expiring deadline") {
         struct race r = {0};

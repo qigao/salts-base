@@ -173,7 +173,7 @@ spec("Windows condition timeout") {
         int result;
         s.start = CreateEventW(NULL, TRUE, FALSE, NULL);
         check(s.start != NULL);
-        check_equal(mtx_init(&s.mutex, mtx_timed | mtx_recursive), thrd_success);
+        check_equal(mtx_init(&s.mutex, mtx_recursive), thrd_success);
         check_equal(cnd_init(&s.cv), thrd_success);
         check_equal(mtx_lock(&s.mutex), thrd_success);
         check_equal(mtx_lock(&s.mutex), thrd_success);
@@ -363,7 +363,7 @@ spec("Windows deadline and release arbitration") {
             r.registered = CreateEventW(NULL, FALSE, FALSE, NULL);
             r.finished = CreateEventW(NULL, FALSE, FALSE, NULL);
             check(r.start && r.registered && r.finished);
-            check_equal(mtx_init(&r.m, mtx_timed), thrd_success);
+            check_equal(mtx_init(&r.m, r.use_condition ? mtx_plain : mtx_timed), thrd_success);
             check_equal(cnd_init(&r.cv), thrd_success);
             check_equal(thrd_create(&worker, race_waiter, &r), thrd_success);
             for (unsigned i = 0; i < RACE_ROUNDS; ++i) {
