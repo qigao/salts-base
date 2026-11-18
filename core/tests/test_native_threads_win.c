@@ -108,18 +108,45 @@ static struct timespec after_ms(unsigned ms) {
 struct admission_wait {
     mtx_t mutex;
     cnd_t condition;
-    HANDLE done;
+    HANDLE done, entering;
     int result;
 };
 static int wait_during_admission(void *opaque) {
     struct admission_wait *s = opaque;
     if (mtx_lock(&s->mutex) || mtx_lock(&s->mutex)) return 1;
-    struct timespec due = after_ms(10);
+    struct timespec due = after_ms(s->entering ? 250 : 10);
+    if (s->entering && !SetEvent(s->entering)) abort();
     s->result = cnd_timedwait(&s->condition, &s->mutex, &due);
     if (mtx_unlock(&s->mutex) || mtx_unlock(&s->mutex)) return 2;
     return SetEvent(s->done) ? 0 : 3;
 }
 spec("Windows condition timeout") {
+    it("retires a registered timed wait while the queue lock is held") {
+        struct admission_wait s = {0};
+        thrd_t worker;
+        int result;
+        s.done = CreateEventW(NULL, FALSE, FALSE, NULL);
+        s.entering = CreateEventW(NULL, FALSE, FALSE, NULL);
+        check(s.done && s.entering);
+        check_equal(mtx_init(&s.mutex, mtx_recursive), thrd_success);
+        check_equal(cnd_init(&s.condition), thrd_success);
+        check_equal(thrd_create(&worker, wait_during_admission, &s), thrd_success);
+        check_equal(WaitForSingleObject(s.entering, 3000), (DWORD)WAIT_OBJECT_0);
+        check_equal(mtx_lock(&s.mutex), thrd_success);
+        check_equal(platform_mutex_lock(&s.condition.owner->guard), SALTS_OK);
+        check(s.condition.owner->first != NULL);
+        check_equal(mtx_unlock(&s.mutex), thrd_success);
+        DWORD completed = WaitForSingleObject(s.done, 3000);
+        check_equal(platform_mutex_unlock(&s.condition.owner->guard), SALTS_OK);
+        check_equal(thrd_join(worker, &result), thrd_success);
+        check_equal(completed, (DWORD)WAIT_OBJECT_0);
+        check_equal(s.result, thrd_timedout);
+        check_equal(result, 0);
+        cnd_destroy(&s.condition);
+        mtx_destroy(&s.mutex);
+        CloseHandle(s.entering);
+        CloseHandle(s.done);
+    }
     it("expires while another thread still owns the admission guard") {
         struct admission_wait s = {0};
         thrd_t worker;
@@ -181,7 +208,44 @@ static int use_once(void *unused) {
     sync_once(&extension_once, initialize_slowly);
     return published;
 }
+static once_flag outer = ONCE_FLAG_INIT, inner = ONCE_FLAG_INIT;
+static HANDLE exit_gate;
+static volatile LONG attempts, entrants;
+static int inner_value;
+static void exit_nested(void) {
+    if (InterlockedIncrement(&attempts) == 1) {
+        if (WaitForSingleObject(exit_gate, 5000) != WAIT_OBJECT_0) abort();
+        thrd_exit(37);
+    }
+    inner_value = 41;
+}
+static void enter_nested(void) { call_once(&inner, exit_nested); }
+static int retry_outer(void *unused) {
+    (void)unused;
+    InterlockedIncrement(&entrants);
+    call_once(&outer, enter_nested);
+    return inner_value;
+}
 spec("Windows blocking once") {
+    it("hands an abandoned nested initializer to a waiting caller") {
+        thrd_t group[WAITERS];
+        int exited = 0;
+        exit_gate = CreateEventW(NULL, TRUE, FALSE, NULL);
+        check(exit_gate != NULL);
+        for (int i = 0; i < WAITERS; ++i)
+            check_equal(thrd_create(group+i, retry_outer, NULL), thrd_success);
+        while (InterlockedCompareExchange(&entrants, 0, 0) != WAITERS) Sleep(1);
+        check(SetEvent(exit_gate));
+        for (int i = 0; i < WAITERS; ++i) {
+            int result;
+            check_equal(thrd_join(group[i], &result), thrd_success);
+            if (result == 37) ++exited;
+            else check_equal(result, 41);
+        }
+        check_equal(exited, 1);
+        check_equal(attempts, 2L);
+        CloseHandle(exit_gate);
+    }
     it("publishes both initializers to every concurrent caller") {
         thrd_t group[WAITERS];
         release_once = CreateEventW(NULL, TRUE, FALSE, NULL);
@@ -243,7 +307,7 @@ spec("Windows NT capability admission") {
         check_equal(win_keyed_status(0x101), SALTS_EIO);
         check_equal(win_keyed_status((LONG)0xc000000d), SALTS_EIO);
     }
-    it("requires both keyed operations before publishing either pointer") {
+    it("requires both keyed operations and the native object wait") {
         win_keyed_api api = {0};
         HMODULE module = GetModuleHandleW(L"ntdll.dll");
         check_equal(win_bind_keyed_api(&api, NULL, GetProcAddress), SALTS_ENOTSUP);
@@ -251,7 +315,9 @@ spec("Windows NT capability admission") {
         check_equal(win_bind_keyed_api(&api, module, omit_export), SALTS_ENOTSUP);
         missing = "NtReleaseKeyedEvent";
         check_equal(win_bind_keyed_api(&api, module, omit_export), SALTS_ENOTSUP);
-        check(!api.wait && !api.release);
+        missing = "NtWaitForSingleObject";
+        check_equal(win_bind_keyed_api(&api, module, omit_export), SALTS_ENOTSUP);
+        check(!api.wait && !api.release && !api.wait_object);
         check_equal(win_bind_keyed_api(&api, module, GetProcAddress), SALTS_OK);
         check(api.wait && api.release);
     }

@@ -1,5 +1,6 @@
 #include "thread_backend.h"
 #ifdef _WIN32
+#include "nt_wait_win.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN 1
 #endif
@@ -86,6 +87,7 @@ int platform_thread_detach(platform_thread **owner) {
 }
 void platform_thread_exit(int result) {
     platform_thread *thread = platform_current;
+    win_abandon_once();
     if (thread) {
         thread->result = result;
         platform_current = NULL;

@@ -24,21 +24,30 @@
 #define NEED_MONOTONIC_CONDITION 1
 #endif
 
+/* These backends lack a pthread mutex timed wait on the required clock. */
+#if defined(__APPLE__) || (defined(__linux__) && defined(NEED_MONOTONIC_CONDITION))
+#define USE_NATIVE_PERMIT 1
+#undef NEED_MONOTONIC_CONDITION
+#include "condition_permit_posix.h"
+#endif
+
 struct platform_mutex {
-#ifdef __APPLE__
-    dispatch_semaphore_t permit;
-#else
     pthread_mutex_t native;
-#ifdef NEED_MONOTONIC_CONDITION
+#ifdef USE_NATIVE_PERMIT
+    int use_permit;
+    native_permit permit;
+#elif defined(NEED_MONOTONIC_CONDITION)
     pthread_cond_t available;
     pthread_mutex_t admission;
-#endif
 #endif
 };
 
 struct condition_state {
     pthread_cond_t native;
-#if defined(__APPLE__) || defined(NEED_MONOTONIC_CONDITION)
+#ifdef USE_NATIVE_PERMIT
+    struct permit_condition groups;
+    int has_groups;
+#elif defined(NEED_MONOTONIC_CONDITION)
     pthread_mutex_t registration;
 #endif
 };
@@ -68,7 +77,7 @@ static int relative_deadline(uint64_t ns, struct timespec *out) {
 static int init_condition(pthread_cond_t *cond, clockid_t clock) {
     if (clock == CLOCK_REALTIME) return pthread_cond_init(cond, NULL);
 #ifdef __APPLE__
-    /* Relative waits select their clock in pthread_cond_timedwait_relative_np. */
+    /* On Darwin only native UTC C11 waits reach the pthread condition. */
     return pthread_cond_init(cond, NULL);
 #else
     pthread_condattr_t attr;
@@ -81,14 +90,21 @@ static int init_condition(pthread_cond_t *cond, clockid_t clock) {
 #endif
 }
 
-int platform_mutex_create(platform_mutex **out) {
+static int create_mutex(platform_mutex **out, int use_permit) {
     if (!out || *out) return SALTS_EINVAL;
     platform_mutex *m = calloc(1, sizeof(*m));
     if (!m) return SALTS_ENOMEM;
-#ifdef __APPLE__
-    m->permit = dispatch_semaphore_create(1);
-    if (!m->permit) { free(m); return SALTS_ENOMEM; }
+#ifdef USE_NATIVE_PERMIT
+    if (use_permit) {
+        int rc = permit_init(&m->permit, 1);
+        if (rc) { free(m); return rc; }
+        m->use_permit = 1;
+        *out = m;
+        return SALTS_OK;
+    }
 #else
+    (void)use_permit;
+#endif
     int rc = pthread_mutex_init(&m->native, NULL);
     if (rc) { free(m); return SALTS_EBUSY; }
 #ifdef NEED_MONOTONIC_CONDITION
@@ -99,30 +115,32 @@ int platform_mutex_create(platform_mutex **out) {
     }
     if (rc) { pthread_mutex_destroy(&m->native); free(m); return SALTS_EBUSY; }
 #endif
-#endif
     *out = m;
     return SALTS_OK;
 }
 
+int platform_mutex_create(platform_mutex **out) { return create_mutex(out, 1); }
+
 int platform_mutex_lock(platform_mutex *m) {
     if (!m) return SALTS_EINVAL;
-#ifdef __APPLE__
-    return dispatch_semaphore_wait(m->permit, DISPATCH_TIME_FOREVER) ? SALTS_EIO : SALTS_OK;
-#else
-    return mutex_result(pthread_mutex_lock(&m->native));
+#ifdef USE_NATIVE_PERMIT
+    if (m->use_permit) return permit_wait(&m->permit, NULL, CLOCK_MONOTONIC);
 #endif
+    return mutex_result(pthread_mutex_lock(&m->native));
 }
 
 int platform_mutex_timedlock_ns(platform_mutex *m, uint64_t ns) {
     if (!m || ns > SALTS_PLATFORM_MAX_RELATIVE_WAIT_NS) return SALTS_EINVAL;
-#ifdef __APPLE__
-    dispatch_time_t due = ns ? dispatch_time(DISPATCH_TIME_NOW, (int64_t)ns) : DISPATCH_TIME_NOW;
-    return dispatch_semaphore_wait(m->permit, due) ? SALTS_ETIMEDOUT : SALTS_OK;
+    struct timespec due = {0, 0};
+    int rc = ns ? relative_deadline(ns, &due) : SALTS_OK;
+    if (rc != SALTS_OK) return rc;
+#ifdef USE_NATIVE_PERMIT
+    if (m->use_permit) return permit_wait(&m->permit, &due, CLOCK_MONOTONIC);
+    /* The C11 pthread representation only requests a nonblocking try here. */
+    if (ns) return SALTS_EINVAL;
+    return mutex_result(pthread_mutex_trylock(&m->native));
 #else
     if (!ns) return mutex_result(pthread_mutex_trylock(&m->native));
-    struct timespec due;
-    int rc = relative_deadline(ns, &due);
-    if (rc != SALTS_OK) return rc;
 #ifdef NEED_MONOTONIC_CONDITION
     /* Bionic before API 28 and libcs without mutex clock selection.
      * admission serializes registration with unlock, never user code. */
@@ -145,9 +163,9 @@ int platform_mutex_timedlock_ns(platform_mutex *m, uint64_t ns) {
 
 int platform_mutex_unlock(platform_mutex *m) {
     if (!m) return SALTS_EINVAL;
-#ifdef __APPLE__
-    dispatch_semaphore_signal(m->permit);
-#else
+#ifdef USE_NATIVE_PERMIT
+    if (m->use_permit) { permit_post(&m->permit, 1); return SALTS_OK; }
+#endif
 #ifdef NEED_MONOTONIC_CONDITION
     if (pthread_mutex_lock(&m->admission)) return SALTS_EINVAL;
 #endif
@@ -157,7 +175,6 @@ int platform_mutex_unlock(platform_mutex *m) {
     if (pthread_mutex_unlock(&m->admission)) abort();
 #endif
     if (rc) return SALTS_EINVAL;
-#endif
     return SALTS_OK;
 }
 
@@ -167,13 +184,13 @@ int platform_mutex_destroy(platform_mutex **out) {
     int rc = platform_mutex_timedlock_ns(m, 0);
     if (rc != SALTS_OK) return rc == SALTS_ETIMEDOUT ? SALTS_EBUSY : rc;
     if (platform_mutex_unlock(m) != SALTS_OK) abort();
-#ifdef __APPLE__
-    dispatch_release(m->permit);
-#else
+#ifdef USE_NATIVE_PERMIT
+    if (m->use_permit) permit_destroy(&m->permit);
+    else
+#endif
     if (pthread_mutex_destroy(&m->native)) return SALTS_EBUSY;
 #ifdef NEED_MONOTONIC_CONDITION
     if (pthread_cond_destroy(&m->available) || pthread_mutex_destroy(&m->admission)) abort();
-#endif
 #endif
     free(m);
     *out = NULL;
@@ -182,10 +199,20 @@ int platform_mutex_destroy(platform_mutex **out) {
 
 static int create_condition(platform_condition **out, clockid_t clock) {
     if (!out || *out) return SALTS_EINVAL;
-    platform_condition *c = malloc(sizeof(*c));
+    platform_condition *c = calloc(1, sizeof(*c));
     if (!c) return SALTS_ENOMEM;
     if (init_condition(&c->native, clock)) { free(c); return SALTS_EBUSY; }
-#if defined(__APPLE__) || defined(NEED_MONOTONIC_CONDITION)
+#ifdef USE_NATIVE_PERMIT
+#ifdef __APPLE__
+    c->has_groups = 1;
+#else
+    c->has_groups = clock == CLOCK_MONOTONIC;
+#endif
+    if (c->has_groups) {
+        int rc = permit_init(&c->groups.guard, 1);
+        if (rc) { pthread_cond_destroy(&c->native); free(c); return rc; }
+    }
+#elif defined(NEED_MONOTONIC_CONDITION)
     if (pthread_mutex_init(&c->registration, NULL)) {
         pthread_cond_destroy(&c->native);
         free(c);
@@ -210,7 +237,11 @@ int cnd_init(cnd_t *c) {
 static int wait_condition(platform_condition *c, platform_mutex *m,
                           const struct timespec *due, int relative) {
     if (!c || !m) return SALTS_EINVAL;
-#if defined(__APPLE__) || defined(NEED_MONOTONIC_CONDITION)
+#ifdef USE_NATIVE_PERMIT
+    if (m->use_permit)
+        return permit_condition_wait(&c->groups, m, due, relative ? CLOCK_MONOTONIC : CLOCK_REALTIME);
+#endif
+#ifdef NEED_MONOTONIC_CONDITION
     /* These mutexes need an explicit unlock to publish availability. Take
      * registration first so a notifier cannot pass the pending pthread wait. */
     pthread_mutex_t *lock = &c->registration;
@@ -222,24 +253,8 @@ static int wait_condition(platform_condition *c, platform_mutex *m,
     int rc;
     (void)relative;
     if (!due) rc = pthread_cond_wait(&c->native, lock);
-#ifdef __APPLE__
-    else if (relative) {
-        struct timespec now, remaining = {0, 0};
-        if (clock_gettime(CLOCK_MONOTONIC, &now)) abort();
-        if (due->tv_sec > now.tv_sec ||
-            (due->tv_sec == now.tv_sec && due->tv_nsec > now.tv_nsec)) {
-            remaining.tv_sec = due->tv_sec - now.tv_sec;
-            remaining.tv_nsec = due->tv_nsec - now.tv_nsec;
-            if (remaining.tv_nsec < 0) {
-                --remaining.tv_sec;
-                remaining.tv_nsec += 1000000000;
-            }
-        }
-        rc = pthread_cond_timedwait_relative_np(&c->native, lock, &remaining);
-    }
-#endif
     else rc = pthread_cond_timedwait(&c->native, lock, due);
-#if defined(__APPLE__) || defined(NEED_MONOTONIC_CONDITION)
+#ifdef NEED_MONOTONIC_CONDITION
     if (pthread_mutex_unlock(lock) || platform_mutex_lock(m) != SALTS_OK) abort();
 #endif
     return mutex_result(rc);
@@ -258,11 +273,13 @@ int platform_condition_timedwait_ns(platform_condition *c, platform_mutex *m, ui
 
 static int notify(platform_condition *c, int all) {
     if (!c) return SALTS_EINVAL;
-#if defined(__APPLE__) || defined(NEED_MONOTONIC_CONDITION)
+#ifdef USE_NATIVE_PERMIT
+    if (c->has_groups && permit_condition_notify(&c->groups, all) && !all) return SALTS_OK;
+#elif defined(NEED_MONOTONIC_CONDITION)
     if (pthread_mutex_lock(&c->registration)) return SALTS_EINVAL;
 #endif
     int rc = all ? pthread_cond_broadcast(&c->native) : pthread_cond_signal(&c->native);
-#if defined(__APPLE__) || defined(NEED_MONOTONIC_CONDITION)
+#ifdef NEED_MONOTONIC_CONDITION
     if (pthread_mutex_unlock(&c->registration)) abort();
 #endif
     return rc ? SALTS_EINVAL : SALTS_OK;
@@ -272,7 +289,9 @@ int platform_condition_broadcast(platform_condition *c) { return notify(c, 1); }
 int platform_condition_destroy(platform_condition **out) {
     if (!out || !*out) return SALTS_EINVAL;
     if (pthread_cond_destroy(&(*out)->native)) return SALTS_EBUSY;
-#if defined(__APPLE__) || defined(NEED_MONOTONIC_CONDITION)
+#ifdef USE_NATIVE_PERMIT
+    if ((*out)->has_groups) permit_condition_destroy(&(*out)->groups);
+#elif defined(NEED_MONOTONIC_CONDITION)
     if (pthread_mutex_destroy(&(*out)->registration)) abort();
 #endif
     free(*out);
@@ -298,38 +317,17 @@ int mtx_init(mtx_t *m, int type) {
     m->type = type;
     m->owner = calloc(1, sizeof(*m->owner));
     if (!m->owner) return thrd_nomem;
-    int rc = platform_mutex_create(&m->owner->lock);
+#ifdef __APPLE__
+    int rc = create_mutex(&m->owner->lock, type & mtx_timed);
+#else
+    int rc = create_mutex(&m->owner->lock, 0);
+#endif
     if (rc != SALTS_OK) {
         free(m->owner);
         m->owner = NULL;
     }
     return c11_result(rc);
 }
-#ifdef __APPLE__
-static int lock_walltime(dispatch_semaphore_t permit, const struct timespec *due) {
-    /* libdispatch encodes epoch nanoseconds 0 and 1 as FOREVER.
-     * Preserve the single immediate acquisition attempt for expired dates. */
-    if (due->tv_sec == 0 && due->tv_nsec <= 1)
-        return dispatch_semaphore_wait(permit, DISPATCH_TIME_NOW) ? SALTS_ETIMEDOUT : SALTS_OK;
-    /* libdispatch reserves the top two bits for clock selection. */
-    const int64_t max_wall_ns = (INT64_C(1) << 62) - 1;
-    if (due->tv_sec <= (max_wall_ns - due->tv_nsec) / 1000000000) {
-        return dispatch_semaphore_wait(permit, dispatch_walltime(due, 0))
-            ? SALTS_ETIMEDOUT : SALTS_OK;
-    }
-    /* Dates beyond the native nanosecond range still admit an unlock.
-     * Recheck only on expiration of a finite native wait. */
-    for (;;) {
-        struct timespec now;
-        if (clock_gettime(CLOCK_REALTIME, &now)) return SALTS_EIO;
-        if (now.tv_sec > due->tv_sec ||
-            (now.tv_sec == due->tv_sec && now.tv_nsec >= due->tv_nsec))
-            return SALTS_ETIMEDOUT;
-        dispatch_time_t interval = dispatch_time(DISPATCH_TIME_NOW, 86400LL * 1000000000);
-        if (!dispatch_semaphore_wait(permit, interval)) return SALTS_OK;
-    }
-}
-#endif
 static int acquire(mtx_t *m, int try_only, const struct timespec *due) {
     if (!m || !m->owner) return thrd_error;
     struct mtx_state *s = m->owner;
@@ -345,7 +343,7 @@ static int acquire(mtx_t *m, int try_only, const struct timespec *due) {
         if (rc == SALTS_ETIMEDOUT) return thrd_busy;
     } else if (!due) rc = platform_mutex_lock(s->lock);
 #ifdef __APPLE__
-    else rc = lock_walltime(s->lock->permit, due);
+    else rc = permit_wait(&s->lock->permit, due, CLOCK_REALTIME);
 #else
     else rc = mutex_result(pthread_mutex_timedlock(&s->lock->native, due));
 #endif

@@ -1,5 +1,8 @@
 #include <threads/threads.h>
 #include "c11_threads_internal.h"
+#ifdef _WIN32
+#include "nt_wait_win.h"
+#endif
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -125,6 +128,9 @@ int thrd_sleep_remaining_abi(
 }
 void thrd_exit(int result) {
     struct thrd_state *thread = current_thread;
+#ifdef _WIN32
+    win_abandon_once();
+#endif
     tss_cleanup_current();
     if (thread) {
         current_thread = NULL;

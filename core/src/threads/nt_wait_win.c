@@ -64,7 +64,7 @@ BOOL win_expired(const win_deadline *limit) {
     now.HighPart = ft.dwHighDateTime;
     return now.QuadPart >= (ULONGLONG)limit->ticks;
 }
-int win_wait_key(void *key, const win_deadline *limit) {
+static int wait_native(void *key, HANDLE object, const win_deadline *limit) {
     LARGE_INTEGER due;
     LONG status;
     if (limit) {
@@ -78,9 +78,16 @@ int win_wait_key(void *key, const win_deadline *limit) {
         }
     }
     do {
-        status = keyed.wait(NULL, key, FALSE, limit ? &due : NULL);
+        status = object ? keyed.wait_object(object, FALSE, limit ? &due : NULL)
+                        : keyed.wait(NULL, key, FALSE, limit ? &due : NULL);
     } while (status == NT_WAIT_TIMEOUT && limit && limit->clock == WIN_BEYOND_NT_UTC);
     return checked_wait_result(status);
+}
+int win_wait_key(void *key, const win_deadline *limit) {
+    return wait_native(key, NULL, limit);
+}
+int win_wait_object(HANDLE object, const win_deadline *limit) {
+    return wait_native(NULL, object, limit);
 }
 void win_release_key(void *key) {
     if (keyed.release(NULL, key, FALSE, NULL) != 0) abort();
@@ -98,37 +105,66 @@ int win_offer_mutex_wake(void *key, BOOL allow_wait) {
 /* Both public once layouts have a single aligned 32-bit state. An entrant
  * either observes DONE or reserves one release before entering the kernel. */
 enum { ONCE_RUNNING = 1, ONCE_DONE = 2, ONCE_WAITER = 4, ONCE_SPINS = 16 };
+struct once_frame {
+    volatile LONG *state;
+    struct once_frame *parent;
+};
+static SALTS_THREAD_LOCAL struct once_frame *initializing;
+
+void win_abandon_once(void) {
+    while (initializing) {
+        volatile LONG *state = initializing->state;
+        initializing = initializing->parent;
+        LONG observed = InterlockedCompareExchange(state, 0, ONCE_RUNNING);
+        while (observed != ONCE_RUNNING) {
+            /* Keep RUNNING and transfer ownership to exactly one registrant.
+             * New arrivals can register, but cannot start a second callback. */
+            if (observed < ONCE_RUNNING + ONCE_WAITER) abort();
+            LONG previous = InterlockedCompareExchange(state, observed - ONCE_WAITER, observed);
+            if (previous == observed) {
+                win_release_key((void *)state);
+                break;
+            }
+            observed = previous;
+        }
+    }
+}
+
 int win_call_once(volatile LONG *state, void (*callback)(void)) {
     LONG observed = InterlockedCompareExchange(state, ONCE_DONE, ONCE_DONE);
     if (observed == ONCE_DONE) return SALTS_OK;
     int rc = win_wait_runtime_init();
     if (rc != SALTS_OK) return rc;
-    observed = InterlockedCompareExchange(state, ONCE_RUNNING, 0);
-    if (observed == ONCE_DONE) return SALTS_OK;
-    if (observed == 0) {
-        callback();
-        observed = InterlockedExchange(state, ONCE_DONE);
-        for (; observed > ONCE_RUNNING; observed -= ONCE_WAITER)
-            win_release_key((void *)state);
-        return SALTS_OK;
-    }
-    /* Spin briefly only while no sleeper has registered. */
-    for (unsigned i = 0; i < ONCE_SPINS && observed == ONCE_RUNNING; ++i) {
-        YieldProcessor();
-        observed = InterlockedCompareExchange(state, ONCE_DONE, ONCE_DONE);
-    }
-    while (observed != ONCE_DONE) {
-        LONG previous;
+    unsigned spins = 0;
+    for (;;) {
+        if (observed == 0) {
+            observed = InterlockedCompareExchange(state, ONCE_RUNNING, 0);
+            if (observed == 0) break;
+        }
+        if (observed == ONCE_DONE) return SALTS_OK;
+        if (observed == ONCE_RUNNING && spins++ < ONCE_SPINS) {
+            YieldProcessor();
+            observed = InterlockedCompareExchange(state, ONCE_DONE, ONCE_DONE);
+            continue;
+        }
         if ((observed & 3) != ONCE_RUNNING || observed > LONG_MAX - ONCE_WAITER)
             return SALTS_EINVAL;
-        previous = InterlockedCompareExchange(state, observed + ONCE_WAITER, observed);
+        LONG previous = InterlockedCompareExchange(state, observed + ONCE_WAITER, observed);
         if (previous == observed) {
             win_wait_key((void *)state, NULL);
-            (void)InterlockedCompareExchange(state, ONCE_DONE, ONCE_DONE);
+            if (InterlockedCompareExchange(state, ONCE_DONE, ONCE_DONE) == ONCE_DONE)
+                return SALTS_OK;
             break;
         }
         observed = previous;
     }
+    struct once_frame frame = {state, initializing};
+    initializing = &frame;
+    callback();
+    initializing = frame.parent;
+    observed = InterlockedExchange(state, ONCE_DONE);
+    for (; observed > ONCE_RUNNING; observed -= ONCE_WAITER)
+        win_release_key((void *)state);
     return SALTS_OK;
 }
 int platform_call_once(platform_once *flag, platform_once_fn callback) {

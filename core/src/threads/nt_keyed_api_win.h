@@ -7,6 +7,7 @@
 typedef LONG (NTAPI *win_keyed_operation)(HANDLE, PVOID, BOOLEAN, PLARGE_INTEGER);
 typedef struct win_keyed_api {
     win_keyed_operation wait, release;
+    LONG (NTAPI *wait_object)(HANDLE, BOOLEAN, PLARGE_INTEGER);
 } win_keyed_api;
 
 enum { NT_WAIT_TIMEOUT = 0x102 };
@@ -22,7 +23,9 @@ static inline int win_bind_keyed_api(win_keyed_api *out, HMODULE module,
     if (!module) return SALTS_ENOTSUP;
     api.wait = (win_keyed_operation)resolve(module, "NtWaitForKeyedEvent");
     api.release = (win_keyed_operation)resolve(module, "NtReleaseKeyedEvent");
-    if (!api.wait || !api.release) return SALTS_ENOTSUP;
+    api.wait_object = (LONG (NTAPI *)(HANDLE, BOOLEAN, PLARGE_INTEGER))
+        resolve(module, "NtWaitForSingleObject");
+    if (!api.wait || !api.release || !api.wait_object) return SALTS_ENOTSUP;
     *out = api;
     return SALTS_OK;
 }

@@ -340,16 +340,17 @@ licenses are also installed with the SDK.
 Core owns the Windows implementation of the C11 mutex, condition and once
 operations and their Salts synchronization counterparts. The installed C and
 C++ object layouts and the UTC seconds/nanoseconds ABI stay compatible. The
-Windows backend resolves `NtWaitForKeyedEvent` and `NtReleaseKeyedEvent` from
-ntdll once. Both operations are required. Initialization reports an unsupported
-backend if either export is absent. A non-alertable wait on the default keyed
+Windows backend resolves `NtWaitForKeyedEvent`, `NtReleaseKeyedEvent` and
+`NtWaitForSingleObject` from ntdll once. Initialization reports an
+unsupported backend if a required export is absent. A non-alertable wait on the default keyed
 event matches one release in the same process. An unexpected status after a
 waiter has registered is a broken rendezvous and terminates the process.
 
-The two private `NTAPI` declarations take a null event handle, an aligned
+The two private keyed-event `NTAPI` declarations take a null event handle, an aligned
 key, a false alertable flag and an optional signed 100 ns timeout. The
 upstream inventory also includes section, handle, memory and error handling
-imports for mcfgthread's own runtime. Salts needs only the two keyed calls.
+imports for mcfgthread's runtime. Salts uses the object wait for durable
+event notifications with absolute UTC or monotonic remaining time.
 Its private x64 and ARM64 accessors read the SDK's TEB fields for OS-owned
 TLS slots, including the expansion array beyond the first 64. The slot
 owner must keep the index live until every reader has finished.
@@ -372,7 +373,7 @@ and [upstream architecture accessors](https://github.com/lhmouse/mcfgthread/blob
   A waiter that has paired with a release claims an available mutex before
   retiring its registration. This lets a second sleeper make progress if
   the first waiter's deadline passes as the kernel wakes it.
-- A condition waiter lends one aligned stack record to its condition's FIFO
+- An untimed condition waiter lends one aligned stack record to its condition's FIFO
   before releasing the associated mutex. Signal selects the first registered
   waiter. Broadcast selects the current queue under the same lock. Each
   selection publishes one notification to that waiter. On an untimed wait,
@@ -380,14 +381,16 @@ and [upstream architecture accessors](https://github.com/lhmouse/mcfgthread/blob
   record. If it commits to parking first, the signaler pairs with it through
   the keyed event. After a kernel wait crosses a Windows clock tick, the
   same thread tries parking directly on its next untimed wait. A short
-  handoff restores polling. Timed waits share one deadline across acquisition
-  of the registration lock and the kernel wait. A selected waiter must finish
-  the rendezvous before retiring its record. The
-  waiter can retract an unselected record on timeout. It reacquires the mutex
-  and restores its recursive depth before returning, including after timeout.
-- Once uses the original four-byte flag. The completing thread publishes the
-  callback's writes before releasing the registered callers. The initializing
-  callback must return for waiting callers to proceed.
+  handoff restores polling. A timed waiter shares an event record with the
+  queue. Timeout and notification compete for its eligibility. The waiter
+  can retire its reference at the original deadline even if the notifier is
+  paused. A queue operation or quiescent destroy reclaims expired records.
+  A contended queue guard posts a durable wake on release. Returning from
+  a wait includes reacquiring the user mutex and restoring its depth.
+- Once keeps the four-byte flag. Normal completion publishes the callback's
+  writes to all waiters. On `thrd_exit` each active initializer hands execution
+  to one registered caller or resets its flag for a later caller. This also
+  applies to nested initializers and precedes C11 TSS destructor delivery.
 - The x64 and ARM64 private TEB accessors support thread identity and reads
   from an OS-allocated TLS slot. The benchmark compares both operations
   with compiler TLS and compares pointer reads with TLS and FLS. Thread
@@ -428,12 +431,21 @@ The design references are [Windows runtime #17](https://github.com/qigao/salts-b
 C11 timed mutex and condition operations take an absolute UTC deadline. The
 Salts platform duration API measures elapsed monotonic time. Linux uses
 pthread timed mutex and condition operations with the corresponding clock.
-Bionic targets without monotonic timed mutex acquisition use a monotonic
-pthread condition signaled on unlock. Darwin uses a binary dispatch semaphore
-for mutex admission, with dispatch wall time for UTC and dispatch time for
-durations. Its native condition wait takes the remaining monotonic duration.
-On these two paths a short registration lock orders the condition wait with
-notification while the waiter releases the application mutex.
+C11 mutexes on Android use pthreads directly. The older Bionic platform
+duration API uses a nonblocking semaphore-mode eventfd and waits for readiness
+with the remaining monotonic budget. Darwin uses pthreads for ordinary C11
+mutexes and a binary dispatch semaphore for timed mutexes and platform
+durations. Semaphore admission, including admission to a condition wait,
+uses the caller's original deadline.
+
+Conditions paired with native pthread mutexes release and reacquire them
+through pthreads. On the two semaphore paths, a condition enrolls each waiter
+in an open group. The first signal seals that group. New waiters then join
+a new group, while remaining members of the sealed group retain priority.
+A signal grants one permit and broadcast grants the current outstanding permits
+in both groups. Timeout withdraws eligibility atomically. Each waiting call
+keeps its group alive until it returns. At most two groups remain attached
+to a condition, and no per-thread queue node is needed.
 
 A recursive mutex records its owner and depth. A condition wait releases
 all levels and restores them before returning, including on timeout. A caller
