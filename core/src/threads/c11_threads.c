@@ -135,6 +135,7 @@ void thrd_exit(int result) {
     abort();
 }
 
+#ifdef _WIN32
 int cnd_init(cnd_t *c) {
     int rc;
     if (!c) return thrd_error;
@@ -143,6 +144,7 @@ int cnd_init(cnd_t *c) {
     return rc == SALTS_OK ? thrd_success : rc == SALTS_ENOMEM ? thrd_nomem : thrd_error;
 }
 
+#endif
 int cnd_signal(cnd_t *c) {
     return c && c->owner && platform_condition_signal(c->owner) == SALTS_OK
         ? thrd_success : thrd_error;
