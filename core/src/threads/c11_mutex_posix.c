@@ -55,7 +55,6 @@ static int mutex_result(int rc) {
     return SALTS_EINVAL;
 }
 
-#ifndef __APPLE__
 static int relative_deadline(uint64_t ns, struct timespec *out) {
     if (clock_gettime(CLOCK_MONOTONIC, out) || out->tv_sec < 0) return SALTS_EIO;
     uint64_t seconds = (uint64_t)out->tv_sec + ns / 1000000000;
@@ -65,7 +64,6 @@ static int relative_deadline(uint64_t ns, struct timespec *out) {
     out->tv_nsec = fraction % 1000000000;
     return out->tv_sec >= 0 && (uint64_t)out->tv_sec == seconds ? SALTS_OK : SALTS_EINVAL;
 }
-#endif
 
 static int init_condition(pthread_cond_t *cond, clockid_t clock) {
     if (clock == CLOCK_REALTIME) return pthread_cond_init(cond, NULL);
@@ -225,7 +223,20 @@ static int wait_condition(platform_condition *c, platform_mutex *m,
     (void)relative;
     if (!due) rc = pthread_cond_wait(&c->native, lock);
 #ifdef __APPLE__
-    else if (relative) rc = pthread_cond_timedwait_relative_np(&c->native, lock, due);
+    else if (relative) {
+        struct timespec now, remaining = {0, 0};
+        if (clock_gettime(CLOCK_MONOTONIC, &now)) abort();
+        if (due->tv_sec > now.tv_sec ||
+            (due->tv_sec == now.tv_sec && due->tv_nsec > now.tv_nsec)) {
+            remaining.tv_sec = due->tv_sec - now.tv_sec;
+            remaining.tv_nsec = due->tv_nsec - now.tv_nsec;
+            if (remaining.tv_nsec < 0) {
+                --remaining.tv_sec;
+                remaining.tv_nsec += 1000000000;
+            }
+        }
+        rc = pthread_cond_timedwait_relative_np(&c->native, lock, &remaining);
+    }
 #endif
     else rc = pthread_cond_timedwait(&c->native, lock, due);
 #if defined(__APPLE__) || defined(NEED_MONOTONIC_CONDITION)
@@ -239,13 +250,9 @@ int platform_condition_wait(platform_condition *c, platform_mutex *m) {
 }
 int platform_condition_timedwait_ns(platform_condition *c, platform_mutex *m, uint64_t ns) {
     if (ns > SALTS_PLATFORM_MAX_RELATIVE_WAIT_NS) return SALTS_EINVAL;
-#ifdef __APPLE__
-    struct timespec due = {(time_t)(ns / 1000000000), (long)(ns % 1000000000)};
-#else
     struct timespec due;
     int rc = relative_deadline(ns, &due);
     if (rc != SALTS_OK) return rc;
-#endif
     return wait_condition(c, m, &due, 1);
 }
 

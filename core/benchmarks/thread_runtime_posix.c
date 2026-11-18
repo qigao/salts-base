@@ -22,6 +22,29 @@ static uint64_t ticks(clockid_t clock) {
     if (clock_gettime(clock, &t)) abort();
     return (uint64_t)t.tv_sec * 1000000000 + t.tv_nsec;
 }
+
+static once_flag slow_once = ONCE_FLAG_INIT;
+static pthread_mutex_t once_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t once_changed = PTHREAD_COND_INITIALIZER;
+static int once_started, waiter_ready, once_value;
+
+static void slow_initializer(void) {
+    if (pthread_mutex_lock(&once_mutex)) abort();
+    once_started = 1;
+    if (pthread_cond_signal(&once_changed)) abort();
+    while (!waiter_ready)
+        if (pthread_cond_wait(&once_changed, &once_mutex)) abort();
+    if (pthread_mutex_unlock(&once_mutex)) abort();
+    struct timespec delay = {0, 50000000};
+    while (nanosleep(&delay, &delay))
+        if (errno != EINTR) abort();
+    once_value = 42;
+}
+static int initialize_once(void *unused) {
+    (void)unused;
+    call_once(&slow_once, slow_initializer);
+    return once_value;
+}
 static struct timespec deadline(void) {
     struct timespec t;
     if (clock_gettime(CLOCK_REALTIME, &t)) abort();
@@ -77,6 +100,22 @@ static void report(struct panel *p, const char *work, uint64_t wall, uint64_t cp
            (double)(ticks(CLOCK_PROCESS_CPUTIME_ID) - cpu) / n);
 }
 spec("POSIX thread runtime comparison") {
+    it("measures waiter CPU time during a long once initializer") {
+        thrd_t owner;
+        if (thrd_create(&owner, initialize_once, NULL)) abort();
+        if (pthread_mutex_lock(&once_mutex)) abort();
+        while (!once_started)
+            if (pthread_cond_wait(&once_changed, &once_mutex)) abort();
+        waiter_ready = 1;
+        uint64_t wall = ticks(CLOCK_MONOTONIC), cpu = ticks(CLOCK_THREAD_CPUTIME_ID);
+        if (pthread_cond_signal(&once_changed) || pthread_mutex_unlock(&once_mutex)) abort();
+        call_once(&slow_once, slow_initializer);
+        cpu = ticks(CLOCK_THREAD_CPUTIME_ID) - cpu;
+        wall = ticks(CLOCK_MONOTONIC) - wall;
+        printf("Salts once-wait wall_ns=%.0f waiter_cpu_ns=%.0f\n", (double)wall, (double)cpu);
+        check_equal(once_value, 42);
+        if (thrd_join(owner, NULL)) abort();
+    }
     it("measures mutex, condition handoff and timed waiting against pthreads") {
         for (int salts = 0; salts <= 1; ++salts) {
             struct panel p = {0};

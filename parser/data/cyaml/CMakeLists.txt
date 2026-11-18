@@ -119,7 +119,7 @@ endif()
 if(BUILD_BENCHMARKS AND NOT WIN32)
   cmake_add_benchmark(benchmark
     SOURCES tests/benchmark.c
-    LIBS ${TARGET_NAME}
+    LIBS ${TARGET_NAME} Salts::Core
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/src
     DEFS CYAML_VERSION_STR="${PROJECT_VERSION}"
     FOLDER "${TARGET_FOLDER}/benchmarks")

@@ -346,6 +346,16 @@ backend if either export is absent. A non-alertable wait on the default keyed
 event matches one release in the same process. An unexpected status after a
 waiter has registered is a broken rendezvous and terminates the process.
 
+The two private `NTAPI` declarations take a null event handle, an aligned
+key, a false alertable flag and an optional signed 100 ns timeout. The
+upstream inventory also includes section, handle, memory and error handling
+imports for mcfgthread's own runtime. Salts needs only the two keyed calls.
+Its private x64 and ARM64 accessors read the SDK's TEB fields for OS-owned
+TLS slots, including the expansion array beyond the first 64. The slot
+owner must keep the index live until every reader has finished.
+[Upstream import inventory](https://github.com/lhmouse/mcfgthread/blob/006e1860d90f0a3a4bfa2bbdbe3f275c627c6a8c/mcfgthread/src/ntdll.def.in)
+and [upstream architecture accessors](https://github.com/lhmouse/mcfgthread/blob/006e1860d90f0a3a4bfa2bbdbe3f275c627c6a8c/mcfgthread/teb.h).
+
 - A mutex stores ownership and the number of registered sleepers in one
   interlocked word. A contender spins briefly while there are no registered
   sleepers, then parks. Unlock publishes availability and pairs with at most
@@ -367,7 +377,9 @@ waiter has registered is a broken rendezvous and terminates the process.
   record. If it commits to parking first, the signaler pairs with it through
   the keyed event. After a kernel wait crosses a Windows clock tick, the
   same thread tries parking directly on its next untimed wait. A short
-  handoff restores polling. Timed waits use their deadline directly. The
+  handoff restores polling. Timed waits share one deadline across acquisition
+  of the registration lock and the kernel wait. A selected waiter must finish
+  the rendezvous before retiring its record. The
   waiter can retract an unselected record on timeout. It reacquires the mutex
   and restores its recursive depth before returning, including after timeout.
 - Once uses the original four-byte flag. The completing thread publishes the
@@ -402,6 +414,38 @@ normal process shutdown.
 The design references are [Windows runtime #17](https://github.com/qigao/salts-base/issues/17),
 [mcfgthread synchronization](https://github.com/lhmouse/mcfgthread), and
 [Microsoft's SRW contract](https://learn.microsoft.com/en-us/windows/win32/sync/slim-reader-writer--srw--locks).
+
+## POSIX C11 thread runtime
+
+C11 timed mutex and condition operations take an absolute UTC deadline. The
+Salts platform duration API measures elapsed monotonic time. Linux uses
+pthread timed mutex and condition operations with the corresponding clock.
+Bionic targets without monotonic timed mutex acquisition use a monotonic
+pthread condition signaled on unlock. Darwin uses a binary dispatch semaphore
+for mutex admission, with dispatch wall time for UTC and dispatch time for
+durations. Its native condition wait takes the remaining monotonic duration.
+On these two paths a short registration lock orders the condition wait with
+notification while the waiter releases the application mutex.
+
+A recursive mutex records its owner and depth. A condition wait releases
+all levels and restores them before returning, including on timeout. A caller
+must recheck its predicate after each wake. An expired condition deadline can
+return later while another thread owns the mutex.
+
+Linux uses `pthread_once` with the existing four-byte flag. Darwin and
+Android use a pthread condition while another thread runs the initializer.
+If that initializer exits, its cleanup handler makes the flag available again.
+POSIX threads use pthread keys for TSS. A detached thread retains its live
+worker reference through return or `thrd_exit`. Synchronize outstanding key
+users and callbacks before releasing their data, and quiesce users before
+destroying synchronization objects.
+
+With `BUILD_BENCHMARKS=ON`, run the Core thread benchmark through CTest
+with `-R threads_benchmark -V`. The POSIX comparison reports elapsed and
+CPU time for mutex acquisition with one and two workers, condition round trips
+and timed waits. The long-initializer benchmark measures the waiting thread's
+CPU time separately. Darwin provides a direct pthread baseline for conditions
+and untimed mutex acquisition.
 
 ## Thread-pool callback identity
 
