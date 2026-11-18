@@ -1,4 +1,3 @@
-
 # =============================================================================
 # Submodules (must be added first so we can link to them)
 # =============================================================================
@@ -15,6 +14,10 @@ set(SALTS_PARSER_TARGETS
   json_cserde_adapter
   xml_parser
   csv_parser
+  tlv_parser
+  ltv_parser
+  modbus_parser
+  soa_parser
   dotenv_parser
   cmd_parser
   toon
@@ -31,8 +34,9 @@ install(
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 # Install the same public header layout exposed by the build targets.
-foreach(_parser IN ITEMS ini_parser json_parser xml_parser csv_parser
-      dotenv_parser cmd_parser toml datetime_parser)
+foreach(_parser IN ITEMS data/ini_parser data/json_parser data/xml_parser data/csv_parser
+      binary/tlv_parser binary/ltv_parser binary/modbus_parser binary/soa_parser
+      utils/dotenv_parser utils/cmd_parser utils/toml utils/datetime_parser)
   install(DIRECTORY "${_parser}/include/"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING PATTERN "*.h")
 endforeach()
