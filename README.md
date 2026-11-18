@@ -465,7 +465,8 @@ destroying synchronization objects.
 With `BUILD_BENCHMARKS=ON`, run the Core thread benchmark through CTest
 with `-R threads_benchmark -V`. The POSIX comparison reports elapsed and
 CPU time for mutex acquisition with one and two workers, condition round trips
-and timed waits. The long-initializer benchmark measures the waiting thread's
+and timed waits. It measures plain and timed-capable C11 mutexes separately.
+The long-initializer benchmark measures the waiting thread's
 CPU time separately. Darwin provides a direct pthread baseline for conditions
 and untimed mutex acquisition.
 

@@ -25,7 +25,7 @@
 #endif
 
 /* These backends lack a pthread mutex timed wait on the required clock. */
-#if defined(__APPLE__) || (defined(__linux__) && defined(NEED_MONOTONIC_CONDITION))
+#if defined(__APPLE__) || (defined(__ANDROID__) && defined(NEED_MONOTONIC_CONDITION))
 #define USE_NATIVE_PERMIT 1
 #undef NEED_MONOTONIC_CONDITION
 #include "condition_permit_posix.h"
@@ -142,8 +142,8 @@ int platform_mutex_timedlock_ns(platform_mutex *m, uint64_t ns) {
 #else
     if (!ns) return mutex_result(pthread_mutex_trylock(&m->native));
 #ifdef NEED_MONOTONIC_CONDITION
-    /* Bionic before API 28 and libcs without mutex clock selection.
-     * admission serializes registration with unlock, never user code. */
+    /* Libcs without mutex clock selection use admission to serialize
+     * registration with unlock. No caller code runs with admission held. */
     rc = pthread_mutex_trylock(&m->native);
     if (rc != EBUSY) return mutex_result(rc);
     if (pthread_mutex_lock(&m->admission)) return SALTS_EINVAL;

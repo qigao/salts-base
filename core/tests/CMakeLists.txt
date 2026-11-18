@@ -446,7 +446,7 @@ if(SALTS_TEST_GCC)
   else()
     set(gcc_provider_os posix)
     set(gcc_provider_flags -D_DEFAULT_SOURCE=1 -D_POSIX_C_SOURCE=200809L -pthread)
-    if(APPLE OR CMAKE_SYSTEM_NAME MATCHES "^(Linux|Android)$")
+    if(APPLE OR ANDROID)
       list(APPEND gcc_provider_sources
         "${CMAKE_CURRENT_SOURCE_DIR}/../src/threads/condition_permit_posix.c")
     endif()

@@ -7,8 +7,9 @@
 #include <time.h>
 
 enum { LOCK_ROUNDS = 100000, TRIPS = 8192, TIMEOUTS = 32 };
+enum provider { PTHREAD, SALTS_TIMED, SALTS_PLAIN };
 struct panel {
-    int salts;
+    enum provider salts;
     mtx_t mutex;
     cnd_t cond;
     pthread_mutex_t native;
@@ -95,7 +96,8 @@ static int timed_worker(void *arg) {
     return 0;
 }
 static void report(struct panel *p, const char *work, uint64_t wall, uint64_t cpu, unsigned n) {
-    printf("%s %s n=%u wall_ns/op=%.1f cpu_ns/op=%.1f\n", p->salts ? "Salts" : "pthread",
+    static const char *const names[] = {"pthread", "Salts-timed", "Salts-plain"};
+    printf("%s %s n=%u wall_ns/op=%.1f cpu_ns/op=%.1f\n", names[p->salts],
            work, n, (double)(ticks(CLOCK_MONOTONIC) - wall) / n,
            (double)(ticks(CLOCK_PROCESS_CPUTIME_ID) - cpu) / n);
 }
@@ -117,11 +119,11 @@ spec("POSIX thread runtime comparison") {
         if (thrd_join(owner, NULL)) abort();
     }
     it("measures mutex, condition handoff and timed waiting against pthreads") {
-        for (int salts = 0; salts <= 1; ++salts) {
+        for (enum provider salts = PTHREAD; salts <= SALTS_PLAIN; ++salts) {
             struct panel p = {0};
             p.salts = salts;
             thrd_t worker;
-            if (mtx_init(&p.mutex, mtx_timed) || cnd_init(&p.cond) ||
+            if (mtx_init(&p.mutex, salts == SALTS_TIMED ? mtx_timed : mtx_plain) || cnd_init(&p.cond) ||
                 pthread_mutex_init(&p.native, NULL) || pthread_cond_init(&p.changed, NULL)) abort();
             for (unsigned n = 1; n <= 2; ++n) {
                 p.operations = 0;
@@ -149,10 +151,13 @@ spec("POSIX thread runtime comparison") {
                 if (rc != (salts ? thrd_timedout : ETIMEDOUT)) abort();
             }
             report(&p, "condition-timeout", wall, cpu, TIMEOUTS);
-#ifdef __APPLE__
-            if (salts) /* Darwin has no direct pthread_mutex_timedlock. */
+            /* A plain C11 mutex has no timed-lock operation. Darwin also
+             * has no pthread timed mutex baseline. */
+            if (salts == SALTS_TIMED
+#ifndef __APPLE__
+                || salts == PTHREAD
 #endif
-            {
+            ) {
                 wall = ticks(CLOCK_MONOTONIC); cpu = ticks(CLOCK_PROCESS_CPUTIME_ID);
                 if (thrd_create(&worker, timed_worker, &p) || thrd_join(worker, NULL)) abort();
                 report(&p, "mutex-timeout", wall, cpu, TIMEOUTS);
