@@ -10,5 +10,8 @@
 int thrd_sleep_native(uint64_t seconds, uint32_t nanos,
                            uint64_t *remaining_seconds, uint32_t *remaining_nanos);
 void tss_cleanup_current(void);
+#if defined(_WIN32) && defined(SALTS_CORE_BUILD)
+extern platform_tss *c11_exit_key;
+#endif
 
 #endif

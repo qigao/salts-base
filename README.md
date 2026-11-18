@@ -335,6 +335,74 @@ SaltsBase is licensed under [Apache License 2.0](LICENSE).
 Bundled third-party components retain their upstream licenses; dependency
 licenses are also installed with the SDK.
 
+## Windows thread runtime
+
+Core owns the Windows implementation of the C11 mutex, condition and once
+operations and their Salts synchronization counterparts. The installed C and
+C++ object layouts and the UTC seconds/nanoseconds ABI stay compatible. The
+Windows backend resolves `NtWaitForKeyedEvent` and `NtReleaseKeyedEvent` from
+ntdll once. Both operations are required. Initialization reports an unsupported
+backend if either export is absent. A non-alertable wait on the default keyed
+event matches one release in the same process. An unexpected status after a
+waiter has registered is a broken rendezvous and terminates the process.
+
+- A mutex stores ownership and the number of registered sleepers in one
+  interlocked word. A contender spins briefly while there are no registered
+  sleepers, then parks. Unlock publishes availability and pairs with at most
+  one sleeper. An awakened thread competes for the lock. This permits barging
+  and gives no FIFO or starvation bound. Shared/exclusive `sync_rwlock_*`
+  continues to use the Windows SRW policy, which also has no writer fairness
+  guarantee.
+- A timed mutex uses the original deadline across retries, registration and
+  kernel waits. It needs no blocking admission guard. UTC deadlines and the
+  private monotonic duration API retain separate clock semantics. On timeout
+  the waiter removes its own registration without waiting for a releaser.
+  If release precedes kernel registration, the releaser makes finite wake
+  offers while the mutex is free and registered sleepers remain.
+- A condition waiter lends one aligned stack record to its condition's FIFO
+  before releasing the associated mutex. Signal selects the first registered
+  waiter. Broadcast selects the current queue under the same lock. Each
+  selection publishes one notification to that waiter. On an untimed wait,
+  the thread can yield once to a runnable peer and briefly poll its stack
+  record. If it commits to parking first, the signaler pairs with it through
+  the keyed event. After a kernel wait crosses a Windows clock tick, the
+  same thread tries parking directly on its next untimed wait. A short
+  handoff restores polling. Timed waits use their deadline directly. The
+  waiter can retract an unselected record on timeout. It reacquires the mutex
+  and restores its recursive depth before returning, including after timeout.
+- Once uses the original four-byte flag. The completing thread publishes the
+  callback's writes before releasing the registered callers. The initializing
+  callback must return for waiting callers to proceed.
+- The x64 and ARM64 private TEB accessors support thread identity and reads
+  from an OS-allocated TLS slot. The benchmark compares both operations
+  with compiler TLS and compares pointer reads with TLS and FLS. Thread
+  identity and writable state use compiler TLS by default. Public TSS
+  retains its FLS exit hook and bounded destructor
+  passes. After all participating threads and callbacks have finished, an
+  explicit DLL unload releases the native hook. Join or otherwise establish
+  quiescence before destroying objects or unloading Core. Asynchronous
+  termination of a thread inside a wait cannot complete its rendezvous.
+
+The existing Core CTests exercise recursive reacquisition, timed contention,
+once publication, signal and broadcast, foreign threads, and repeated DLL
+loads. With `BUILD_BENCHMARKS=ON`, run `ctest --preset <windows-preset>
+-R saltscore.win_threads_benchmark -V` for acquisition latency percentiles,
+throughput, process CPU time, context switches, failed first attempts, and
+the least/most successful worker ratio. The workload uses one, two and eight
+workers on at most two logical processors. It pools bounded per-worker latency
+samples. The condition benchmark restricts both threads to one and then two
+available logical processors. It reports single-exchange latency, the interval
+between successive requests under the mutex (one full round trip), and CPU
+cycles per trip. A delayed responder exercises the cost of parking. SRW and,
+on pthread-enabled toolchains, direct pthread calls use the same critical
+section for the immediate-response comparison. To roll back the Windows
+implementation, rebuild Core from the preceding revision and replace it after
+normal process shutdown.
+
+The design references are [Windows runtime #17](https://github.com/qigao/salts-base/issues/17),
+[mcfgthread synchronization](https://github.com/lhmouse/mcfgthread), and
+[Microsoft's SRW contract](https://learn.microsoft.com/en-us/windows/win32/sync/slim-reader-writer--srw--locks).
+
 ## Thread-pool callback identity
 
 `<threads/thread_pool.h>` exposes `threadpool_is_current(pool)` for consumers

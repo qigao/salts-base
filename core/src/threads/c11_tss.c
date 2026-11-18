@@ -25,7 +25,9 @@ struct c11_tss_state {
 };
 static atomic32 key_count = {0};
 static platform_once exit_key_once = SALTS_PLATFORM_ONCE_INIT;
-static platform_tss *exit_key;
+#if !defined(_WIN32) || !defined(SALTS_CORE_BUILD)
+static platform_tss *c11_exit_key;
+#endif
 static int exit_key_status;
 static SALTS_THREAD_LOCAL struct c11_tss_state *current_state;
 
@@ -100,7 +102,7 @@ static void cleanup_state(void *opaque) {
     free(state);
 }
 static void create_exit_key(void) {
-    exit_key_status = platform_tss_create(&exit_key, cleanup_state);
+    exit_key_status = platform_tss_create(&c11_exit_key, cleanup_state);
 }
 static struct c11_tss_state *get_state(void) {
     struct c11_tss_state *state;
@@ -109,7 +111,7 @@ static struct c11_tss_state *get_state(void) {
         exit_key_status != SALTS_OK) return NULL;
     state = (struct c11_tss_state *)calloc(1u, sizeof(*state));
     if (!state) return NULL;
-    if (platform_tss_set(exit_key, state) != SALTS_OK) {
+    if (platform_tss_set(c11_exit_key, state) != SALTS_OK) {
         free(state);
         return NULL;
     }
@@ -122,7 +124,7 @@ void tss_cleanup_current(void) {
     /* Remove the native exit registration before running callbacks, avoiding
      * a second cleanup after C11 thrd_exit or normal callback return.
      */
-    if (platform_tss_set(exit_key, NULL) != SALTS_OK) abort();
+    if (platform_tss_set(c11_exit_key, NULL) != SALTS_OK) abort();
     cleanup_state(state);
 }
 int tss_create(tss_t *out, tss_dtor_t destructor) {

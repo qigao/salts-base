@@ -1,4 +1,5 @@
 #include "thread_backend.h"
+#ifndef _WIN32
 
 /* No implicit OS atomics in the client; a single C ABI owns the transition.
  * A recursive callback on the same flag would deadlock and is prohibited.
@@ -23,3 +24,4 @@ int platform_call_once(platform_once *flag,
         platform_thread_yield();
     }
 }
+#endif

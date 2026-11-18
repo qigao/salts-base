@@ -352,7 +352,16 @@ add_test(NAME saltscore.portable_timed_mutex COMMAND saltscore_portable_timed_mu
 # Select the Salts C11 threads implementation for this standard API suite.
 cmake_add_executable(saltscore_c11_threads_test SOURCES test_c11_threads.c
   FOLDER "core/tests")
-if(UNIX)
+if(WIN32)
+  target_sources(saltscore_c11_threads_test PRIVATE test_native_threads_win.c)
+  cmake_add_test(saltscore_thread_unload_test SOURCES test_thread_unload_win.c
+    LIBS Salts::TinyTest INCLUDES "${PROJECT_SOURCE_DIR}/core/include"
+    FOLDER "core/tests")
+  target_compile_definitions(saltscore_thread_unload_test PRIVATE
+    "SALTS_TEST_CORE_DLL=L\"$<TARGET_FILE:salts>\"")
+  add_dependencies(saltscore_thread_unload_test salts)
+  set_tests_properties(saltscore_thread_unload_test PROPERTIES TIMEOUT 45)
+elseif(UNIX)
   target_sources(saltscore_c11_threads_test PRIVATE test_c11_sleep_posix.c)
 endif()
 set_target_properties(saltscore_c11_threads_test PROPERTIES C_EXTENSIONS OFF)
@@ -427,6 +436,9 @@ if(SALTS_TEST_GCC)
   if(WIN32)
     set(gcc_provider_os win)
     set(gcc_provider_flags -D_WIN32_WINNT=0x0601)
+    list(APPEND gcc_provider_sources
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/threads/nt_wait_win.c"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/threads/native_sync_win.c")
   else()
     set(gcc_provider_os posix)
     set(gcc_provider_flags -D_DEFAULT_SOURCE=1 -D_POSIX_C_SOURCE=200809L -pthread)

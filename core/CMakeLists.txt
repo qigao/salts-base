@@ -26,6 +26,20 @@ cmake_add_source(core_public_headers RECURSE DIRS include PATTERNS "*.h")
 cmake_add_source(core_private_headers RECURSE DIRS src PATTERNS "*.h")
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
   FILES ${core_sources} ${core_public_headers} ${core_private_headers})
+if(WIN32)
+  # WINDOWS_EXPORT_ALL_SYMBOLS preserves legacy Core exports. Put the NT
+  # machinery in an archive so only its explicit SALTS_API operations export.
+  set(nt_runtime_sources
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/threads/nt_wait_win.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/threads/native_sync_win.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/threads/thread_module_win.c")
+  list(REMOVE_ITEM core_sources ${nt_runtime_sources})
+  add_library(salts_nt_runtime STATIC ${nt_runtime_sources})
+  set_target_properties(salts_nt_runtime PROPERTIES C_EXTENSIONS OFF FOLDER "core")
+  target_include_directories(salts_nt_runtime PRIVATE include)
+  target_compile_definitions(salts_nt_runtime PRIVATE SALTS_CORE_BUILD=1
+    WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601)
+endif()
 add_library(salts SHARED ${core_sources} ${core_public_headers} ${core_private_headers})
 cmake_config_target(salts ALIAS Salts::Core FOLDER "core"
   EXPORT_NAME Core)
@@ -49,7 +63,7 @@ if(MSVC)
 endif()
 if(WIN32)
   target_compile_definitions(salts PRIVATE WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0601)
-  target_link_libraries(salts PRIVATE bcrypt iphlpapi ws2_32)
+  target_link_libraries(salts PRIVATE salts_nt_runtime bcrypt iphlpapi ws2_32)
 elseif(APPLE)
   target_compile_definitions(salts PRIVATE
     _DARWIN_C_SOURCE=1)
