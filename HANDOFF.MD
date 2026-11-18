@@ -7,6 +7,18 @@ graph from this tree. The Windows ARM64 CI lane runs native executables and
 CTest on `windows-11-arm`. The earlier local results below describe the base
 revision and successive handoff experiments.
 
+- To run the Android thread CTests on a device, enable `BUILD_TESTS` in a
+  verification checkout of the matching CI preset. Set
+  `CMAKE_CROSSCOMPILING_EMULATOR` to an adb runner that stages the target
+  executable, runs it with its matching `libsalts.so` and propagates the
+  remote exit status. On the API 35 x86_64 image, the ARM64 native bridge
+  reported a missing `libsalts.so` even with the device directory in
+  `LD_LIBRARY_PATH`. Linking the verification executables with
+  `-Wl,--enable-new-dtags,-rpath,<device-directory>` let the translated
+  linker resolve the same staged library. Keep that device path local to
+  verification. The seven Core thread and atomic CTests each passed three
+  times on API 26 x86_64, API 35 x86_64 and API 35 translated ARM64.
+
 - If only Linux TSan times out in the C11 initializer-exit case, inspect its
   `pthread_once` interceptor. Clang 18 marks completion after the callback
   returns and leaves the flag running on `pthread_exit`. The instrumented
