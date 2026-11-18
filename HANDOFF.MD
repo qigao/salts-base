@@ -7,6 +7,14 @@ graph from this tree. The Windows ARM64 CI lane runs native executables and
 CTest on `windows-11-arm`. The earlier local results below describe the base
 revision and successive handoff experiments.
 
+- If only Linux TSan times out in the C11 initializer-exit case, inspect its
+  `pthread_once` interceptor. Clang 18 marks completion after the callback
+  returns and leaves the flag running on `pthread_exit`. The instrumented
+  build uses the same cleanup-aware pthread monitor as Android and Darwin.
+  Run the normal C11 facade CTest in the existing TSan preset to exercise
+  the exiting caller and all subsequent callers.
+  [compiler-rt interceptor](https://github.com/llvm/llvm-project/blob/llvmorg-18.1.8/compiler-rt/lib/tsan/rtl/tsan_interceptors_posix.cpp).
+
 - On Darwin a timed mutex behind a held lock can hang if an expired C11
   deadline at epoch zero is passed to `dispatch_walltime`. Epoch nanoseconds
   zero and one map to the forever sentinel. Use an immediate acquire for those

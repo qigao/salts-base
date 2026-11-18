@@ -440,8 +440,10 @@ all levels and restores them before returning, including on timeout. A caller
 must recheck its predicate after each wake. An expired condition deadline can
 return later while another thread owns the mutex.
 
-Linux uses `pthread_once` with the existing four-byte flag. Darwin and
-Android use a pthread condition while another thread runs the initializer.
+Linux uses `pthread_once` with the existing four-byte flag. Darwin, Android
+and ThreadSanitizer builds use a pthread condition while another thread runs
+the initializer. The TSan interceptor publishes its once flag only when
+the initializer returns.
 If that initializer exits, its cleanup handler makes the flag available again.
 POSIX threads use pthread keys for TSS. A detached thread retains its live
 worker reference through return or `thrd_exit`. Synchronize outstanding key
