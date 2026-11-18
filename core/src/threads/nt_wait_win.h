@@ -23,6 +23,11 @@ BOOL win_expired(const win_deadline *deadline);
 int win_call_once(volatile LONG *state, void (*callback)(void));
 
 struct platform_mutex { volatile LONG state; };
+struct win_waiter;
+struct condition_state {
+    platform_mutex guard;
+    struct win_waiter *first, *last;
+};
 int win_mutex_acquire(platform_mutex *mutex, const win_deadline *deadline);
 int win_condition_wait(platform_condition *condition, platform_mutex *mutex,
                        const win_deadline *deadline);

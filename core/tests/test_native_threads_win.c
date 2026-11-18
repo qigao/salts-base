@@ -2,6 +2,7 @@
 #include "thread_backend.h"
 #include "thread_tls_win.h"
 #include "nt_keyed_api_win.h"
+#include "nt_wait_win.h"
 #include <stdlib.h>
 #include <string.h>
 #define TINYTEST_NO_MAIN
@@ -104,7 +105,41 @@ static struct timespec after_ms(unsigned ms) {
     ts.tv_nsec = (long)(ticks.QuadPart % 10000000) * 100;
     return ts;
 }
+struct admission_wait {
+    mtx_t mutex;
+    cnd_t condition;
+    HANDLE done;
+    int result;
+};
+static int wait_during_admission(void *opaque) {
+    struct admission_wait *s = opaque;
+    if (mtx_lock(&s->mutex) || mtx_lock(&s->mutex)) return 1;
+    struct timespec due = after_ms(10);
+    s->result = cnd_timedwait(&s->condition, &s->mutex, &due);
+    if (mtx_unlock(&s->mutex) || mtx_unlock(&s->mutex)) return 2;
+    return SetEvent(s->done) ? 0 : 3;
+}
 spec("Windows condition timeout") {
+    it("expires while another thread still owns the admission guard") {
+        struct admission_wait s = {0};
+        thrd_t worker;
+        int result;
+        s.done = CreateEventW(NULL, FALSE, FALSE, NULL);
+        check(s.done != NULL);
+        check_equal(mtx_init(&s.mutex, mtx_recursive), thrd_success);
+        check_equal(cnd_init(&s.condition), thrd_success);
+        check_equal(platform_mutex_lock(&s.condition.owner->guard), SALTS_OK);
+        check_equal(thrd_create(&worker, wait_during_admission, &s), thrd_success);
+        DWORD completed = WaitForSingleObject(s.done, 3000);
+        check_equal(platform_mutex_unlock(&s.condition.owner->guard), SALTS_OK);
+        check_equal(thrd_join(worker, &result), thrd_success);
+        cnd_destroy(&s.condition);
+        mtx_destroy(&s.mutex);
+        CloseHandle(s.done);
+        check_equal(completed, (DWORD)WAIT_OBJECT_0);
+        check_equal(result, 0);
+        check_equal(s.result, thrd_timedout);
+    }
     it("returns with both recursive levels restored after another holder releases") {
         struct timed_wait s = {0};
         thrd_t holder;
@@ -202,6 +237,12 @@ static FARPROC WINAPI omit_export(HMODULE module, LPCSTR name) {
     return strcmp(name, missing) ? GetProcAddress(module, name) : NULL;
 }
 spec("Windows NT capability admission") {
+    it("distinguishes an NT timeout from unexpected success and failure statuses") {
+        check_equal(win_keyed_status(0), SALTS_OK);
+        check_equal(win_keyed_status(0x102), SALTS_ETIMEDOUT);
+        check_equal(win_keyed_status(0x101), SALTS_EIO);
+        check_equal(win_keyed_status((LONG)0xc000000d), SALTS_EIO);
+    }
     it("requires both keyed operations before publishing either pointer") {
         win_keyed_api api = {0};
         HMODULE module = GetModuleHandleW(L"ntdll.dll");

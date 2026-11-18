@@ -6,7 +6,11 @@
 /* Windows 7+ provides a process-default keyed event for a NULL handle.
  * Non-alertable waits have exactly two expected results, success and timeout.
  * A registered rendezvous cannot be abandoned after an unexpected NT error. */
-enum { NT_WAIT_TIMEOUT = 0x102 };
+static int checked_wait_result(LONG status) {
+    int rc = win_keyed_status(status);
+    if (rc == SALTS_EIO) abort();
+    return rc;
+}
 static INIT_ONCE initialized = INIT_ONCE_STATIC_INIT;
 static win_keyed_api keyed;
 static int init_status;
@@ -76,9 +80,7 @@ int win_wait_key(void *key, const win_deadline *limit) {
     do {
         status = keyed.wait(NULL, key, FALSE, limit ? &due : NULL);
     } while (status == NT_WAIT_TIMEOUT && limit && limit->clock == WIN_BEYOND_NT_UTC);
-    if (status == 0) return SALTS_OK;
-    if (status == NT_WAIT_TIMEOUT) return SALTS_ETIMEDOUT;
-    abort();
+    return checked_wait_result(status);
 }
 void win_release_key(void *key) {
     if (keyed.release(NULL, key, FALSE, NULL) != 0) abort();
@@ -90,9 +92,7 @@ int win_offer_mutex_wake(void *key, BOOL allow_wait) {
     const LONG ticks_per_millisecond = 10000;
     interval.QuadPart = allow_wait ? -ticks_per_millisecond : 0;
     LONG status = keyed.release(NULL, key, FALSE, &interval);
-    if (!status) return SALTS_OK;
-    if (status == NT_WAIT_TIMEOUT) return SALTS_ETIMEDOUT;
-    abort();
+    return checked_wait_result(status);
 }
 
 /* Both public once layouts have a single aligned 32-bit state. An entrant

@@ -3,9 +3,9 @@
 #include <pthread.h>
 #include <stdlib.h>
 
-#if defined(__linux__)
-/* Linux and Bionic use the same zero-initialized int as the published
- * four-byte once flag. Darwin's pthread_once_t has a different ABI. */
+#if defined(__linux__) && !defined(__ANDROID__)
+/* Linux uses the same zero-initialized int as the published
+ * four-byte once flag. Darwin has a larger once object and Bionic does not reset an exited initializer. */
 _Static_assert(sizeof(pthread_once_t) == sizeof(platform_once), "pthread_once ABI");
 _Static_assert(_Alignof(pthread_once_t) == _Alignof(platform_once), "pthread_once alignment");
 int platform_call_once(platform_once *flag, platform_once_fn callback) {

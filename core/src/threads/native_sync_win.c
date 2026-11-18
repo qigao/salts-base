@@ -141,10 +141,6 @@ static void notify_waiter(struct win_waiter *w) {
     if (InterlockedExchange(&w->park_state, WAITER_NOTIFIED) == WAITER_PARKING)
         win_release_key(w);
 }
-struct condition_state {
-    SRWLOCK guard;
-    struct win_waiter *first, *last;
-};
 static void unlink_waiter(platform_condition *c, struct win_waiter *w) {
     if (w->prev) w->prev->next = w->next;
     else c->first = w->next;
@@ -158,27 +154,31 @@ int platform_condition_create(platform_condition **out) {
     if (rc != SALTS_OK) return rc;
     *out = calloc(1, sizeof(**out));
     if (!*out) return SALTS_ENOMEM;
-    InitializeSRWLock(&(*out)->guard);
     return SALTS_OK;
 }
 int win_condition_wait(platform_condition *c, platform_mutex *m,
                        const win_deadline *limit) {
     struct win_waiter waiter = {0};
     int rc;
-    AcquireSRWLockExclusive(&c->guard);
+    rc = win_mutex_acquire(&c->guard, limit);
+    if (rc != SALTS_OK) {
+        /* Even an admission timeout releases and reacquires the caller mutex. */
+        if (platform_mutex_unlock(m) || platform_mutex_lock(m)) abort();
+        return rc;
+    }
     waiter.prev = c->last;
     if (c->last) c->last->next = &waiter;
     else c->first = &waiter;
     c->last = &waiter;
-    ReleaseSRWLockExclusive(&c->guard);
+    if (platform_mutex_unlock(&c->guard) != SALTS_OK) abort();
     platform_mutex_unlock(m);
     rc = wait_for_notification(&waiter, limit);
     if (rc == SALTS_ETIMEDOUT) {
         BOOL selected;
-        AcquireSRWLockExclusive(&c->guard);
+        if (platform_mutex_lock(&c->guard) != SALTS_OK) abort();
         selected = waiter.selected;
         if (!selected) unlink_waiter(c, &waiter);
-        ReleaseSRWLockExclusive(&c->guard);
+        if (platform_mutex_unlock(&c->guard) != SALTS_OK) abort();
         /* The signaler owns exactly one release for this stack address.
          * Complete the handshake before the address can be reused. */
         if (selected) rc = win_wait_key(&waiter, NULL);
@@ -198,24 +198,24 @@ int platform_condition_timedwait_ns(platform_condition *c, platform_mutex *m, ui
 int platform_condition_signal(platform_condition *c) {
     struct win_waiter *w;
     if (!c) return SALTS_EINVAL;
-    AcquireSRWLockExclusive(&c->guard);
+    if (platform_mutex_lock(&c->guard) != SALTS_OK) abort();
     w = c->first;
     if (w) {
         unlink_waiter(c, w);
         w->selected = TRUE;
     }
-    ReleaseSRWLockExclusive(&c->guard);
+    if (platform_mutex_unlock(&c->guard) != SALTS_OK) abort();
     if (w) notify_waiter(w);
     return SALTS_OK;
 }
 int platform_condition_broadcast(platform_condition *c) {
     struct win_waiter *w, *first;
     if (!c) return SALTS_EINVAL;
-    AcquireSRWLockExclusive(&c->guard);
+    if (platform_mutex_lock(&c->guard) != SALTS_OK) abort();
     first = c->first;
     c->first = c->last = NULL;
     for (w = first; w; w = w->next) w->selected = TRUE;
-    ReleaseSRWLockExclusive(&c->guard);
+    if (platform_mutex_unlock(&c->guard) != SALTS_OK) abort();
     while (first) {
         w = first;
         first = first->next;

@@ -253,6 +253,7 @@ jobs:
         shell: pwsh
     env:
       CI_PRESET: ci-${{ matrix.profile }}
+      THREAD_BENCHMARK: ${{ matrix.id == 'linux-gcc-x64' || matrix.id == 'macos-clang-arm64' || startsWith(matrix.id, 'windows-llvm-mingw-') }}
       VCPKG_TARGET_TRIPLET: ${{ matrix.triplet }}
       QIGAO_PREPARED_INPUTS: ${{ github.workspace }}/build/ci-inputs
 
@@ -368,6 +369,7 @@ jobs:
           CI_PYTHON: ${{ steps.python.outputs.python-path }}
         run: |
           $arguments = @('--preset', $env:CI_PRESET, "-DPython3_EXECUTABLE=$env:CI_PYTHON")
+          if ($env:THREAD_BENCHMARK -eq 'true') { $arguments += '-DBUILD_BENCHMARKS=ON' }
           if ($IsWindows -and $env:CI_PRESET -ne 'ci-llvm-mingw-arm64-release-user') {
             & cmake/WithVs.cmd cmake @arguments
           } else {
@@ -389,11 +391,17 @@ jobs:
         run: |
           $report = [IO.Path]::GetFullPath("build/$env:CI_PRESET/ctest.xml")
           if ($IsWindows -and $env:CI_PRESET -ne 'ci-llvm-mingw-arm64-release-user') {
-            & cmake/WithVs.cmd ctest --preset $env:CI_PRESET --output-junit $report
+            & cmake/WithVs.cmd ctest --preset $env:CI_PRESET -LE benchmark --output-junit $report
           } else {
-            & ctest --preset $env:CI_PRESET --output-junit $report
+            & ctest --preset $env:CI_PRESET -LE benchmark --output-junit $report
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Measure native thread handoff
+        if: env.THREAD_BENCHMARK == 'true'
+        run: |
+          ctest --preset $env:CI_PRESET -R '^saltscore[.](win|posix)_threads_benchmark$' --no-tests=error -V
+          exit $LASTEXITCODE
 
       - name: Install SDK
         run: |
