@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include <threads/threads.h>
+#include <errno.h>
 #include <pthread.h>
 #include <time.h>
 #define TINYTEST_NO_MAIN
@@ -77,7 +78,50 @@ static void *foreign_start(void *arg) {
     return NULL;
 }
 
+#ifdef __APPLE__
+struct far_deadline {
+    mtx_t mutex;
+    pthread_mutex_t guard;
+    pthread_cond_t changed;
+    int started;
+};
+static int wait_past_dispatch_range(void *arg) {
+    struct far_deadline *p = arg;
+    /* Negating this epoch value would encode two continuous-clock ticks. */
+    const struct timespec due = {9223372036LL, 854775806};
+    if (pthread_mutex_lock(&p->guard)) abort();
+    p->started = 1;
+    if (pthread_cond_signal(&p->changed) || pthread_mutex_unlock(&p->guard)) abort();
+    int rc = mtx_timedlock(&p->mutex, &due);
+    if (rc == thrd_success && mtx_unlock(&p->mutex)) abort();
+    return rc;
+}
+#endif
+
 spec("POSIX C11 blocking primitives") {
+#ifdef __APPLE__
+    it("admits an unlock with a UTC deadline beyond the dispatch clock range") {
+        struct far_deadline p = {0};
+        thrd_t worker;
+        int result;
+        check_equal(mtx_init(&p.mutex, mtx_timed), thrd_success);
+        check_equal(pthread_mutex_init(&p.guard, NULL), 0);
+        check_equal(pthread_cond_init(&p.changed, NULL), 0);
+        check_equal(mtx_lock(&p.mutex), thrd_success);
+        check_equal(pthread_mutex_lock(&p.guard), 0);
+        check_equal(thrd_create(&worker, wait_past_dispatch_range, &p), thrd_success);
+        while (!p.started) check_equal(pthread_cond_wait(&p.changed, &p.guard), 0);
+        check_equal(pthread_mutex_unlock(&p.guard), 0);
+        struct timespec delay = {0, 10000000};
+        while (nanosleep(&delay, &delay)) if (errno != EINTR) abort();
+        check_equal(mtx_unlock(&p.mutex), thrd_success);
+        check_equal(thrd_join(worker, &result), thrd_success);
+        check_equal(result, thrd_success);
+        check_equal(pthread_cond_destroy(&p.changed), 0);
+        check_equal(pthread_mutex_destroy(&p.guard), 0);
+        mtx_destroy(&p.mutex);
+    }
+#endif
     it("allows another caller to finish once after the first initializer exits") {
         thrd_t first, rest[4];
         int result;

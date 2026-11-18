@@ -311,7 +311,9 @@ static int lock_walltime(dispatch_semaphore_t permit, const struct timespec *due
      * Preserve the single immediate acquisition attempt for expired dates. */
     if (due->tv_sec == 0 && due->tv_nsec <= 1)
         return dispatch_semaphore_wait(permit, DISPATCH_TIME_NOW) ? SALTS_ETIMEDOUT : SALTS_OK;
-    if (due->tv_sec <= (INT64_MAX - due->tv_nsec) / 1000000000) {
+    /* libdispatch reserves the top two bits for clock selection. */
+    const int64_t max_wall_ns = (INT64_C(1) << 62) - 1;
+    if (due->tv_sec <= (max_wall_ns - due->tv_nsec) / 1000000000) {
         return dispatch_semaphore_wait(permit, dispatch_walltime(due, 0))
             ? SALTS_ETIMEDOUT : SALTS_OK;
     }

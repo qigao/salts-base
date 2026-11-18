@@ -1,4 +1,30 @@
-# Windows thread runtime verification on 8cb71f1
+# Native thread runtime verification
+
+## Hosted validation and deadline edge cases
+
+The parser registration fix in PR #23 lets the normal presets build the full
+graph from this tree. The Windows ARM64 CI lane runs native executables and
+CTest on `windows-11-arm`. The earlier local results below describe the base
+revision and successive handoff experiments.
+
+- On Darwin a timed mutex behind a held lock can hang if an expired C11
+  deadline at epoch zero is passed to `dispatch_walltime`. Epoch nanoseconds
+  zero and one map to the forever sentinel. Use an immediate acquire for those
+  dates. Wall times also have a 62-bit nanosecond limit. A larger date can
+  decode as the continuous clock. For such dates the mutex sleeps on its
+  semaphore with a finite timeout and rechecks UTC on expiration. The C11
+  threads CTest covers expiry and a contended year-2262 deadline, and the
+  portable timed mutex CTest covers monotonic durations.
+  [libdispatch time encoding](https://github.com/apple-oss-distributions/libdispatch/blob/main/src/shims/time.h)
+  and [wall-time conversion](https://github.com/apple-oss-distributions/libdispatch/blob/main/src/time.c).
+- A timed Windows mutex waiter that receives the only successful keyed wake
+  must attempt ownership before checking the clock again. Otherwise the lock
+  can remain free while a second waiter sleeps indefinitely. Exercise a timed
+  and an untimed contender on the same held mutex in
+  `saltscore.c11_threads_facade`. The queue guard and user mutex use the same
+  acquisition protocol.
+
+## Windows thread runtime verification on 8cb71f1
 
 - The original tree fails configure in `parser/utils` at the missing
   `ini_parser` directory and in `parser/data` at the missing
