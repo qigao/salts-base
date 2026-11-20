@@ -195,6 +195,12 @@ jobs:
             profile: msvc-release-user
             triplet: x64-windows
             test: true
+          - id: windows-msvc-arm64
+            runner: windows-11-arm
+            profile: msvc-arm64-release-user
+            triplet: arm64-windows
+            python_arch: x64
+            test: true
           - id: windows-llvm-mingw-x64
             runner: windows-2025
             profile: llvm-mingw-x64-release-user
@@ -253,7 +259,7 @@ jobs:
         shell: pwsh
     env:
       CI_PRESET: ci-${{ matrix.profile }}
-      THREAD_BENCHMARK: ${{ matrix.id == 'linux-gcc-x64' || matrix.id == 'macos-clang-arm64' || startsWith(matrix.id, 'windows-llvm-mingw-') }}
+      THREAD_BENCHMARK: ${{ matrix.id == 'linux-gcc-x64' || matrix.id == 'macos-clang-arm64' || matrix.id == 'windows-msvc-arm64' || startsWith(matrix.id, 'windows-llvm-mingw-') }}
       VCPKG_TARGET_TRIPLET: ${{ matrix.triplet }}
       QIGAO_PREPARED_INPUTS: ${{ github.workspace }}/build/ci-inputs
 
@@ -320,10 +326,13 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-          $installation = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $arch = $env:RUNNER_ARCH.ToLowerInvariant()
+          $component = if ($arch -eq 'arm64') { 'ARM64' } else { 'x86.x64' }
+          $installation = & $vswhere -latest -products '*' -requires "Microsoft.VisualStudio.Component.VC.Tools.$component" -property installationPath
           if ($LASTEXITCODE -ne 0 -or -not $installation) { throw 'Visual Studio C++ tools were not found.' }
           $devcmd = Join-Path $installation 'Common7/Tools/VsDevCmd.bat'
           "VSDEVCMD_BAT=$($devcmd.Replace('\', '/'))" >> $env:GITHUB_ENV
+          "SALTS_VS_ARCH=$arch" >> $env:GITHUB_ENV
 
       # Use the release's compiler archive lock and safe extractor directly.
       # The compiler-setup action also generates toolchain files, which are unused here.
