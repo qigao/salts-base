@@ -116,6 +116,9 @@ void darwin_mutex_test_hook(darwin_mutex *m, enum darwin_mutex_test_phase phase)
     if (phase == DARWIN_MUTEX_ENROLLED) {
         ++p->enrolled;
         if (pthread_cond_broadcast(&p->changed)) abort();
+        /* Keep both registrations live until the releaser reserves a wake. */
+        while (!p->before_wake)
+            if (pthread_cond_wait(&p->changed, &p->guard)) abort();
     } else if (!p->before_wake) {
         p->before_wake = 1;
         if (pthread_cond_broadcast(&p->changed)) abort();
