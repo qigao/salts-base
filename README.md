@@ -390,8 +390,10 @@ and [upstream architecture accessors](https://github.com/lhmouse/mcfgthread/blob
   waiter. Broadcast selects the current queue under the same lock. Each
   selection publishes one notification to that waiter. On an untimed wait,
   the thread can yield once to a runnable peer and briefly poll its stack
-  record. If it commits to parking first, the signaler pairs with it through
-  the keyed event. After a kernel wait crosses a Windows clock tick, the
+  record. A parked ARM64 waiter uses its own native SRW lock and condition
+  variable. Salts still selects the FIFO waiter, and the private lock keeps
+  the stack record live through notification. On x64 a parked waiter pairs
+  with the notifier through a keyed event. After a kernel wait crosses a Windows clock tick, the
   same thread tries parking directly on its next untimed wait. A short
   handoff restores polling. A timed waiter shares an event record with the
   queue. Timeout and notification compete for its eligibility. The waiter

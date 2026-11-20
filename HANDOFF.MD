@@ -2,6 +2,11 @@
 
 ## Reproducing short thread handoffs on ARM64
 
+- ARM64 untimed condition waiters can park on a native SRW lock and condition
+  variable scoped to the selected waiter. Compare the Salts and direct SRW/CV
+  rows over four alternating pairs at each affinity. The earlier keyed-event
+  rows below provide the pre-change reference. The delayed handoff and pthread
+  rows still run once at each affinity.
 - On Windows, count the initiating thread's committed keyed waits separately
   from notifications observed before parking. Use consecutive reply marks
   under the caller mutex to define a complete trip. Time one in eight trips

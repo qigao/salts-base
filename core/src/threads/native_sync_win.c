@@ -2,6 +2,10 @@
 #include <limits.h>
 #include <stdlib.h>
 
+#if defined(__aarch64__) || defined(_M_ARM64)
+#define WIN_CONDITION_SRW_PARK 1
+#endif
+
 /* Bit zero denotes ownership. Each parked thread owns one registration,
  * removed exactly once after its kernel wait. Timeout never needs to wait
  * for a concurrent unlocker to retire a claimed release. */
@@ -109,6 +113,10 @@ int platform_mutex_destroy(platform_mutex **out) {
 struct win_waiter {
     struct win_waiter *next, *prev;
     volatile LONG park_state;
+#ifdef WIN_CONDITION_SRW_PARK
+    SRWLOCK park_guard;
+    CONDITION_VARIABLE park_changed;
+#endif
     HANDLE event;
     volatile LONG refs, decision;
 };
@@ -132,7 +140,7 @@ static SALTS_THREAD_LOCAL BOOL last_condition_wait_slow;
 static int wait_for_notification(struct win_waiter *w) {
     if (!last_condition_wait_slow) {
         if (waiter_notified(w)) return SALTS_OK;
-#if defined(__aarch64__) || defined(_M_ARM64)
+#ifdef WIN_CONDITION_SRW_PARK
         /* An on-core responder can publish during this acquire-only window.
          * The ARM64 SDK YieldProcessor includes a store barrier on MinGW. */
         for (unsigned i = 0; i < CONDITION_SPINS; ++i)
@@ -147,13 +155,29 @@ static int wait_for_notification(struct win_waiter *w) {
         }
     }
     /* Signal can still win between the last load and the parking decision. */
+#ifdef WIN_CONDITION_SRW_PARK
+    InitializeSRWLock(&w->park_guard);
+    InitializeConditionVariable(&w->park_changed);
+    AcquireSRWLockExclusive(&w->park_guard);
+#endif
     if (InterlockedCompareExchange(&w->park_state, WAITER_PARKING,
                                    WAITER_REGISTERED) != WAITER_REGISTERED) {
+#ifdef WIN_CONDITION_SRW_PARK
+        ReleaseSRWLockExclusive(&w->park_guard);
+#endif
         last_condition_wait_slow = FALSE;
         return SALTS_OK;
     }
     DWORD before = GetTickCount();
+#ifdef WIN_CONDITION_SRW_PARK
+    while (!waiter_notified(w))
+        if (!SleepConditionVariableSRW(&w->park_changed, &w->park_guard, INFINITE, 0)) abort();
+    /* The notifier finishes using the stack record before we reacquire. */
+    ReleaseSRWLockExclusive(&w->park_guard);
+    int rc = SALTS_OK;
+#else
     int rc = win_wait_key(w, NULL);
+#endif
     last_condition_wait_slow = GetTickCount() != before;
     return rc;
 }
@@ -170,9 +194,21 @@ static void notify_waiter(struct win_waiter *w) {
         return;
     }
     /* Publishing NOTIFIED completes an early signal entirely in userspace.
-     * After publication, only a PARKING waiter still owes a rendezvous. */
+     * A PARKING waiter uses the native wake on its own record. */
+#ifdef WIN_CONDITION_SRW_PARK
+    if (InterlockedCompareExchange(&w->park_state, WAITER_NOTIFIED,
+                                   WAITER_REGISTERED) == WAITER_REGISTERED)
+        return;
+    /* The private lock transfers stack ownership through the wake. Salts
+     * already selected the waiter, so this CV has at most one sleeper. */
+    AcquireSRWLockExclusive(&w->park_guard);
+    InterlockedExchange(&w->park_state, WAITER_NOTIFIED);
+    WakeConditionVariable(&w->park_changed);
+    ReleaseSRWLockExclusive(&w->park_guard);
+#else
     if (InterlockedExchange(&w->park_state, WAITER_NOTIFIED) == WAITER_PARKING)
         win_release_key(w);
+#endif
 }
 static void unlink_waiter(platform_condition *c, struct win_waiter *w) {
     if (w->prev) w->prev->next = w->next;

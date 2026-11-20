@@ -388,8 +388,17 @@ spec("Windows mutex contention") {
             mask |= remaining & (0 - remaining);
             remaining = available ^ mask;
             check(SetProcessAffinityMask(GetCurrentProcess(), mask));
-            measure_condition(SALTS, frequency.QuadPart, cpus, 0);
-            measure_condition(SRW, frequency.QuadPart, cpus, 0);
+#if defined(__aarch64__) || defined(_M_ARM64)
+            const unsigned repeats = 4;
+#else
+            const unsigned repeats = 1;
+#endif
+            for (unsigned repeat = 0; repeat < repeats; ++repeat) {
+                enum backend first = repeat % 2 == 0 ? SALTS : SRW;
+                enum backend second = first == SALTS ? SRW : SALTS;
+                measure_condition(first, frequency.QuadPart, cpus, 0);
+                measure_condition(second, frequency.QuadPart, cpus, 0);
+            }
 #ifdef BENCH_PTHREAD
             measure_condition(PTHREAD, frequency.QuadPart, cpus, 0);
 #endif
