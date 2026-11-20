@@ -1,4 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE 1
+#endif
 #include <threads/threads.h>
 #include <tinytest.h>
 #include <errno.h>
@@ -101,6 +104,108 @@ static void report(struct panel *p, const char *work, uint64_t wall, uint64_t cp
            work, n, (double)(ticks(CLOCK_MONOTONIC) - wall) / n,
            (double)(ticks(CLOCK_PROCESS_CPUTIME_ID) - cpu) / n);
 }
+
+#ifdef __APPLE__
+enum { MUTEX_TRIAL_ROUNDS = 16384, SAMPLE_STRIDE = 64 };
+struct mutex_trial {
+    struct panel panel;
+    pthread_mutex_t start;
+    pthread_cond_t ready;
+    int running;
+    int started;
+    int mixed;
+    int holds;
+    struct timespec due;
+};
+struct mutex_runner {
+    struct mutex_trial *trial;
+    uint64_t *samples;
+};
+
+static int trial_locks(void *arg) {
+    struct mutex_runner *worker = arg;
+    struct mutex_trial *trial = worker->trial;
+    struct panel *p = &trial->panel;
+    if (pthread_mutex_lock(&trial->start)) abort();
+    ++trial->started;
+    if (pthread_cond_broadcast(&trial->ready)) abort();
+    while (!trial->running)
+        if (pthread_cond_wait(&trial->ready, &trial->start)) abort();
+    if (pthread_mutex_unlock(&trial->start)) abort();
+    for (unsigned i = 0; i < MUTEX_TRIAL_ROUNDS; ++i) {
+        unsigned sample_index = i / SAMPLE_STRIDE;
+        int sample = i % SAMPLE_STRIDE == (trial->mixed ? sample_index % 2 : 0);
+        uint64_t begin = sample ? ticks(CLOCK_UPTIME_RAW) : 0;
+        if (trial->mixed && (i & 1u)) {
+            if (mtx_timedlock(&p->mutex, &trial->due)) abort();
+        } else {
+            lock(p);
+        }
+        if (sample) worker->samples[sample_index] = ticks(CLOCK_UPTIME_RAW) - begin;
+        ++p->operations;
+        if (trial->holds && p->operations % 16 == 0) {
+            struct timespec hold = {0, 5000};
+            while (nanosleep(&hold, &hold)) if (errno != EINTR) abort();
+        }
+        unlock(p);
+    }
+    return 0;
+}
+
+static int compare_latency(const void *a, const void *b) {
+    uint64_t left = *(const uint64_t *)a, right = *(const uint64_t *)b;
+    return (left > right) - (left < right);
+}
+
+static void measure_mutex_trial(enum provider provider, unsigned repeat, int workers,
+                                int holds, int mixed) {
+    enum { SAMPLES_PER_WORKER = MUTEX_TRIAL_ROUNDS / SAMPLE_STRIDE };
+    struct mutex_trial trial = {
+        .panel.salts = provider,
+        .start = PTHREAD_MUTEX_INITIALIZER,
+        .ready = PTHREAD_COND_INITIALIZER,
+        .holds = holds,
+        .mixed = mixed,
+    };
+    uint64_t samples[2 * SAMPLES_PER_WORKER];
+    struct mutex_runner args[] = {{&trial, samples}, {&trial, samples + SAMPLES_PER_WORKER}};
+    thrd_t threads[2];
+    if (provider == PTHREAD ? pthread_mutex_init(&trial.panel.native, NULL) :
+        mtx_init(&trial.panel.mutex, provider == SALTS_TIMED ? mtx_timed : mtx_plain)) abort();
+    for (int i = 0; i < workers; ++i)
+        if (thrd_create(&threads[i], trial_locks, &args[i])) abort();
+    if (pthread_mutex_lock(&trial.start)) abort();
+    while (trial.started != workers)
+        if (pthread_cond_wait(&trial.ready, &trial.start)) abort();
+    if (clock_gettime(CLOCK_REALTIME, &trial.due)) abort();
+    trial.due.tv_sec += 30;
+    trial.running = 1;
+    uint64_t wall = ticks(CLOCK_UPTIME_RAW), cpu = ticks(CLOCK_PROCESS_CPUTIME_ID);
+    if (pthread_cond_broadcast(&trial.ready) || pthread_mutex_unlock(&trial.start)) abort();
+    for (int i = 0; i < workers; ++i)
+        if (thrd_join(threads[i], NULL)) abort();
+    wall = ticks(CLOCK_UPTIME_RAW) - wall;
+    cpu = ticks(CLOCK_PROCESS_CPUTIME_ID) - cpu;
+    if (trial.panel.operations != (unsigned)workers * MUTEX_TRIAL_ROUNDS) abort();
+
+    size_t count = (size_t)workers * SAMPLES_PER_WORKER;
+    qsort(samples, count, sizeof(*samples), compare_latency);
+    static const char *const names[] = {"pthread", "Salts-timed", "Salts-plain"};
+    printf("Darwin mutex repeat=%u provider=%s workers=%d hold=%d mixed=%d "
+           "wall_ns/op=%.1f cpu_ns/op=%.1f ops/s=%.0f p99_ns=%llu\n",
+           repeat, names[provider], workers, holds, mixed,
+           (double)wall / trial.panel.operations, (double)cpu / trial.panel.operations,
+           (double)trial.panel.operations * 1e9 / wall,
+           (unsigned long long)samples[(count * 99 + 99) / 100 - 1]);
+    if (provider == PTHREAD) {
+        if (pthread_mutex_destroy(&trial.panel.native)) abort();
+    } else {
+        mtx_destroy(&trial.panel.mutex);
+    }
+    if (pthread_cond_destroy(&trial.ready) || pthread_mutex_destroy(&trial.start)) abort();
+}
+#endif
+
 spec("POSIX thread runtime comparison") {
     it("measures waiter CPU time during a long once initializer") {
         thrd_t owner;
@@ -168,4 +273,17 @@ spec("POSIX thread runtime comparison") {
             mtx_destroy(&p.mutex);
         }
     }
+#ifdef __APPLE__
+    it("repeats Darwin acquisitions with short sections, held locks and mixed timed calls") {
+        for (unsigned repeat = 0; repeat < 4; ++repeat) {
+            for (unsigned i = 0; i < 3; ++i) {
+                enum provider provider = (enum provider)((i + repeat) % 3);
+                measure_mutex_trial(provider, repeat, 1, 0, 0);
+                measure_mutex_trial(provider, repeat, 2, 0, 0);
+                measure_mutex_trial(provider, repeat, 2, 1, 0);
+                if (provider == SALTS_TIMED) measure_mutex_trial(provider, repeat, 2, 1, 1);
+            }
+        }
+    }
+#endif
 }
