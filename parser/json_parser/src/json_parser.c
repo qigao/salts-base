@@ -1764,11 +1764,11 @@ static int json_sax_process_token(json_sax_parser_t *parser, const json_token_t 
 }
 
 static int json_sax_parse_number_token(const char *start, size_t len, double *out) {
-  char small[128];
-  char *buf = small;
+  char local_buffer[128];
+  char *buf = local_buffer;
   char *endp = NULL;
 
-  if (len >= sizeof(small)) {
+  if (len >= sizeof(local_buffer)) {
     if (len == SIZE_MAX) return -1;
     buf = (char *)malloc(len + 1);
     if (!buf) return -1;
@@ -1779,10 +1779,10 @@ static int json_sax_parse_number_token(const char *start, size_t len, double *ou
   errno = 0;
   *out = strtod(buf, &endp);
   if (endp != buf + len) {
-    if (buf != small) free(buf);
+    if (buf != local_buffer) free(buf);
     return -1;
   }
-  if (buf != small) free(buf);
+  if (buf != local_buffer) free(buf);
   return 0;
 }
 
