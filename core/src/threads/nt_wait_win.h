@@ -26,7 +26,7 @@ void win_abandon_once(void);
 
 struct platform_mutex {
     volatile LONG state;
-    HANDLE available; /* Condition queue guards retain an auto-reset wake. */
+    HANDLE available; /* ARM64 mutexes and condition queue guards can prepost a wake. */
 };
 struct win_waiter;
 struct condition_state {

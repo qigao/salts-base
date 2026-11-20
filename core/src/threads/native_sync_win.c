@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 #if defined(__aarch64__) || defined(_M_ARM64)
-#define WIN_CONDITION_SRW_PARK 1
+#define SALTS_WIN_ARM64 1
 #endif
 
 /* Bit zero denotes ownership. Each parked thread owns one registration,
@@ -67,8 +67,18 @@ int platform_mutex_create(platform_mutex **out) {
     if (!out || *out) return SALTS_EINVAL;
     rc = win_wait_runtime_init();
     if (rc != SALTS_OK) return rc;
-    *out = calloc(1, sizeof(**out));
-    return *out ? SALTS_OK : SALTS_ENOMEM;
+    platform_mutex *m = calloc(1, sizeof(*m));
+    if (!m) return SALTS_ENOMEM;
+#ifdef SALTS_WIN_ARM64
+    /* A release can post before the registered contender reaches the kernel. */
+    m->available = CreateEventW(NULL, FALSE, FALSE, NULL);
+    if (!m->available) {
+        free(m);
+        return SALTS_ENOMEM;
+    }
+#endif
+    *out = m;
+    return SALTS_OK;
 }
 int platform_mutex_lock(platform_mutex *m) {
     return m ? win_mutex_acquire(m, NULL) : SALTS_EINVAL;
@@ -104,8 +114,10 @@ int platform_mutex_unlock(platform_mutex *m) {
 }
 int platform_mutex_destroy(platform_mutex **out) {
     if (!out || !*out) return SALTS_EINVAL;
-    if (InterlockedCompareExchange(&(*out)->state, 0, 0)) return SALTS_EBUSY;
-    free(*out);
+    platform_mutex *m = *out;
+    if (InterlockedCompareExchange(&m->state, 0, 0)) return SALTS_EBUSY;
+    if (m->available && !CloseHandle(m->available)) abort();
+    free(m);
     *out = NULL;
     return SALTS_OK;
 }
@@ -113,7 +125,7 @@ int platform_mutex_destroy(platform_mutex **out) {
 struct win_waiter {
     struct win_waiter *next, *prev;
     volatile LONG park_state;
-#ifdef WIN_CONDITION_SRW_PARK
+#ifdef SALTS_WIN_ARM64
     SRWLOCK park_guard;
     CONDITION_VARIABLE park_changed;
 #endif
@@ -140,7 +152,7 @@ static SALTS_THREAD_LOCAL BOOL last_condition_wait_slow;
 static int wait_for_notification(struct win_waiter *w) {
     if (!last_condition_wait_slow) {
         if (waiter_notified(w)) return SALTS_OK;
-#ifdef WIN_CONDITION_SRW_PARK
+#ifdef SALTS_WIN_ARM64
         /* An on-core responder can publish during this acquire-only window.
          * The ARM64 SDK YieldProcessor includes a store barrier on MinGW. */
         for (unsigned i = 0; i < CONDITION_SPINS; ++i)
@@ -155,21 +167,21 @@ static int wait_for_notification(struct win_waiter *w) {
         }
     }
     /* Signal can still win between the last load and the parking decision. */
-#ifdef WIN_CONDITION_SRW_PARK
+#ifdef SALTS_WIN_ARM64
     InitializeSRWLock(&w->park_guard);
     InitializeConditionVariable(&w->park_changed);
     AcquireSRWLockExclusive(&w->park_guard);
 #endif
     if (InterlockedCompareExchange(&w->park_state, WAITER_PARKING,
                                    WAITER_REGISTERED) != WAITER_REGISTERED) {
-#ifdef WIN_CONDITION_SRW_PARK
+#ifdef SALTS_WIN_ARM64
         ReleaseSRWLockExclusive(&w->park_guard);
 #endif
         last_condition_wait_slow = FALSE;
         return SALTS_OK;
     }
     DWORD before = GetTickCount();
-#ifdef WIN_CONDITION_SRW_PARK
+#ifdef SALTS_WIN_ARM64
     while (!waiter_notified(w))
         if (!SleepConditionVariableSRW(&w->park_changed, &w->park_guard, INFINITE, 0)) abort();
     /* The notifier finishes using the stack record before we reacquire. */
@@ -195,7 +207,7 @@ static void notify_waiter(struct win_waiter *w) {
     }
     /* Publishing NOTIFIED completes an early signal entirely in userspace.
      * A PARKING waiter uses the native wake on its own record. */
-#ifdef WIN_CONDITION_SRW_PARK
+#ifdef SALTS_WIN_ARM64
     if (InterlockedCompareExchange(&w->park_state, WAITER_NOTIFIED,
                                    WAITER_REGISTERED) == WAITER_REGISTERED)
         return;
