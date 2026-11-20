@@ -1,6 +1,7 @@
 #ifndef JSONPATH_UTF8_H
 #define JSONPATH_UTF8_H
 
+#include <stdatomic.h>
 #include <simde/x86/sse2.h>
 
 #include <stddef.h>
