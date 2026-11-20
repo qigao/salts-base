@@ -300,6 +300,10 @@ static void report_condition_band(const struct ping_pong *p, const char *name,
 static void measure_condition(enum backend api, LONGLONG frequency, unsigned cpus,
                               DWORD reply_delay_ms, DWORD_PTR split_mask, BOOL trace) {
     const char *names[] = {"Salts", "SRW/CV", "pthread"};
+    const char *placement = split_mask ? "split" : "shared";
+    printf("%s condition start cpus=%u reply_sleep_ms=%lu placement=%s trace=%d\n",
+           names[api], cpus, (unsigned long)reply_delay_ms, placement, trace);
+    if (fflush(stdout)) abort();
     struct ping_pong p = {0};
     thrd_t worker;
     int rounds = reply_delay_ms ? DELAYED_ROUNDS : CONDITION_ROUNDS;
@@ -352,7 +356,6 @@ static void measure_condition(enum backend api, LONGLONG frequency, unsigned cpu
     qsort(latency, rounds, sizeof(*latency), compare_ticks);
     qsort(trips, rounds, sizeof(*trips), compare_ticks);
     double ns = 1e9 / frequency;
-    const char *placement = split_mask ? "split" : "shared";
     printf("%s condition cpus=%u reply_sleep_ms=%lu round trips/s=%.0f "
            "exchange p50/p95/p99/p999(ns)=%.0f/%.0f/%.0f/%.0f trip p99/p999(ns)=%.0f/%.0f "
            "process cycles/trip=%.0f waiter cycles/trip=%.0f placement=%s trace=%d\n",

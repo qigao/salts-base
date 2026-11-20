@@ -16,6 +16,14 @@
   Request and reply intervals partition the trip. The call
   phases are clipped to that trip and can overlap across threads. The
   condition wait phase includes rescheduling and predicate mutex reacquisition.
+  The start row identifies the active workload if CTest stops before its summary.
+- The ARM64 predicate-mutex auto-reset event experiment passed the full matrix.
+  On the same two-CPU split workload, the LLVM-MinGW median P99.9 rose from
+  19.1 µs to 13.0 ms while MSVC dropped from 7.05 ms to 28.0 µs. The experiment
+  was reverted. The mutex continues to use keyed events, and the measured tail
+  interval still includes the native condition wait and mutex reacquisition.
+  [Keyed baseline](https://github.com/qigao/salts-base/actions/runs/44757625305)
+  and [auto-reset event experiment](https://github.com/qigao/salts-base/actions/runs/44759495028).
 - On Windows, count the initiating thread's committed keyed waits separately
   from notifications observed before parking. Use consecutive reply marks
   under the caller mutex to define a complete trip. Time one in eight trips

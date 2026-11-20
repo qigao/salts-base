@@ -371,9 +371,8 @@ and [upstream architecture accessors](https://github.com/lhmouse/mcfgthread/blob
 
 - A mutex stores ownership and the number of registered sleepers in one
   interlocked word. A contender spins briefly while there are no registered
-  sleepers, then parks. Unlock publishes availability and wakes at most one
-  sleeper. ARM64 mutexes own one auto-reset event that can retain a signal
-  before the sleeper reaches the kernel. An awakened thread competes for the lock. This permits barging
+  sleepers, then parks. Unlock publishes availability and pairs with at most
+  one sleeper. An awakened thread competes for the lock. This permits barging
   and gives no FIFO or starvation bound. Shared/exclusive `sync_rwlock_*`
   continues to use the Windows SRW policy, which also has no writer fairness
   guarantee.
@@ -381,9 +380,9 @@ and [upstream architecture accessors](https://github.com/lhmouse/mcfgthread/blob
   kernel waits. It needs no blocking admission guard. UTC deadlines and the
   private monotonic duration API retain separate clock semantics. On timeout
   the waiter removes its own registration without waiting for a releaser.
-  With keyed events, the releaser makes finite wake offers while the mutex is
-  free and registered sleepers remain. ARM64 posts its event without waiting
-  for the peer to park. A notified waiter claims an available mutex before
+  If release precedes kernel registration, the releaser makes finite wake
+  offers while the mutex is free and registered sleepers remain.
+  A waiter that has paired with a release claims an available mutex before
   retiring its registration. This lets a second sleeper make progress if
   the first waiter's deadline passes as the kernel wakes it.
 - An untimed condition waiter lends one aligned stack record to its condition's FIFO
