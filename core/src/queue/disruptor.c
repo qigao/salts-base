@@ -102,7 +102,7 @@ static int disruptor_is_power_of_two(uint64_t value) {
 
 static void disruptor_cpu_pause(void) {
 #if defined(_MSC_VER)
-  _mm_pause();
+  YieldProcessor();
 #elif defined(__GNUC__) || defined(__clang__)
   #if defined(__x86_64__) || defined(__i386__)
   __builtin_ia32_pause();
