@@ -10,11 +10,12 @@
 - In the same CTest job, `placement=shared` lets both threads run on the two
   CPUs allowed by the process mask. `placement=split` pins the two threads to
   separate logical CPUs from that same mask. Use the four `trace=0` runs for
-  throughput and percentile comparisons. The `trace=1` runs sample phase
-  timestamps on both threads to describe trips around P99 and the longest
-  0.1 percent. Request and reply intervals partition the trip. The call phases
-  are elapsed time on each thread and can overlap. The condition wait phase
-  includes rescheduling and reacquisition of the predicate mutex.
+  throughput and percentile comparisons. The `trace=1` runs instrument one
+  trip in eight, with sample pages committed before warmup. The phase
+  percentile bands use instrumented trips and report their sample counts.
+  Request and reply intervals partition the trip. The call
+  phases are clipped to that trip and can overlap across threads. The
+  condition wait phase includes rescheduling and predicate mutex reacquisition.
 - On Windows, count the initiating thread's committed keyed waits separately
   from notifications observed before parking. Use consecutive reply marks
   under the caller mutex to define a complete trip. Time one in eight trips

@@ -188,8 +188,9 @@ static void measure(enum backend api, int n, LONGLONG frequency) {
     free(samples);
     free(workers);
 }
+enum { CONDITION_TRACE_STRIDE = 8 };
 struct condition_sample {
-    LONGLONG observed, lock_ticks, wait_ticks, signal_ticks;
+    LONGLONG begin, locked, observed, signaled;
 };
 struct ping_pong {
     struct run lock;
@@ -203,6 +204,17 @@ struct ping_pong {
     DWORD_PTR reply_mask;
     struct condition_sample *initiator_samples, *reply_samples;
 };
+static struct condition_sample *sample_condition(struct condition_sample *samples,
+                                                 int exchange_index, BOOL initiator) {
+    int phase = exchange_index % CONDITION_TRACE_STRIDE;
+    return samples && (phase == 0 || (initiator && phase == 1))
+        ? &samples[exchange_index] : NULL;
+}
+static void touch_condition_samples(struct condition_sample *samples, int count) {
+    /* Commit the trace pages on their writing thread before timed exchanges. */
+    volatile struct condition_sample *pages = samples;
+    for (int i = 0; i < count; ++i) pages[i].observed = 0;
+}
 static LONGLONG exchange(struct ping_pong *p, int side, struct condition_sample *sample) {
     LONGLONG before_lock = sample ? clock_ticks() : 0;
     take(&p->lock);
@@ -233,20 +245,23 @@ static LONGLONG exchange(struct ping_pong *p, int side, struct condition_sample 
     }
     LONGLONG signaled = sample ? clock_ticks() : 0;
     give(&p->lock);
-    if (sample) {
-        *sample = (struct condition_sample){mark, locked - before_lock,
-                                           mark - locked, signaled - mark};
-    }
+    if (sample) *sample = (struct condition_sample){before_lock, locked, mark, signaled};
     return mark;
 }
 static int reply(void *arg) {
     struct ping_pong *p = arg;
     if (p->reply_mask && !SetThreadAffinityMask(GetCurrentThread(), p->reply_mask)) abort();
+    if (p->reply_samples) touch_condition_samples(p->reply_samples, p->exchanges);
     for (int i = 0; i < p->exchanges; ++i) {
         if (p->reply_delay_ms) Sleep(p->reply_delay_ms);
-        exchange(p, 1, p->reply_samples ? &p->reply_samples[i] : NULL);
+        exchange(p, 1, sample_condition(p->reply_samples, i, FALSE));
     }
     return 0;
+}
+static LONGLONG ticks_in_trip(LONGLONG begin, LONGLONG end, LONGLONG first, LONGLONG last) {
+    if (begin < first) begin = first;
+    if (end > last) end = last;
+    return begin < end ? end - begin : 0;
 }
 static void report_condition_band(const struct ping_pong *p, const char *name,
                                   const char *placement, const char *band, int warmup,
@@ -255,6 +270,7 @@ static void report_condition_band(const struct ping_pong *p, const char *name,
     LONGLONG request = 0, response = 0, peak = 0;
     LONGLONG lock[2] = {0}, wait[2] = {0}, signal[2] = {0};
     for (int i = warmup; i < p->exchanges; ++i) {
+        if (i % CONDITION_TRACE_STRIDE != 1) continue;
         const struct condition_sample *previous = &p->initiator_samples[i - 1];
         const struct condition_sample *reply = &p->reply_samples[i - 1];
         const struct condition_sample *current = &p->initiator_samples[i];
@@ -264,12 +280,13 @@ static void report_condition_band(const struct ping_pong *p, const char *name,
         request += reply->observed - previous->observed;
         response += current->observed - reply->observed;
         if (trip > peak) peak = trip;
-        lock[0] += current->lock_ticks;
-        lock[1] += reply->lock_ticks;
-        wait[0] += current->wait_ticks;
-        wait[1] += reply->wait_ticks;
-        signal[0] += previous->signal_ticks;
-        signal[1] += reply->signal_ticks;
+        LONGLONG first = previous->observed, last = current->observed;
+        lock[0] += ticks_in_trip(current->begin, current->locked, first, last);
+        lock[1] += ticks_in_trip(reply->begin, reply->locked, first, last);
+        wait[0] += ticks_in_trip(current->locked, current->observed, first, last);
+        wait[1] += ticks_in_trip(reply->locked, reply->observed, first, last);
+        signal[0] += ticks_in_trip(previous->observed, previous->signaled, first, last);
+        signal[1] += ticks_in_trip(reply->observed, reply->signaled, first, last);
     }
     if (!count) abort();
     double mean_ns = ns / count;
@@ -308,6 +325,7 @@ static void measure_condition(enum backend api, LONGLONG frequency, unsigned cpu
         old_mask = SetThreadAffinityMask(GetCurrentThread(), initiator_mask);
         if (!old_mask) abort();
     }
+    if (p.initiator_samples) touch_condition_samples(p.initiator_samples, p.exchanges);
     if (mtx_init(&p.lock.mutex, mtx_plain) || cnd_init(&p.cv)) abort();
     InitializeSRWLock(&p.lock.srw);
     InitializeConditionVariable(&p.native_cv);
@@ -316,13 +334,13 @@ static void measure_condition(enum backend api, LONGLONG frequency, unsigned cpu
 #endif
     if (thrd_create(&worker, reply, &p)) abort();
     for (int i = 0; i < warmup; ++i)
-        previous = exchange(&p, 0, trace ? &p.initiator_samples[i] : NULL);
+        previous = exchange(&p, 0, sample_condition(p.initiator_samples, i, TRUE));
     if (!QueryProcessCycleTime(GetCurrentProcess(), &cycles_before)) abort();
     if (!QueryThreadCycleTime(GetCurrentThread(), &waiter_before)) abort();
     LONGLONG start = clock_ticks();
     for (int i = 0; i < rounds; ++i) {
         LONGLONG before = clock_ticks();
-        LONGLONG mark = exchange(&p, 0, trace ? &p.initiator_samples[warmup + i] : NULL);
+        LONGLONG mark = exchange(&p, 0, sample_condition(p.initiator_samples, warmup + i, TRUE));
         latency[i] = clock_ticks() - before;
         trips[i] = mark - previous;
         previous = mark;
@@ -345,10 +363,16 @@ static void measure_condition(enum backend api, LONGLONG frequency, unsigned cpu
            (double)(cycles_after - cycles_before) / rounds,
            (double)(waiter_after - waiter_before) / rounds, placement, trace);
     if (trace) {
+        int traced = 0;
+        for (int i = warmup; i < p.exchanges; ++i) {
+            if (i % CONDITION_TRACE_STRIDE == 1)
+                latency[traced++] = p.initiator_samples[i].observed - p.initiator_samples[i - 1].observed;
+        }
+        qsort(latency, traced, sizeof(*latency), compare_ticks);
         report_condition_band(&p, names[api], placement, "near-p99", warmup,
-                              trips[rounds * 985 / 1000], trips[rounds * 995 / 1000], ns);
+                              latency[traced * 985 / 1000], latency[traced * 995 / 1000], ns);
         report_condition_band(&p, names[api], placement, "p999-plus", warmup,
-                              trips[rounds * 999 / 1000], trips[rounds - 1], ns);
+                              latency[traced * 999 / 1000], latency[traced - 1], ns);
         free(p.reply_samples);
         free(p.initiator_samples);
     }
@@ -461,26 +485,25 @@ spec("Windows mutex contention") {
 #else
             const unsigned repeats = 1;
 #endif
+            BOOL compare_placement = repeats > 1 && cpus == 2;
             for (unsigned repeat = 0; repeat < repeats; ++repeat) {
                 enum backend first = repeat % 2 == 0 ? SALTS : SRW;
                 enum backend second = first == SALTS ? SRW : SALTS;
-                measure_condition(first, frequency.QuadPart, cpus, 0, 0, FALSE);
-                measure_condition(second, frequency.QuadPart, cpus, 0, 0, FALSE);
-#if defined(__aarch64__) || defined(_M_ARM64)
-                if (cpus == 2) {
-                    measure_condition(second, frequency.QuadPart, cpus, 0, mask, FALSE);
-                    measure_condition(first, frequency.QuadPart, cpus, 0, mask, FALSE);
+                DWORD_PTR first_mask = compare_placement && repeat % 2 ? mask : 0;
+                measure_condition(first, frequency.QuadPart, cpus, 0, first_mask, FALSE);
+                measure_condition(second, frequency.QuadPart, cpus, 0, first_mask, FALSE);
+                if (compare_placement) {
+                    DWORD_PTR second_mask = mask ^ first_mask;
+                    measure_condition(second, frequency.QuadPart, cpus, 0, second_mask, FALSE);
+                    measure_condition(first, frequency.QuadPart, cpus, 0, second_mask, FALSE);
                 }
-#endif
             }
-#if defined(__aarch64__) || defined(_M_ARM64)
-            if (cpus == 2) {
+            if (compare_placement) {
                 measure_condition(SALTS, frequency.QuadPart, cpus, 0, 0, TRUE);
                 measure_condition(SRW, frequency.QuadPart, cpus, 0, 0, TRUE);
                 measure_condition(SRW, frequency.QuadPart, cpus, 0, mask, TRUE);
                 measure_condition(SALTS, frequency.QuadPart, cpus, 0, mask, TRUE);
             }
-#endif
 #ifdef BENCH_PTHREAD
             measure_condition(PTHREAD, frequency.QuadPart, cpus, 0, 0, FALSE);
 #endif
