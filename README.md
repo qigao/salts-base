@@ -177,7 +177,9 @@ Apply the same Python test-oracle setup described above.
 | Platform / compiler | CI user preset | Validation |
 | --- | --- | --- |
 | Windows x64 / MSVC | `ci-msvc-release-user` | Build, CTest, install |
+| Windows ARM64 / MSVC | `ci-msvc-arm64-release-user` | Native ARM64 build, CTest, install |
 | Windows x64 / LLVM-MinGW | `ci-llvm-mingw-x64-release-user` | Build, CTest, install |
+| Windows ARM64 / LLVM-MinGW | `ci-llvm-mingw-native-arm64-release-user` | Native ARM64 build, CTest, install |
 | Linux x64 / Clang | `ci-llvm-native-release-user` | Build, CTest, install |
 | Linux x64 / Clang TSan | `ci-llvm-native-tsan-user` | Instrumented build, CTest, install |
 | Linux x64 / GCC | `ci-gcc-release-user` | Build, CTest, install |

@@ -144,12 +144,15 @@ jobs:
           }
           $contract = Get-Content 'build/ci-infrastructure/vcpkg-cache/compiler-contracts/release-obfuscation.json' -Raw | ConvertFrom-Json
           $compiler = $contract.sources.'llvm-mingw'
-          $asset = $compiler.assets | Where-Object host -EQ windows-x64
-          $url = "https://github.com/$($compiler.repository)/releases/download/$($compiler.release_tag)/$($asset.name)"
-          @{schema=1; source=@{kind='url'; url=$url}; sha256=$asset.sha256} |
-            ConvertTo-Json -Depth 4 | Set-Content build/ci-inputs/compiler.lock.json -Encoding utf8
-          & python $reader download build/ci-inputs/compiler.lock.json --destination build/ci-inputs/blobs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($hostRid in @('windows-x64', 'windows-arm64')) {
+            $asset = $compiler.assets | Where-Object host -CEQ $hostRid
+            $url = "https://github.com/$($compiler.repository)/releases/download/$($compiler.release_tag)/$($asset.name)"
+            $lock = "build/ci-inputs/$hostRid-compiler.lock.json"
+            @{schema=1; source=@{kind='url'; url=$url}; sha256=$asset.sha256} |
+              ConvertTo-Json -Depth 4 | Set-Content $lock -Encoding utf8
+            & python $reader download $lock --destination build/ci-inputs/blobs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
       - name: Download native test oracle wheels once
         run: |
           foreach ($platform in @('manylinux2014_x86_64', 'manylinux2014_aarch64', 'win_amd64', 'macosx_11_0_arm64')) {
@@ -198,6 +201,16 @@ jobs:
             profile: llvm-mingw-x64-release-user
             triplet: qigao-x64-windows-llvm-mingw
             test: true
+          - id: windows-msvc-arm64
+            runner: windows-11-arm
+            profile: msvc-arm64-release-user
+            triplet: arm64-windows
+            test: true
+          - id: windows-llvm-mingw-arm64
+            runner: windows-11-arm
+            profile: llvm-mingw-native-arm64-release-user
+            triplet: qigao-arm64-windows-llvm-mingw
+            test: true
           - id: linux-clang-x64
             runner: ubuntu-24.04
             profile: llvm-native-release-user
@@ -227,11 +240,6 @@ jobs:
             runner: macos-15
             profile: llvm-native-release-user
             triplet: arm64-osx
-            test: true
-          - id: macos-clang-x64
-            runner: macos-15-intel
-            profile: llvm-native-release-user
-            triplet: x64-osx
             test: true
           - id: android-arm64
             runner: ubuntu-24.04
@@ -270,6 +278,8 @@ jobs:
         uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
+          # The pinned Markdown oracle distributes Windows x64 wheels.
+          architecture: ${{ runner.os == 'Windows' && 'x64' || '' }}
 
       - name: Select the released infrastructure helpers
         run: |
@@ -286,17 +296,10 @@ jobs:
           "VCPKG_CACHE_REPOSITORY_ROOT=$cacheSource" >> $env:GITHUB_ENV
 
       - name: Install prepared native test oracles offline
-        if: matrix.test && matrix.id != 'macos-clang-x64'
+        if: matrix.test
         run: |
           & python -m pip install --no-index --only-binary=:all: `
             --find-links build/ci-inputs/python-wheels `
-            --requirement parser/markdown/tests/oracle-requirements.txt
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Build the pinned Markdown test oracle on Intel macOS
-        if: matrix.id == 'macos-clang-x64'
-        run: |
-          & python -m pip install --no-binary=cmarkgfm `
             --requirement parser/markdown/tests/oracle-requirements.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -321,36 +324,18 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-          $installation = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $arch = $env:RUNNER_ARCH.ToLowerInvariant()
+          $tools = if ($arch -eq 'arm64') { 'ARM64' } else { 'x86.x64' }
+          $installation = & $vswhere -latest -products '*' -requires "Microsoft.VisualStudio.Component.VC.Tools.$tools" -property installationPath
           if ($LASTEXITCODE -ne 0 -or -not $installation) { throw 'Visual Studio C++ tools were not found.' }
           $devcmd = Join-Path $installation 'Common7/Tools/VsDevCmd.bat'
           "VSDEVCMD_BAT=$($devcmd.Replace('\', '/'))" >> $env:GITHUB_ENV
+          "VSDEVCMD_ARCH=$arch" >> $env:GITHUB_ENV
 
-      # Use the release's compiler archive lock and safe extractor directly.
-      # The compiler-setup action also generates toolchain files, which are unused here.
-      - name: Restore the locked LLVM-MinGW compiler
-        id: mingw
-        if: matrix.id == 'windows-llvm-mingw-x64'
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $contract = Get-Content "$env:VCPKG_CACHE_REPOSITORY_ROOT/compiler-contracts/release-obfuscation.json" -Raw | ConvertFrom-Json
-          $compiler = $contract.sources.'llvm-mingw'
-          $asset = $compiler.assets | Where-Object host -EQ windows-x64
-          $url = "https://github.com/$($compiler.repository)/releases/download/$($compiler.release_tag)/$($asset.name)"
-          $payload = [IO.Path]::GetFileNameWithoutExtension($asset.name)
-          & python "$env:VCPKG_CACHE_REPOSITORY_ROOT/scripts/restore-native-dependency.py" `
-            url $url --sha256 $asset.sha256 `
-            --destination build/ci-llvm-mingw --payload $payload `
-            --executable bin/x86_64-w64-mingw32-clang.exe `
-            --executable bin/x86_64-w64-mingw32-clang++.exe --github-output
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Select LLVM-MinGW SDK
-        if: matrix.id == 'windows-llvm-mingw-x64'
-        env:
-          COMPILER_ROOT: ${{ steps.mingw.outputs.root }}
-        run: |
-          "LLVM_MINGW_ROOT=$env:COMPILER_ROOT" >> $env:GITHUB_ENV
+      - uses: ./build/ci-infrastructure/vcpkg-cache/.github/actions/setup-llvm-mingw
+        if: startsWith(matrix.id, 'windows-llvm-mingw-')
+        with:
+          target: ${{ matrix.id == 'windows-llvm-mingw-arm64' && 'arm64' || 'x64' }}
 
       - name: Install Linux system development packages
         if: startsWith(matrix.id, 'linux-')
