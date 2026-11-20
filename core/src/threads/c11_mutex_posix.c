@@ -11,7 +11,7 @@
 #include <time.h>
 
 #ifdef __APPLE__
-#include <dispatch/dispatch.h>
+#include "c11_mutex_darwin.h"
 #elif defined(__ANDROID__)
 #if __ANDROID_API__ < 28
 #define NEED_MONOTONIC_CONDITION 1
@@ -35,7 +35,11 @@ struct platform_mutex {
     pthread_mutex_t native;
 #ifdef USE_NATIVE_PERMIT
     int use_permit;
+#ifdef __APPLE__
+    darwin_mutex timed;
+#else
     native_permit permit;
+#endif
 #elif defined(NEED_MONOTONIC_CONDITION)
     pthread_cond_t available;
     pthread_mutex_t admission;
@@ -96,7 +100,11 @@ static int create_mutex(platform_mutex **out, int use_permit) {
     if (!m) return SALTS_ENOMEM;
 #ifdef USE_NATIVE_PERMIT
     if (use_permit) {
+#ifdef __APPLE__
+        int rc = darwin_mutex_init(&m->timed);
+#else
         int rc = permit_init(&m->permit, 1);
+#endif
         if (rc) { free(m); return rc; }
         m->use_permit = 1;
         *out = m;
@@ -123,7 +131,9 @@ int platform_mutex_create(platform_mutex **out) { return create_mutex(out, 1); }
 
 int platform_mutex_lock(platform_mutex *m) {
     if (!m) return SALTS_EINVAL;
-#ifdef USE_NATIVE_PERMIT
+#ifdef __APPLE__
+    if (m->use_permit) return darwin_mutex_lock(&m->timed, NULL, CLOCK_MONOTONIC);
+#elif defined(USE_NATIVE_PERMIT)
     if (m->use_permit) return permit_wait(&m->permit, NULL, CLOCK_MONOTONIC);
 #endif
     return mutex_result(pthread_mutex_lock(&m->native));
@@ -135,7 +145,12 @@ int platform_mutex_timedlock_ns(platform_mutex *m, uint64_t ns) {
     int rc = ns ? relative_deadline(ns, &due) : SALTS_OK;
     if (rc != SALTS_OK) return rc;
 #ifdef USE_NATIVE_PERMIT
+#ifdef __APPLE__
+    if (m->use_permit) return ns ? darwin_mutex_lock(&m->timed, &due, CLOCK_MONOTONIC)
+                                 : darwin_mutex_trylock(&m->timed);
+#else
     if (m->use_permit) return permit_wait(&m->permit, &due, CLOCK_MONOTONIC);
+#endif
     /* The C11 pthread representation only requests a nonblocking try here. */
     if (ns) return SALTS_EINVAL;
     return mutex_result(pthread_mutex_trylock(&m->native));
@@ -163,7 +178,9 @@ int platform_mutex_timedlock_ns(platform_mutex *m, uint64_t ns) {
 
 int platform_mutex_unlock(platform_mutex *m) {
     if (!m) return SALTS_EINVAL;
-#ifdef USE_NATIVE_PERMIT
+#ifdef __APPLE__
+    if (m->use_permit) { darwin_mutex_unlock(&m->timed); return SALTS_OK; }
+#elif defined(USE_NATIVE_PERMIT)
     if (m->use_permit) { permit_post(&m->permit, 1); return SALTS_OK; }
 #endif
 #ifdef NEED_MONOTONIC_CONDITION
@@ -185,8 +202,13 @@ int platform_mutex_destroy(platform_mutex **out) {
     if (rc != SALTS_OK) return rc == SALTS_ETIMEDOUT ? SALTS_EBUSY : rc;
     if (platform_mutex_unlock(m) != SALTS_OK) abort();
 #ifdef USE_NATIVE_PERMIT
-    if (m->use_permit) permit_destroy(&m->permit);
-    else
+    if (m->use_permit) {
+#ifdef __APPLE__
+        darwin_mutex_destroy(&m->timed);
+#else
+        permit_destroy(&m->permit);
+#endif
+    } else
 #endif
     if (pthread_mutex_destroy(&m->native)) return SALTS_EBUSY;
 #ifdef NEED_MONOTONIC_CONDITION
@@ -343,7 +365,7 @@ static int acquire(mtx_t *m, int try_only, const struct timespec *due) {
         if (rc == SALTS_ETIMEDOUT) return thrd_busy;
     } else if (!due) rc = platform_mutex_lock(s->lock);
 #ifdef __APPLE__
-    else rc = permit_wait(&s->lock->permit, due, CLOCK_REALTIME);
+    else rc = darwin_mutex_lock(&s->lock->timed, due, CLOCK_REALTIME);
 #else
     else rc = mutex_result(pthread_mutex_timedlock(&s->lock->native, due));
 #endif

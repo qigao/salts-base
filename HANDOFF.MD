@@ -48,6 +48,21 @@
   107–146 ns/acquisition. The two runs with 47–50% wakes measured
   1,915–2,267 ns/acquisition. [Repeat macOS log](https://github.com/qigao/salts-base/actions/runs/44277383560/job/134709247505).
 
+- For the Darwin timed mutex follow-up, compare the same
+  `saltscore.posix_threads_benchmark` on the old and new providers. The
+  `Darwin mutex` rows rotate pthread, plain C11 and timed C11 across four
+  repeats and sample acquisition latency. `hold=1` sleeps briefly inside
+  every sixteenth critical section. `mixed=1` alternates ordinary and timed
+  acquisitions. The held-lock workload exercises parking pressure without
+  instrumenting the production wake path.
+- A dispatch semaphore wait can enter an unbounded drain after an expired
+  or zero timeout when a signal has incremented the counter and paused before
+  the kernel wake. Darwin timed and platform mutexes now keep ownership in an
+  atomic word and reserve at most one Mach semaphore notification. The C11
+  facade CTest pauses between reservation and the native signal to verify that
+  try-lock and timeout can complete and the next sleeper can still progress.
+  [libdispatch drain](https://github.com/apple-oss-distributions/libdispatch/blob/main/src/semaphore.c#L108).
+
 ## Hosted validation and deadline edge cases
 
 The parser registration fix in PR #23 lets the normal presets build the full
@@ -75,12 +90,12 @@ revision and successive handoff experiments.
   the exiting caller and all subsequent callers.
   [compiler-rt interceptor](https://github.com/llvm/llvm-project/blob/llvmorg-18.1.8/compiler-rt/lib/tsan/rtl/tsan_interceptors_posix.cpp).
 
-- On Darwin a timed mutex behind a held lock can hang if an expired C11
+- On the dispatch-backed path, a Darwin wait can hang if an expired C11
   deadline at epoch zero is passed to `dispatch_walltime`. Epoch nanoseconds
   zero and one map to the forever sentinel. Use an immediate acquire for those
   dates. Wall times also have a 62-bit nanosecond limit. A larger date can
-  decode as the continuous clock. For such dates the mutex sleeps on its
-  semaphore with a finite timeout and rechecks UTC on expiration. The C11
+  decode as the continuous clock. For such dates the dispatch path sleeps on
+  its semaphore with a finite timeout and rechecks UTC on expiration. The C11
   threads CTest covers expiry and a contended year-2262 deadline, and the
   portable timed mutex CTest covers monotonic durations.
   [libdispatch time encoding](https://github.com/apple-oss-distributions/libdispatch/blob/main/src/shims/time.h)
