@@ -1,57 +1,5 @@
 # SaltsBase
 
-## Upstream dependency versions
-
-Select the upstream SDK release through `VCPKG_CACHE_VERSION` in the parent
-environment (for example, by loading the local `.env`). Use the same version
-for the `VCPKG_CACHE_REPOSITORY_ROOT` checkout. Values contain the version
-without the `v` prefix; missing variables fail rather than choosing `latest`.
-The shared `resolve-release` entry point is required (not present in v0.1.2).
-
-The per-triplet files in `cmake/dependencies/` are release descriptors. Their
-historical `.lock.json` suffix is retained; `source.kind=github-release`
-distinguishes them from generated literal URL/hash locks. Resolve the selected
-release into the build directory before restoring it:
-
-```sh
-python "$VCPKG_CACHE_REPOSITORY_ROOT/scripts/restore-native-dependency.py" resolve-release \
-  "cmake/dependencies/$VCPKG_TARGET_TRIPLET.lock.json" \
-  --output-lock "build/dependencies/$VCPKG_TARGET_TRIPLET.lock.json"
-python "$VCPKG_CACHE_REPOSITORY_ROOT/scripts/restore-native-dependency.py" locked \
-  "build/dependencies/$VCPKG_TARGET_TRIPLET.lock.json" \
-  --destination "build/dependencies/$VCPKG_TARGET_TRIPLET-$VCPKG_CACHE_VERSION" \
-  --payload vcpkg_installed
-```
-
-Set `VCPKG_INSTALLED_DIR` to the reported root for the selected preset. The
-resolver requires the published asset's SHA-256 digest; the existing restore
-checks downloaded bytes and preserves immutable installations. Changing a
-version never overwrites an old SDK. CMake does not load `.env` or download
-the dependency SDK implicitly. Existing host-tool package locks remain exact.
-
-CI uses the same named repository Actions variables and selects local shared
-actions from the chosen infrastructure checkout. SaltsBase and SaltsCore
-prepare jobs resolve once, then distribute generated locks and verified blobs
-to all matrix workers. Set the CI variables before enabling these changes;
-the selected infrastructure release must contain `resolve-release`.
-
-This keeps consumer version policy in the environment, asset digests in the
-upstream release, and generated restore locks in build inputs. Updating a
-release no longer requires editing a digest table for every platform. SDK
-manifests, compiler/ABI selection and product tests remain mandatory. To roll
-back, choose the previous exact release and restore into its own directory.
-
-
-[![Native and Android CI](https://github.com/qigao/salts-base/actions/workflows/native-ci.yml/badge.svg)](https://github.com/qigao/salts-base/actions/workflows/native-ci.yml)
-[![C11](https://img.shields.io/badge/C-11-A8B9CC?logo=c&logoColor=white)](CMakeLists.txt)
-[![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![CMake 3.27+](https://img.shields.io/badge/CMake-3.27%2B-064F8C?logo=cmake&logoColor=white)](CMakeUserPresets.json)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-
-A modular C11 foundation for cross-platform applications, with C++17 integration.
-Strings, concurrency, native I/O, parsers and Unicode ship in one CMake package
-under the `Salts::` target namespace.
-
 [Features](#features) · [Modules](#modules) · [Quick start](#quick-start) ·
 [Usage](#usage) · [Testing](#testing) · [Documentation](#documentation)
 
