@@ -283,6 +283,158 @@ SaltsBase is licensed under [Apache License 2.0](LICENSE).
 Bundled third-party components retain their upstream licenses; dependency
 licenses are also installed with the SDK.
 
+## Choosing a C11 mutex
+
+Use `mtx_plain` for ordinary locking and for a predicate shared with a
+condition variable. Both `cnd_wait` and `cnd_timedwait` accept a plain mutex.
+Check the predicate under that mutex after every wake. For a timed wait,
+reuse the same absolute UTC deadline throughout the loop and check the
+predicate again under the reacquired mutex before acting on a timeout.
+
+Choose `mtx_timed` when a caller needs `mtx_timedlock` to put a deadline on
+acquiring the mutex itself. Add `mtx_recursive` when the same thread needs
+to acquire the mutex recursively.
+
+## Windows thread runtime
+
+Core owns the Windows implementation of the C11 mutex, condition and once
+operations and their Salts synchronization counterparts. The installed C and
+C++ object layouts and the UTC seconds/nanoseconds ABI stay compatible. The
+Windows backend resolves `NtWaitForKeyedEvent`, `NtReleaseKeyedEvent` and
+`NtWaitForSingleObject` from ntdll once. Initialization reports an
+unsupported backend if a required export is absent. A non-alertable wait on the default keyed
+event matches one release in the same process. An unexpected status after a
+waiter has registered is a broken rendezvous and terminates the process.
+
+The two private keyed-event `NTAPI` declarations take a null event handle, an aligned
+key, a false alertable flag and an optional signed 100 ns timeout. The
+upstream inventory also includes section, handle, memory and error handling
+imports for mcfgthread's runtime. Salts uses the object wait for durable
+event notifications with absolute UTC or monotonic remaining time.
+Its private x64 and ARM64 accessors read the SDK's TEB fields for OS-owned
+TLS slots, including the expansion array beyond the first 64. The slot
+owner must keep the index live until every reader has finished.
+[Upstream import inventory](https://github.com/lhmouse/mcfgthread/blob/006e1860d90f0a3a4bfa2bbdbe3f275c627c6a8c/mcfgthread/src/ntdll.def.in)
+and [upstream architecture accessors](https://github.com/lhmouse/mcfgthread/blob/006e1860d90f0a3a4bfa2bbdbe3f275c627c6a8c/mcfgthread/teb.h).
+
+- A mutex stores ownership and the number of registered sleepers in one
+  interlocked word. A contender spins briefly while there are no registered
+  sleepers, then parks. Unlock publishes availability and pairs with at most
+  one sleeper. An awakened thread competes for the lock. This permits barging
+  and gives no FIFO or starvation bound. Shared/exclusive `sync_rwlock_*`
+  continues to use the Windows SRW policy, which also has no writer fairness
+  guarantee.
+- A timed mutex uses the original deadline across retries, registration and
+  kernel waits. It needs no blocking admission guard. UTC deadlines and the
+  private monotonic duration API retain separate clock semantics. On timeout
+  the waiter removes its own registration without waiting for a releaser.
+  If release precedes kernel registration, the releaser makes finite wake
+  offers while the mutex is free and registered sleepers remain.
+  A waiter that has paired with a release claims an available mutex before
+  retiring its registration. This lets a second sleeper make progress if
+  the first waiter's deadline passes as the kernel wakes it.
+- An untimed condition waiter lends one aligned stack record to its condition's FIFO
+  before releasing the associated mutex. Signal selects the first registered
+  waiter. Broadcast selects the current queue under the same lock. Each
+  selection publishes one notification to that waiter. On an untimed wait,
+  the thread can yield once to a runnable peer and briefly poll its stack
+  record. A parked ARM64 waiter uses its own native SRW lock and condition
+  variable. Salts still selects the FIFO waiter, and the private lock keeps
+  the stack record live through notification. On x64 a parked waiter pairs
+  with the notifier through a keyed event. After a kernel wait crosses a Windows clock tick, the
+  same thread tries parking directly on its next untimed wait. A short
+  handoff restores polling. A timed waiter shares an event record with the
+  queue. Timeout and notification compete for its eligibility. The waiter
+  can retire its reference at the original deadline even if the notifier is
+  paused. A queue operation or quiescent destroy reclaims expired records.
+  A contended queue guard posts a durable wake on release. Returning from
+  a wait includes reacquiring the user mutex and restoring its depth.
+- Once keeps the four-byte flag. Normal completion publishes the callback's
+  writes to all waiters. On `thrd_exit` each active initializer hands execution
+  to one registered caller or resets its flag for a later caller. This also
+  applies to nested initializers and precedes C11 TSS destructor delivery.
+- The x64 and ARM64 private TEB accessors support thread identity and reads
+  from an OS-allocated TLS slot. The benchmark compares both operations
+  with compiler TLS and compares pointer reads with TLS and FLS. Thread
+  identity and writable state use compiler TLS by default. Public TSS
+  retains its FLS exit hook and bounded destructor
+  passes. After all participating threads and callbacks have finished, an
+  explicit DLL unload releases the native hook. Join or otherwise establish
+  quiescence before destroying objects or unloading Core. Asynchronous
+  termination of a thread inside a wait cannot complete its rendezvous.
+
+The existing Core CTests exercise recursive reacquisition, timed contention,
+once publication, signal and broadcast, foreign threads, and repeated DLL
+loads. With `BUILD_BENCHMARKS=ON`, run `ctest --preset <windows-preset>
+-R saltscore.win_threads_benchmark -V` for acquisition latency percentiles,
+throughput, process CPU time, context switches, failed first attempts, and
+the least/most successful worker ratio. The workload uses one, two and eight
+workers on at most two logical processors. It pools bounded per-worker latency
+samples. The condition benchmark restricts both threads to one and then two
+available logical processors. It reports single-exchange latency, the interval
+between successive requests under the mutex (one full round trip), and CPU
+cycles per trip. A delayed responder exercises the cost of parking. SRW and,
+on pthread-enabled toolchains, direct pthread calls use the same critical
+section for the immediate-response comparison. To roll back the Windows
+implementation, rebuild Core from the preceding revision and replace it after
+normal process shutdown.
+
+A separate 350 ms workload records reader and writer acquisition counts and
+the longest observed writer wait with seven concurrent readers. The readers
+stop independently so the measurement can finish even if the writer makes
+no progress during the window.
+
+The design references are [Windows runtime #17](https://github.com/qigao/salts-base/issues/17),
+[mcfgthread synchronization](https://github.com/lhmouse/mcfgthread), and
+[Microsoft's SRW contract](https://learn.microsoft.com/en-us/windows/win32/sync/slim-reader-writer--srw--locks).
+
+## POSIX C11 thread runtime
+
+C11 timed mutex and condition operations take an absolute UTC deadline. The
+Salts platform duration API measures elapsed monotonic time. Linux uses
+pthread timed mutex and condition operations with the corresponding clock.
+C11 mutexes on Android use pthreads directly. The older Bionic platform
+duration API uses a nonblocking semaphore-mode eventfd and waits for readiness
+with the remaining monotonic budget. Darwin uses pthreads for ordinary C11
+mutexes. Its timed and platform mutexes keep ownership in one atomic state
+and allocate a Mach semaphore to park contenders. An uncontended acquisition
+and release update the atomic state. A timed caller can withdraw its own
+registration while a release notification is pending. Each native timed
+wait uses the remaining budget from the caller's original clock and deadline.
+
+Conditions paired with native pthread mutexes release and reacquire them
+through pthreads. Conditions paired with the Darwin timed/platform mutexes
+and the older Bionic platform mutexes enroll each waiter in an open group.
+The first signal seals that group. New waiters then join
+a new group, while remaining members of the sealed group retain priority.
+A signal grants one permit and broadcast grants the current outstanding permits
+in both groups. Timeout withdraws eligibility atomically. Each waiting call
+keeps its group alive until it returns. At most two groups remain attached
+to a condition, and no per-thread queue node is needed.
+
+A recursive mutex records its owner and depth. A condition wait releases
+all levels and restores them before returning, including on timeout. A caller
+must recheck its predicate after each wake. An expired condition deadline can
+return later while another thread owns the mutex.
+
+Linux uses `pthread_once` with the existing four-byte flag. Darwin, Android
+and ThreadSanitizer builds use a pthread condition while another thread runs
+the initializer. The TSan interceptor publishes its once flag only when
+the initializer returns.
+If that initializer exits, its cleanup handler makes the flag available again.
+POSIX threads use pthread keys for TSS. A detached thread retains its live
+worker reference through return or `thrd_exit`. Synchronize outstanding key
+users and callbacks before releasing their data, and quiesce users before
+destroying synchronization objects.
+
+With `BUILD_BENCHMARKS=ON`, run the Core thread benchmark through CTest
+with `-R threads_benchmark -V`. The POSIX comparison reports elapsed and
+CPU time for mutex acquisition with one and two workers, condition round trips
+and timed waits. It measures plain and timed-capable C11 mutexes separately.
+The long-initializer benchmark measures the waiting thread's
+CPU time separately. Darwin provides a direct pthread baseline for conditions
+and untimed mutex acquisition.
+
 ## Thread-pool callback identity
 
 `<threads/thread_pool.h>` exposes `threadpool_is_current(pool)` for consumers

@@ -150,11 +150,27 @@
       ]
     },
     {
+      "name": "ci-msvc-arm64-release-user",
+      "displayName": "CI preinstalled dependencies: Windows ARM64 MSVC",
+      "inherits": "ci-msvc-release-user",
+      "environment": {
+        "VCPKG_TARGET_TRIPLET": "arm64-windows"
+      }
+    },
+    {
       "name": "ci-llvm-mingw-x64-release-user",
       "displayName": "CI preinstalled dependencies: llvm-mingw-x64-release-user",
       "inherits": [
         "ci-native-tests",
         "llvm-mingw-x64-release-user"
+      ]
+    },
+    {
+      "name": "ci-llvm-mingw-arm64-release-user",
+      "displayName": "CI preinstalled dependencies: llvm-mingw-arm64-release-user",
+      "inherits": [
+        "ci-native-tests",
+        "llvm-mingw-arm64-release-user"
       ]
     },
     {
@@ -412,6 +428,16 @@
       "configurePreset": "ci-msvc-release-user"
     },
     {
+      "name": "ci-msvc-arm64-release-user",
+      "inherits": "ci-msvc-release-user",
+      "configurePreset": "ci-msvc-arm64-release-user"
+    },
+    {
+      "name": "install-ci-msvc-arm64-release-user",
+      "inherits": "install-ci-msvc-release-user",
+      "configurePreset": "ci-msvc-arm64-release-user"
+    },
+    {
       "name": "ci-llvm-mingw-x64-release-user",
       "inherits": [
         "llvm-mingw-x64-release-user"
@@ -419,11 +445,25 @@
       "configurePreset": "ci-llvm-mingw-x64-release-user"
     },
     {
+      "name": "ci-llvm-mingw-arm64-release-user",
+      "inherits": [
+        "llvm-mingw-arm64-release-user"
+      ],
+      "configurePreset": "ci-llvm-mingw-arm64-release-user"
+    },
+    {
       "name": "install-ci-llvm-mingw-x64-release-user",
       "inherits": [
         "install-llvm-mingw-x64-release-user"
       ],
       "configurePreset": "ci-llvm-mingw-x64-release-user"
+    },
+    {
+      "name": "install-ci-llvm-mingw-arm64-release-user",
+      "inherits": [
+        "install-llvm-mingw-arm64-release-user"
+      ],
+      "configurePreset": "ci-llvm-mingw-arm64-release-user"
     },
     {
       "name": "ci-llvm-native-release-user",
@@ -576,6 +616,14 @@
       "configurePreset": "llvm-mingw-x64-release-user"
     },
     {
+      "name": "llvm-mingw-arm64-release-user",
+      "inherits": [
+        "base-test",
+        "test-windows"
+      ],
+      "configurePreset": "llvm-mingw-arm64-release-user"
+    },
+    {
       "name": "ci-msvc-release-user",
       "inherits": [
         "msvc-release-user"
@@ -583,11 +631,23 @@
       "configurePreset": "ci-msvc-release-user"
     },
     {
+      "name": "ci-msvc-arm64-release-user",
+      "inherits": "ci-msvc-release-user",
+      "configurePreset": "ci-msvc-arm64-release-user"
+    },
+    {
       "name": "ci-llvm-mingw-x64-release-user",
       "inherits": [
         "llvm-mingw-x64-release-user"
       ],
       "configurePreset": "ci-llvm-mingw-x64-release-user"
+    },
+    {
+      "name": "ci-llvm-mingw-arm64-release-user",
+      "inherits": [
+        "llvm-mingw-arm64-release-user"
+      ],
+      "configurePreset": "ci-llvm-mingw-arm64-release-user"
     },
     {
       "name": "ci-llvm-native-release-user",

@@ -123,10 +123,11 @@ _Noreturn
 #endif
  SALTS_API void thrd_exit(int result);
 
- SALTS_API int mtx_init(mtx_t *m, int type);
-/* All four standard plain/timed/recursive combinations are supported.
+/* Use mtx_plain for ordinary locking, cnd_wait and cnd_timedwait.
+ * Choose mtx_timed for mtx_timedlock. Either kind may include mtx_recursive.
  * Timed waits use absolute TIME_UTC. Destroy only with no active users.
  */
+ SALTS_API int mtx_init(mtx_t *m, int type);
  SALTS_API int mtx_lock(mtx_t *m);
  SALTS_API int mtx_trylock(mtx_t *m);
  SALTS_API int mtx_timedlock_abi(mtx_t *m, int64_t seconds, uint32_t nanos);

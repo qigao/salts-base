@@ -1,6 +1,7 @@
 #ifndef CSV_LEXER_SIMDE_H
 #define CSV_LEXER_SIMDE_H
 
+#include <stdatomic.h>
 #include <simde/x86/sse2.h>
 
 #include <stddef.h>

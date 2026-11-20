@@ -1,9 +1,9 @@
 #ifndef SALTS_SCAN_INTERNAL_H
 #define SALTS_SCAN_INTERNAL_H
 
-#include <simde/x86/sse2.h>
-
 #include <stddef.h>
+#include <stdatomic.h>
+#include <simde/x86/sse2.h>
 
 /* Private Core kernels: borrowed [p, end) within one array, O(n) time and
  * O(1) space. Check null/reversed ranges before pointer subtraction.

@@ -1,5 +1,6 @@
 #include "thread_backend.h"
 #ifdef _WIN32
+#include "nt_wait_win.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN 1
 #endif
@@ -21,8 +22,6 @@ struct platform_thread {
     int result;
     atomic32 refs;
 };
-struct platform_mutex { SRWLOCK native; };
-struct condition_state { CONDITION_VARIABLE native; };
 #if defined(_MSC_VER)
 static __declspec(thread) platform_thread *platform_current;
 #elif defined(__clang__) || defined(__GNUC__)
@@ -88,6 +87,7 @@ int platform_thread_detach(platform_thread **owner) {
 }
 void platform_thread_exit(int result) {
     platform_thread *thread = platform_current;
+    win_abandon_once();
     if (thread) {
         thread->result = result;
         platform_current = NULL;
@@ -101,90 +101,5 @@ int platform_thread_sleep_ns(uint64_t duration_ns) {
     if (duration_ns > SALTS_PLATFORM_MAX_RELATIVE_WAIT_NS) return SALTS_EINVAL;
     Sleep((DWORD)((duration_ns + 999999ull) / 1000000ull));
     return SALTS_OK;
-}
-int platform_mutex_create(platform_mutex **out) {
-    platform_mutex *m;
-    if (!out || *out) return SALTS_EINVAL;
-    m = (platform_mutex *)malloc(sizeof(*m));
-    if (!m) return SALTS_ENOMEM;
-    InitializeSRWLock(&m->native);
-    *out = m; return SALTS_OK;
-}
-int platform_mutex_lock(platform_mutex *m) {
-    if (!m) return SALTS_EINVAL;
-    AcquireSRWLockExclusive(&m->native); return SALTS_OK;
-}
-/* GetTickCount64 is monotonic and independent of wall clock adjustments.
- * Positive fractional milliseconds round up, as with timed condition wait.
- * SRWLOCK has no timed-wait primitive, so retry with bounded OS yielding.
- */
-int platform_mutex_timedlock_ns(
-    platform_mutex *m, uint64_t timeout_ns) {
-    ULONGLONG start, elapsed, requested_ms;
-    if (!m || timeout_ns > SALTS_PLATFORM_MAX_RELATIVE_WAIT_NS)
-        return SALTS_EINVAL;
-    if (TryAcquireSRWLockExclusive(&m->native)) return SALTS_OK;
-    if (timeout_ns == 0) return SALTS_ETIMEDOUT;
-    requested_ms = (ULONGLONG)((timeout_ns + 999999ull) / 1000000ull);
-    start = GetTickCount64();
-    for (;;) {
-        elapsed = GetTickCount64() - start;
-        if (elapsed >= requested_ms) return SALTS_ETIMEDOUT;
-        if (requested_ms - elapsed > 2ull) Sleep(1);
-        else (void)SwitchToThread();
-        if (GetTickCount64() - start >= requested_ms) return SALTS_ETIMEDOUT;
-        if (TryAcquireSRWLockExclusive(&m->native)) return SALTS_OK;
-    }
-}
-int platform_mutex_unlock(platform_mutex *m) {
-    if (!m) return SALTS_EINVAL;
-    ReleaseSRWLockExclusive(&m->native); return SALTS_OK;
-}
-int platform_mutex_destroy(platform_mutex **owner) {
-    platform_mutex *m;
-    if (!owner || !(m = *owner)) return SALTS_EINVAL;
-    /* No Windows OS primitive can guard a destroy racing a new entrant;
-     * the caller must guarantee quiescence before destroy. */
-    if (!TryAcquireSRWLockExclusive(&m->native)) return SALTS_EBUSY;
-    ReleaseSRWLockExclusive(&m->native);
-    *owner = NULL;
-    free(m); return SALTS_OK;
-}
-int platform_condition_create(platform_condition **out) {
-    platform_condition *c;
-    if (!out || *out) return SALTS_EINVAL;
-    c = (platform_condition *)malloc(sizeof(*c));
-    if (!c) return SALTS_ENOMEM;
-    InitializeConditionVariable(&c->native);
-    *out = c; return SALTS_OK;
-}
-int platform_condition_wait(platform_condition *c, platform_mutex *m) {
-    if (!c || !m) return SALTS_EINVAL;
-    return SleepConditionVariableSRW(&c->native, &m->native, INFINITE, 0) ? SALTS_OK : SALTS_EBUSY;
-}
-int platform_condition_timedwait_ns(
-    platform_condition *c, platform_mutex *m, uint64_t timeout_ns) {
-    DWORD milliseconds;
-    if (!c || !m || timeout_ns > SALTS_PLATFORM_MAX_RELATIVE_WAIT_NS)
-        return SALTS_EINVAL;
-    milliseconds = (DWORD)((timeout_ns + 999999ull) / 1000000ull);
-    if (SleepConditionVariableSRW(&c->native, &m->native, milliseconds, 0))
-        return SALTS_OK;
-    return GetLastError() == ERROR_TIMEOUT ? SALTS_ETIMEDOUT : SALTS_EBUSY;
-}
-int platform_condition_signal(platform_condition *c) {
-    if (!c) return SALTS_EINVAL;
-    WakeConditionVariable(&c->native); return SALTS_OK;
-}
-int platform_condition_broadcast(platform_condition *c) {
-    if (!c) return SALTS_EINVAL;
-    WakeAllConditionVariable(&c->native); return SALTS_OK;
-}
-int platform_condition_destroy(platform_condition **owner) {
-    platform_condition *c;
-    if (!owner || !(c = *owner)) return SALTS_EINVAL;
-    /* Condition variable must be quiescent: OS has no destroy primitive. */
-    *owner = NULL;
-    free(c); return SALTS_OK;
 }
 #endif

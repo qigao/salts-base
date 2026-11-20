@@ -1,4 +1,5 @@
 #include <threads/threads.h>
+#include "nt_wait_win.h"
 
 #include <errno.h>
 #include <process.h>
@@ -14,29 +15,26 @@ struct thread_wrapper_ctx {
 };
 
 void sync_mutex_init(sync_mutex_t *mutex) {
-  PSRWLOCK native;
-  if (mutex == NULL) return;
-  *mutex = NULL;
-  native = (PSRWLOCK)malloc(sizeof(SRWLOCK));
-  if (native == NULL) return;
-  InitializeSRWLock(native);
-  *mutex = native;
+  platform_mutex *owner = NULL;
+  if (!mutex) return;
+  (void)platform_mutex_create(&owner);
+  *mutex = owner;
 }
 
 void sync_mutex_destroy(sync_mutex_t *mutex) {
-  if (mutex == NULL || *mutex == NULL) return;
-  free(*mutex);
-  *mutex = NULL;
+  if (mutex && *mutex) {
+    platform_mutex *owner = *mutex;
+    if (platform_mutex_destroy(&owner) != SALTS_OK) abort();
+    *mutex = NULL;
+  }
 }
 
 void sync_mutex_lock(sync_mutex_t *mutex) {
-  if (mutex == NULL || *mutex == NULL) return;
-  AcquireSRWLockExclusive((PSRWLOCK)*mutex);
+  if (mutex && *mutex && platform_mutex_lock(*mutex) != SALTS_OK) abort();
 }
 
 void sync_mutex_unlock(sync_mutex_t *mutex) {
-  if (mutex == NULL || *mutex == NULL) return;
-  ReleaseSRWLockExclusive((PSRWLOCK)*mutex);
+  if (mutex && *mutex && platform_mutex_unlock(*mutex) != SALTS_OK) abort();
 }
 
 int sync_rwlock_init(sync_rwlock_t *lock) {
@@ -77,54 +75,42 @@ void sync_rwlock_wrunlock(sync_rwlock_t *lock) {
 }
 
 void sync_cond_init(sync_cond_t *cond) {
-  PCONDITION_VARIABLE native;
-  if (cond == NULL) return;
-  *cond = NULL;
-  native = (PCONDITION_VARIABLE)malloc(sizeof(CONDITION_VARIABLE));
-  if (native == NULL) return;
-  InitializeConditionVariable(native);
-  *cond = native;
+  platform_condition *owner = NULL;
+  if (!cond) return;
+  (void)platform_condition_create(&owner);
+  *cond = owner;
 }
 
 void sync_cond_destroy(sync_cond_t *cond) {
-  if (cond == NULL || *cond == NULL) return;
-  free(*cond);
-  *cond = NULL;
+  if (cond && *cond) {
+    platform_condition *owner = *cond;
+    if (platform_condition_destroy(&owner) != SALTS_OK) abort();
+    *cond = NULL;
+  }
 }
 
 void sync_cond_signal(sync_cond_t *cond) {
-  if (cond == NULL || *cond == NULL) return;
-  WakeConditionVariable((PCONDITION_VARIABLE)*cond);
+  if (cond && *cond) (void)platform_condition_signal(*cond);
 }
 
 void sync_cond_broadcast(sync_cond_t *cond) {
-  if (cond == NULL || *cond == NULL) return;
-  WakeAllConditionVariable((PCONDITION_VARIABLE)*cond);
+  if (cond && *cond) (void)platform_condition_broadcast(*cond);
 }
 
 void sync_cond_wait(sync_cond_t *cond, sync_mutex_t *mutex) {
-  if (cond == NULL || *cond == NULL || mutex == NULL || *mutex == NULL) return;
-  (void)SleepConditionVariableSRW((PCONDITION_VARIABLE)*cond,
-                                  (PSRWLOCK)*mutex, INFINITE, 0);
+  if (cond && *cond && mutex && *mutex &&
+      platform_condition_wait(*cond, *mutex) != SALTS_OK) abort();
 }
 
-int sync_cond_timedwait(sync_cond_t *cond, sync_mutex_t *mutex,
-                         uint64_t timeout_ns) {
-  DWORD timeout_ms;
-  BOOL result;
-
-  if (cond == NULL || *cond == NULL || mutex == NULL || *mutex == NULL)
-    return -EINVAL;
-
-  if (timeout_ns >= (uint64_t)INFINITE * 1000000ULL)
-    timeout_ms = INFINITE - 1U;
-  else
-    timeout_ms = (DWORD)((timeout_ns + 999999ULL) / 1000000ULL);
-
-  result = SleepConditionVariableSRW((PCONDITION_VARIABLE)*cond,
-                                     (PSRWLOCK)*mutex, timeout_ms, 0);
-  if (result) return 0;
-  return GetLastError() == ERROR_TIMEOUT ? -ETIMEDOUT : -EIO;
+int sync_cond_timedwait(sync_cond_t *cond, sync_mutex_t *mutex, uint64_t timeout_ns) {
+  int rc;
+  if (!cond || !*cond || !mutex || !*mutex) return -EINVAL;
+  /* This legacy extension caps large timeouts at the largest finite DWORD wait. */
+  if (timeout_ns > SALTS_PLATFORM_MAX_RELATIVE_WAIT_NS)
+    timeout_ns = SALTS_PLATFORM_MAX_RELATIVE_WAIT_NS;
+  rc = platform_condition_timedwait_ns(*cond, *mutex, timeout_ns);
+  if (rc == SALTS_OK) return 0;
+  return rc == SALTS_ETIMEDOUT ? -ETIMEDOUT : -EIO;
 }
 
 static unsigned __stdcall thread_entry_wrapper(void *arg) {
@@ -175,16 +161,8 @@ void sync_thread_destroy(sync_thread_t *thread) {
 }
 
 void sync_once(sync_once_t *guard, void (*callback)(void)) {
-  LONG previous;
   if (guard == NULL || callback == NULL) return;
-  previous = InterlockedCompareExchange((volatile LONG *)&guard->state, 1, 0);
-  if (previous == 0) {
-    callback();
-    (void)InterlockedExchange((volatile LONG *)&guard->state, 2);
-    return;
-  }
-  while (InterlockedCompareExchange((volatile LONG *)&guard->state, 2, 2) != 2)
-    SwitchToThread();
+  if (win_call_once((volatile LONG *)&guard->state, callback) != SALTS_OK) abort();
 }
 
 void sleep_ms(uint32_t ms) { Sleep(ms); }
