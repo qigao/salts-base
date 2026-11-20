@@ -1,6 +1,8 @@
 #ifndef SALTS_SCAN_INTERNAL_H
 #define SALTS_SCAN_INTERNAL_H
 
+#include <stdatomic.h>
+
 #include <simde/x86/sse2.h>
 
 #include <stddef.h>
