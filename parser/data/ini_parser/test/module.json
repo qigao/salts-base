@@ -1,0 +1,38 @@
+{
+  "targets": {
+    "test_ini_bounds": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_ini_bounds.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "ini_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_ini_bounds"
+      }
+    },
+    "test_ini_parser": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_ini_parser.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "ini_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_ini_parser"
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "include": ["test/module.json"],
+  "name": "modbus_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/modbus_parser.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ]
+  }
+}

@@ -1,0 +1,243 @@
+{
+  "include": ["tests/module.json"],
+  "name": "salts",
+  "kind": "shared",
+  "outputPrefix": "lib",
+  "sources": {
+    "files": [
+      "parser/fmt_lexer.c",
+      "parser/log_pattern_lexer.c",
+      "sds/sds.c",
+      "src/atomic/portable_atomic.c",
+      "src/base64.c",
+      "src/bytes.c",
+      "src/clock.c",
+      "src/error.c",
+      "src/file/fs.c",
+      "src/file/fs_root.c",
+      "src/file/fs_watch.c",
+      "src/fmt.c",
+      "src/memory/buffer.c",
+      "src/memory/memory_pool.c",
+      "src/memory/mmap.c",
+      "src/memory/object_pool.c",
+      "src/platform.c",
+      "src/process.c",
+      "src/queue/bucket_priority_queue.c",
+      "src/queue/bucket_priority_queue_mpmc.c",
+      "src/queue/bucket_priority_queue_spsc.c",
+      "src/queue/deadline_queue.c",
+      "src/queue/disruptor.c",
+      "src/queue/ring_buffer.c",
+      "src/queue/ring_buffer_spsc.c",
+      "src/queue/spsc_ring.c",
+      "src/random.c",
+      "src/rcu.c",
+      "src/re.c",
+      "src/runtime_abi.c",
+      "src/scan.c",
+      "src/threads/c11_threads.c",
+      "src/threads/c11_tss.c",
+      "src/threads/portable_once.c",
+      "src/threads/thread_policy.c",
+      "src/threads/thread_pool.c",
+      "src/threads/thread_pool_lf.c",
+      "src/tlog.c",
+      "src/tstr.c",
+      "src/uuid.c",
+      "src/vstr.c",
+      "src/zstd.c",
+      "src/threads/c11_mutex_posix.c",
+      "src/threads/c11_sleep_posix.c",
+      "src/threads/portable_thread_posix.c",
+      "src/threads/portable_tss_posix.c",
+      "src/threads/thread_posix.c",
+      "src/file/fs_watch_unsupported.c"
+    ]
+  },
+  "install": {
+    "headers": [
+      {
+        "from": "include",
+        "to": "include"
+      }
+    ],
+    "exportTarget": true,
+    "version": "0.1.8"
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "defines": {
+      "HAS_ZSTD": "1"
+    }
+  },
+  "private": {
+    "includeDirs": [
+      "src",
+      "sds",
+      "parser"
+    ],
+    "defines": {
+      "SALTS_CORE_BUILD": "1",
+      "ZSTD_MULTITHREAD": null
+    },
+    "deps": [
+      "simde",
+      "zstd"
+    ]
+  },
+  "variants": [
+    {
+      "when": {
+        "os": "windows"
+      },
+      "sources": {
+        "files": [
+          "src/file/fs_watch_win.c",
+          "src/threads/c11_mutex_win.c",
+          "src/threads/c11_sleep_win.c",
+          "src/threads/portable_thread_win.c",
+          "src/threads/portable_tss_win.c",
+          "src/threads/thread_win.c"
+        ],
+        "exclude": [
+          "src/threads/c11_mutex_posix.c",
+          "src/threads/c11_sleep_posix.c",
+          "src/threads/portable_thread_posix.c",
+          "src/threads/portable_tss_posix.c",
+          "src/threads/thread_posix.c",
+          "src/file/fs_watch_unsupported.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "salts_nt_runtime"
+        ],
+        "defines": {
+          "WIN32_LEAN_AND_MEAN": null,
+          "_WIN32_WINNT": "0x0601"
+        },
+        "libs": [
+          "bcrypt",
+          "iphlpapi",
+          "ws2_32"
+        ]
+      }
+    },
+    {
+      "when": {
+        "os": "linux"
+      },
+      "sources": {
+        "files": [
+          "src/file/fs_watch_linux.c"
+        ],
+        "exclude": [
+          "src/file/fs_watch_unsupported.c"
+        ]
+      },
+      "public": {
+        "linkFlags": [
+          "-pthread"
+        ]
+      },
+      "private": {
+        "defines": {
+          "_DEFAULT_SOURCE": "1",
+          "_POSIX_C_SOURCE": "200809L",
+          "_XOPEN_SOURCE": "700"
+        },
+        "linkFlags": [
+          "-Wl,--exclude-libs,libzstd.a"
+        ]
+      }
+    },
+    {
+      "when": {
+        "os": "macos"
+      },
+      "sources": {
+        "files": [
+          "src/file/fs_watch_macos.m",
+          "src/threads/condition_permit_posix.c"
+        ],
+        "exclude": [
+          "src/file/fs_watch_unsupported.c"
+        ]
+      },
+      "private": {
+        "defines": {
+          "_DARWIN_C_SOURCE": "1"
+        },
+        "linkFlags": [
+          "-Wl,-framework,CoreServices"
+        ]
+      }
+    },
+    {
+      "when": {
+        "os": "android"
+      },
+      "sources": {
+        "files": [
+          "src/threads/condition_permit_posix.c"
+        ]
+      },
+      "private": {
+        "defines": {
+          "_DEFAULT_SOURCE": "1",
+          "_POSIX_C_SOURCE": "200809L",
+          "_XOPEN_SOURCE": "700"
+        },
+        "linkFlags": [
+          "-Wl,--exclude-libs,libzstd.a"
+        ]
+      }
+    },
+    {
+      "when": {
+        "os": "ios"
+      },
+      "sources": {
+        "files": [
+          "src/threads/condition_permit_posix.c"
+        ]
+      },
+      "private": {
+        "defines": {
+          "_DARWIN_C_SOURCE": "1"
+        }
+      }
+    }
+  ],
+  "targets": {
+    "salts_nt_runtime": {
+      "kind": "static",
+      "when": {
+        "os": "windows"
+      },
+      "sources": {
+        "files": [
+          "src/threads/native_sync_win.c",
+          "src/threads/nt_wait_win.c",
+          "src/threads/thread_module_win.c"
+        ]
+      },
+      "private": {
+        "includeDirs": [
+          "include"
+        ],
+        "defines": {
+          "SALTS_CORE_BUILD": "1",
+          "WIN32_LEAN_AND_MEAN": null,
+          "_WIN32_WINNT": "0x0601"
+        }
+      },
+      "visibility": [
+        "salts"
+      ]
+    }
+  }
+}

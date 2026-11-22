@@ -1,0 +1,136 @@
+{
+  "include": ["test/module.json"],
+  "name": "json_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/json_parser.c",
+      "src/jsonpath.c",
+      "$builddir/gen/json/json_lexer_gen.c",
+      "$builddir/gen/json/json_grammar_gen.c",
+      "$builddir/gen/json/jsonpath_grammar_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [
+      {
+        "from": "include",
+        "to": "include"
+      }
+    ]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "salts",
+      "query_vm"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "parser",
+      "$builddir/gen/json"
+    ],
+    "deps": [
+      "simde"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "json_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/json/json_lexer_gen.c",
+        "$moduledir/parser/json_lexer.re"
+      ],
+      "inputs": [
+        "parser/json_lexer.re"
+      ],
+      "outputs": [
+        "$builddir/gen/json/json_lexer_gen.c"
+      ]
+    },
+    {
+      "name": "json_grammar_stage",
+      "builtin": "copy",
+      "inputs": [
+        "parser/json_grammar.y"
+      ],
+      "outputs": [
+        "$builddir/gen/json/json_grammar_gen.y"
+      ]
+    },
+    {
+      "name": "json_grammar",
+      "program": "${env:SALTS_BUILD_LEMON_ROOT}/bin/lemon${host:exe}",
+      "args": [
+        "-q",
+        "-T${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c",
+        "$builddir/gen/json/json_grammar_gen.y"
+      ],
+      "inputs": [
+        "$builddir/gen/json/json_grammar_gen.y",
+        "${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c"
+      ],
+      "outputs": [
+        "$builddir/gen/json/json_grammar_gen.c",
+        "$builddir/gen/json/json_grammar_gen.h"
+      ]
+    },
+    {
+      "name": "jsonpath_grammar_stage",
+      "builtin": "copy",
+      "inputs": [
+        "parser/jsonpath_grammar.y"
+      ],
+      "outputs": [
+        "$builddir/gen/json/jsonpath_grammar_gen.y"
+      ]
+    },
+    {
+      "name": "jsonpath_grammar",
+      "program": "${env:SALTS_BUILD_LEMON_ROOT}/bin/lemon${host:exe}",
+      "args": [
+        "-q",
+        "-T${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c",
+        "$builddir/gen/json/jsonpath_grammar_gen.y"
+      ],
+      "inputs": [
+        "$builddir/gen/json/jsonpath_grammar_gen.y",
+        "${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c"
+      ],
+      "outputs": [
+        "$builddir/gen/json/jsonpath_grammar_gen.c",
+        "$builddir/gen/json/jsonpath_grammar_gen.h"
+      ]
+    }
+  ],
+  "targets": {
+    "json_cserde_adapter": {
+      "kind": "static",
+      "sources": {
+        "files": [
+          "src/json_cserde_reader.c",
+          "src/json_cserde_writer.c"
+        ]
+      },
+      "public": {
+        "includeDirs": [
+          "include"
+        ],
+        "deps": [
+          "json_parser",
+          "saltscore_cserde"
+        ]
+      },
+      "private": {
+        "includeDirs": [
+          "parser"
+        ]
+      }
+    }
+  }
+}

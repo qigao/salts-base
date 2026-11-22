@@ -1,0 +1,18 @@
+{
+  "include": ["test/module.json"],
+  "name": "query_vm",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/query_vm.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ]
+  }
+}

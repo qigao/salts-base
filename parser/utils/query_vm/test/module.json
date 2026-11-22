@@ -1,0 +1,21 @@
+{
+  "targets": {
+    "test_query_vm": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_query_vm.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "query_vm",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_query_vm"
+      }
+    }
+  }
+}

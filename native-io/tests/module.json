@@ -1,0 +1,249 @@
+{
+  "targets": {
+    "saltscore_native_io_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_native_io.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "native_io",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native_io",
+        "labels": [
+          "native_io"
+        ]
+      }
+    },
+    "saltscore_fs_file_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_fs_file.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "native_io",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore_fs_file_test",
+        "timeout": 60,
+        "labels": [
+          "native_io"
+        ]
+      }
+    },
+    "saltscore_process_async_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_process_async.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "native_io",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore_process_async_test",
+        "timeout": 45,
+        "labels": [
+          "native_io"
+        ]
+      }
+    },
+    "saltscore_process_async_cpp_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_process_async_cpp.cpp"
+        ]
+      },
+      "private": {
+        "deps": [
+          "native_io",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore_process_async_cpp_test",
+        "labels": [
+          "native_io"
+        ]
+      }
+    },
+    "saltscore_shell_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_shell.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "native_io",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore_shell_test",
+        "timeout": 60,
+        "labels": [
+          "native_io"
+        ],
+        "workingDirectory": ".",
+        "environment": [
+          "SALTS_SHELL_PARENT_SENTINEL=parent-value"
+        ]
+      }
+    },
+    "saltscore_readiness_faults_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_readiness_faults.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "native_io",
+          "tinytest"
+        ],
+        "includeDirs": [
+          "../src/readiness"
+        ]
+      },
+      "test": {
+        "name": "saltscore.readiness_faults",
+        "timeout": 20,
+        "labels": [
+          "native_io"
+        ]
+      }
+    },
+    "saltscore_readiness_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_readiness.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "native_io",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.readiness_owner",
+        "timeout": 15,
+        "labels": [
+          "native_io"
+        ]
+      }
+    },
+    "saltscore_readiness_cpp_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_readiness_cpp.cpp"
+        ]
+      },
+      "private": {
+        "deps": [
+          "native_io",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore_readiness_cpp_test",
+        "labels": [
+          "native_io"
+        ]
+      }
+    },
+    "saltsbase_native_io_socket_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_native_io_socket.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "native_io",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltsbase_native_io_socket_test",
+        "timeout": 45,
+        "labels": [
+          "native_io"
+        ]
+      }
+    },
+    "saltsbase_native_io_socket_cpp_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_native_io_socket_cpp.cpp"
+        ]
+      },
+      "private": {
+        "deps": [
+          "native_io",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltsbase_native_io_socket_cpp_test",
+        "timeout": 45,
+        "labels": [
+          "native_io"
+        ]
+      }
+    },
+    "saltscore_readiness_race_test": {
+      "kind": "executable",
+      "when": {
+        "os": [
+          "linux",
+          "macos",
+          "android"
+        ]
+      },
+      "sources": {
+        "files": [
+          "test_readiness_race.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "native_io",
+          "tinytest"
+        ],
+        "includeDirs": [
+          "../src/readiness"
+        ]
+      },
+      "test": {
+        "name": "saltscore.readiness_close_race",
+        "timeout": 35,
+        "labels": [
+          "native_io"
+        ]
+      }
+    }
+  }
+}

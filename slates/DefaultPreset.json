@@ -1,0 +1,20 @@
+{
+    "presets": {
+        "base": {
+            "cStd": "c17",
+            "cxxStd": "c++20",
+            "options": { "warnings": "strict" }
+        },
+        "debug": {
+            "inherits": "base",
+            "config": "debug",
+            "options": { "optimization": "none", "debugInfo": "full" }
+        },
+        "release": {
+            "inherits": "base",
+            "config": "release",
+            "options": { "optimization": "speed", "debugInfo": "none" },
+            "defines": { "NDEBUG": null }
+        }
+    }
+}

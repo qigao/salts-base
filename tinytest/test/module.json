@@ -1,0 +1,28 @@
+{
+  "forEach": [
+    {
+      "files": [
+        "regression_*.c",
+        "regression_*.cpp",
+        "*_test.c",
+        "*_test.cpp",
+        "array.c",
+        "before-after.c",
+        "dynamic-test.c", 
+        "test-tree.c"
+      ],
+      "exclude": ["math_test.c"],
+      "namePrefix": "tinytest_",
+      "target": {
+        "kind": "executable",
+        "private": {
+          "deps": ["tinytest"]
+        },
+        "test": {
+          "namePrefix": "saltscore.native.",
+          "timeout": 300
+        }
+      }
+    }
+  ]
+}

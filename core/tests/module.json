@@ -1,0 +1,138 @@
+{
+  "targets": {
+    "saltscore_original_fmt_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_fmt.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "salts",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.original_fmt_c11"
+      }
+    },
+    "saltscore_original_fmt_cpp_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_fmt_cpp.cpp"
+        ]
+      },
+      "private": {
+        "deps": [
+          "salts",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.original_fmt_cpp17"
+      }
+    },
+    "saltscore_original_fmt_view_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_fmt_vstr_pattern.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "salts",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.original_fmt_bounded_vstr"
+      }
+    },
+    "saltscore_c11_threads_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_c11_threads.c",
+          "test_c11_sleep_posix.c",
+          "test_native_threads_posix.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "salts",
+          "tinytest"
+        ],
+        "includeDirs": [
+          "../src/threads"
+        ]
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "windows"
+          },
+          "sources": {
+            "files": [
+              "test_native_threads_win.c"
+            ],
+            "exclude": [
+              "test_c11_sleep_posix.c",
+              "test_native_threads_posix.c"
+            ]
+          }
+        },
+        {
+          "when": {
+            "os": "linux"
+          },
+          "sources": {
+            "files": [
+              "test_condition_permit.c",
+              "../src/threads/condition_permit_posix.c"
+            ]
+          }
+        },
+        {
+          "when": {
+            "os": "macos"
+          },
+          "sources": {
+            "files": [
+              "test_condition_permit.c",
+              "../src/threads/condition_permit_posix.c"
+            ]
+          }
+        },
+        {
+          "when": {
+            "os": "android"
+          },
+          "sources": {
+            "files": [
+              "test_condition_permit.c",
+              "../src/threads/condition_permit_posix.c"
+            ]
+          }
+        },
+        {
+          "when": {
+            "os": "ios"
+          },
+          "sources": {
+            "files": [
+              "test_condition_permit.c",
+              "../src/threads/condition_permit_posix.c"
+            ]
+          }
+        }
+      ],
+      "test": {
+        "name": "saltscore.c11_threads_facade",
+        "timeout": 35
+      }
+    }
+  }
+}

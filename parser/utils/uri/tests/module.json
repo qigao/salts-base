@@ -1,0 +1,21 @@
+{
+  "targets": {
+    "uri_parser_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_uri.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "uri_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.cnet/uri"
+      }
+    }
+  }
+}

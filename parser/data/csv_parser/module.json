@@ -1,0 +1,132 @@
+{
+  "include": ["test/module.json"],
+  "name": "csv_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/csv_parser.c",
+      "src/csv_stream_processor.c",
+      "src/dsv_filter.c",
+      "src/dsv_filter_expr_parser.c",
+      "src/dsv_index.c",
+      "$builddir/gen/csv/csv_lexer_gen.c",
+      "$builddir/gen/csv/csv_grammar_gen.c",
+      "$builddir/gen/dsv_filter_expr/dsv_filter_expr_lexer_gen.c",
+      "$builddir/gen/dsv_filter_expr/dsv_filter_expr_grammar_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [
+      {
+        "from": "include",
+        "to": "include"
+      }
+    ]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "salts",
+      "query_vm"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "parser",
+      "$builddir/gen/csv",
+      "$builddir/gen/dsv_filter_expr"
+    ],
+    "deps": [
+      "simde"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "csv_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/csv/csv_lexer_gen.c",
+        "$moduledir/parser/csv_lexer.re"
+      ],
+      "inputs": [
+        "parser/csv_lexer.re"
+      ],
+      "outputs": [
+        "$builddir/gen/csv/csv_lexer_gen.c"
+      ]
+    },
+    {
+      "name": "csv_grammar_stage",
+      "builtin": "copy",
+      "inputs": [
+        "parser/csv_grammar.y"
+      ],
+      "outputs": [
+        "$builddir/gen/csv/csv_grammar_gen.y"
+      ]
+    },
+    {
+      "name": "csv_grammar",
+      "program": "${env:SALTS_BUILD_LEMON_ROOT}/bin/lemon${host:exe}",
+      "args": [
+        "-q",
+        "-T${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c",
+        "$builddir/gen/csv/csv_grammar_gen.y"
+      ],
+      "inputs": [
+        "$builddir/gen/csv/csv_grammar_gen.y",
+        "${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c"
+      ],
+      "outputs": [
+        "$builddir/gen/csv/csv_grammar_gen.c",
+        "$builddir/gen/csv/csv_grammar_gen.h"
+      ]
+    },
+    {
+      "name": "dsv_filter_expr_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/dsv_filter_expr/dsv_filter_expr_lexer_gen.c",
+        "$moduledir/parser/dsv_filter_expr_lexer.re"
+      ],
+      "inputs": [
+        "parser/dsv_filter_expr_lexer.re",
+        "$builddir/gen/dsv_filter_expr/dsv_filter_expr_grammar_gen.h"
+      ],
+      "outputs": [
+        "$builddir/gen/dsv_filter_expr/dsv_filter_expr_lexer_gen.c"
+      ]
+    },
+    {
+      "name": "dsv_filter_expr_grammar_stage",
+      "builtin": "copy",
+      "inputs": [
+        "parser/dsv_filter_expr_grammar.y"
+      ],
+      "outputs": [
+        "$builddir/gen/dsv_filter_expr/dsv_filter_expr_grammar_gen.y"
+      ]
+    },
+    {
+      "name": "dsv_filter_expr_grammar",
+      "program": "${env:SALTS_BUILD_LEMON_ROOT}/bin/lemon${host:exe}",
+      "args": [
+        "-q",
+        "-T${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c",
+        "$builddir/gen/dsv_filter_expr/dsv_filter_expr_grammar_gen.y"
+      ],
+      "inputs": [
+        "$builddir/gen/dsv_filter_expr/dsv_filter_expr_grammar_gen.y",
+        "${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c"
+      ],
+      "outputs": [
+        "$builddir/gen/dsv_filter_expr/dsv_filter_expr_grammar_gen.c",
+        "$builddir/gen/dsv_filter_expr/dsv_filter_expr_grammar_gen.h"
+      ]
+    }
+  ]
+}

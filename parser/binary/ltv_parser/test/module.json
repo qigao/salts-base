@@ -1,0 +1,21 @@
+{
+  "targets": {
+    "test_ltv_parser": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_ltv_parser.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "ltv_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_ltv_parser"
+      }
+    }
+  }
+}

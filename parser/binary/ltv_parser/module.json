@@ -1,0 +1,21 @@
+{
+  "include": ["test/module.json"],
+  "name": "ltv_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/ltv_parser.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "uri_parser"
+    ]
+  }
+}

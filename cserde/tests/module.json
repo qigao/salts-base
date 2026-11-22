@@ -1,0 +1,111 @@
+{
+  "targets": {
+    "saltscore_cserde_recording_support": {
+      "kind": "static",
+      "sources": {
+        "files": [
+          "support/recording.c"
+        ]
+      },
+      "public": {
+        "includeDirs": [
+          "support"
+        ],
+        "deps": [
+          "saltscore_cserde"
+        ]
+      }
+    },
+    "cserde_token_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "cserde_token_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_cserde",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.cserde_token_test",
+        "timeout": 300
+      }
+    },
+    "cserde_reader_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "cserde_reader_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_cserde",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.cserde_reader_test",
+        "timeout": 300
+      }
+    },
+    "cserde_writer_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "cserde_writer_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_cserde",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.cserde_writer_test",
+        "timeout": 300
+      }
+    },
+    "cserde_recording_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "cserde_recording_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_cserde",
+          "tinytest",
+          "saltscore_cserde_recording_support"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.cserde_recording_test",
+        "timeout": 300
+      }
+    },
+    "cserde_header_cpp_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "cserde_header_cpp_test.cpp"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_cserde",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.cserde_header_cpp_test",
+        "timeout": 120
+      }
+    }
+  }
+}

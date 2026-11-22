@@ -1,0 +1,74 @@
+{
+  "include": ["test/module.json"],
+  "name": "selector",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/selector.c",
+      "$builddir/gen/selector_v1/selector_v1_lexer_gen.c",
+      "$builddir/gen/selector_v1/selector_v1_grammar_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ]
+  },
+  "private": {
+    "deps": [
+      "salts"
+    ],
+    "includeDirs": [
+      "parser",
+      "$builddir/gen/selector_v1"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "selector_v1_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/selector_v1/selector_v1_lexer_gen.c",
+        "$moduledir/parser/selector_lexer.re"
+      ],
+      "inputs": [
+        "parser/selector_lexer.re",
+        "$builddir/gen/selector_v1/selector_v1_grammar_gen.h"
+      ],
+      "outputs": [
+        "$builddir/gen/selector_v1/selector_v1_lexer_gen.c"
+      ]
+    },
+    {
+      "name": "selector_v1_grammar_stage",
+      "builtin": "copy",
+      "inputs": [
+        "parser/selector_grammar.y"
+      ],
+      "outputs": [
+        "$builddir/gen/selector_v1/selector_v1_grammar_gen.y"
+      ]
+    },
+    {
+      "name": "selector_v1_grammar",
+      "program": "${env:SALTS_BUILD_LEMON_ROOT}/bin/lemon${host:exe}",
+      "args": [
+        "-q",
+        "-T${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c",
+        "$builddir/gen/selector_v1/selector_v1_grammar_gen.y"
+      ],
+      "inputs": [
+        "$builddir/gen/selector_v1/selector_v1_grammar_gen.y",
+        "${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c"
+      ],
+      "outputs": [
+        "$builddir/gen/selector_v1/selector_v1_grammar_gen.c",
+        "$builddir/gen/selector_v1/selector_v1_grammar_gen.h"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "include": ["tests/module.json"],
+  "name": "saltscore_cserde",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/reader.c",
+      "src/token.c",
+      "src/writer.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ]
+  }
+}

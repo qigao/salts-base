@@ -1,0 +1,21 @@
+{
+  "targets": {
+    "test_datetime_parser": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_datetime_parser.cpp"
+        ]
+      },
+      "private": {
+        "deps": [
+          "datetime_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_datetime_parser"
+      }
+    }
+  }
+}

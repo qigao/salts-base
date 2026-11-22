@@ -1,0 +1,21 @@
+{
+  "targets": {
+    "test_dotenv": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_dotenv.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "dotenv_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_dotenv"
+      }
+    }
+  }
+}

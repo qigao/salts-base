@@ -40,6 +40,28 @@ strncmp
   should return non-0 when strings differ (OK)
 ```
 
+## Build the examples and JUnit dashboard
+
+From the repository root, build the TinyTest examples and XML-to-HTML tool
+using the [Windows x64 salts-build preset](../README.md#build-with-salts-build-on-windows-x64).
+
+```powershell
+salts-build gen --build-dir out/tinytest-tools --targets `
+  tinytest_example tinytest_cpp_example `
+  tinytest_group_suite_example junit_to_html
+ninja -C out/tinytest-tools
+ctest --test-dir out/tinytest-tools -R '^junit_to_html_test$' --output-on-failure --no-tests=error
+.\out\tinytest-tools\bin\tinytest_example.exe --list
+```
+
+Ninja stages `dashboard.html` next to `junit_to_html.exe`. Pass its path
+explicitly when running the converter from the repository root.
+
+```powershell
+.\out\tinytest-tools\bin\junit_to_html.exe --input results.xml `
+  --template out/tinytest-tools/bin/dashboard.html --output results.html
+```
+
 ## Assertions
 
 ### check (fatal)

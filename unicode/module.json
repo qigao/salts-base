@@ -1,0 +1,132 @@
+{
+  "include": ["test/module.json"],
+  "name": "saltscore_unicode",
+  "kind": "static",
+  "targets": {
+    "unicode_data": {
+      "kind": "header_only",
+      "toolchainRole": "host",
+      "preTasks": [
+        {
+          "name": "download",
+          "tool": "curl",
+          "args": [
+            "--output", "$builddir/downloads/UCD-17.0.0.zip",
+            "https://www.unicode.org/Public/17.0.0/ucd/UCD.zip"
+          ],
+          "outputs": ["$builddir/downloads/UCD-17.0.0.zip"]
+        },
+        {
+          "name": "verify_archive",
+          "program": "cmake",
+          "args": [
+            "-DSALTS_UNICODE_VERIFY_ARCHIVE=$builddir/downloads/UCD-17.0.0.zip",
+            "-DSALTS_UNICODE_VERIFY_STAMP=$builddir/downloads/UCD-17.0.0.verified",
+            "-P", "$moduledir/data/Download.cmake"
+          ],
+          "inputs": ["$builddir/downloads/UCD-17.0.0.zip", "data/Download.cmake", "data/sources.lock.json"],
+          "outputs": ["$builddir/downloads/UCD-17.0.0.verified"]
+        },
+        {
+          "name": "extract",
+          "tool": "zip",
+          "args": [
+            "-o$builddir/unicode/17.0.0", "$builddir/downloads/UCD-17.0.0.zip",
+            "UnicodeData.txt", "CaseFolding.txt"
+          ],
+          "inputs": [
+            "$builddir/downloads/UCD-17.0.0.zip",
+            "$builddir/downloads/UCD-17.0.0.verified"
+          ],
+          "outputs": ["$builddir/unicode/17.0.0/UnicodeData.txt", "$builddir/unicode/17.0.0/CaseFolding.txt"]
+        }
+      ]
+    }
+  },
+  "sources": {
+    "files": [
+      "src/idna.c",
+      "src/unicode_bidi.c",
+      "src/unicode_case.c",
+      "src/unicode_casefold.c",
+      "src/unicode_emoji.c",
+      "src/unicode_grapheme.c",
+      "src/unicode_line_break.c",
+      "src/unicode_names.c",
+      "src/unicode_normalize.c",
+      "src/unicode_word.c",
+      "$builddir/gen/unicode/unicode_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }],
+    "assets": [{ "from": "data/LICENSE.txt", "to": "share/licenses/SaltsCore/unicode" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "salts"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "src"
+    ],
+    "deps": [
+      "simd"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "verify_release",
+      "program": "cmake",
+      "args": [
+        "-DRE2C_ROOT=${env:SALTS_BUILD_RE2C_ROOT}",
+        "-DRE2C_EXECUTABLE=${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+        "-DSALTS_UNICODE_VERIFY_STAMP=$builddir/gen/unicode/release.verified",
+        "-P",
+        "$moduledir/data/VerifyRelease.cmake"
+      ],
+      "inputs": [
+        "data/VerifyRelease.cmake",
+        "src/unicode_casefold_data.h",
+        "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+        "${env:SALTS_BUILD_RE2C_ROOT}/share/re2c/stdlib/unicode_properties.re",
+        "${env:SALTS_BUILD_RE2C_ROOT}/share/re2c/stdlib/unicode_categories.re"
+      ],
+      "outputs": [
+        "$builddir/gen/unicode/release.verified"
+      ]
+    },
+    {
+      "name": "lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "--lang",
+        "c",
+        "--utf8",
+        "--encoding-policy",
+        "fail",
+        "--no-generation-date",
+        "-W",
+        "-Werror",
+        "-I",
+        "${env:SALTS_BUILD_RE2C_ROOT}/share/re2c/stdlib",
+        "-o",
+        "$builddir/gen/unicode/unicode_gen.c",
+        "$moduledir/src/unicode.re"
+      ],
+      "inputs": [
+        "$builddir/gen/unicode/release.verified",
+        "src/unicode.re",
+        "${env:SALTS_BUILD_RE2C_ROOT}/share/re2c/stdlib/unicode_properties.re",
+        "${env:SALTS_BUILD_RE2C_ROOT}/share/re2c/stdlib/unicode_categories.re"
+      ],
+      "outputs": [
+        "$builddir/gen/unicode/unicode_gen.c"
+      ]
+    }
+  ]
+}

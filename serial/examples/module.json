@@ -1,0 +1,19 @@
+{
+  "forEach": [
+    {
+      "files": [
+        "await_events.c",
+        "handle_errors.c",
+        "list_ports.c",
+        "port_config.c",
+        "port_info.c",
+        "send_receive.c"
+      ],
+      "namePrefix": "saltscore_serial_example_",
+      "target": {
+        "kind": "executable",
+        "private": { "deps": ["serial"] }
+      }
+    }
+  ]
+}

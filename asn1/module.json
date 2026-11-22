@@ -1,0 +1,99 @@
+{
+  "include": ["tests/module.json"],
+  "name": "asn1",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/ast.c",
+      "src/crypto_random.c",
+      "src/mib_compiler.c",
+      "src/reader.c",
+      "src/value.c",
+      "src/x509_cert.c",
+      "$builddir/gen/asn1_schema/asn1_schema_lexer_gen.c",
+      "$builddir/gen/asn1_schema/asn1_schema_grammar_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ]
+  },
+  "private": {
+    "deps": [
+      "salts",
+      "simd"
+    ],
+    "includeDirs": [
+      "src",
+      "$builddir/gen/asn1_schema"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "asn1_schema_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/asn1_schema/asn1_schema_lexer_gen.c",
+        "$moduledir/parser/scanner.re"
+      ],
+      "inputs": [
+        "parser/scanner.re",
+        "$builddir/gen/asn1_schema/asn1_schema_grammar_gen.h"
+      ],
+      "outputs": [
+        "$builddir/gen/asn1_schema/asn1_schema_lexer_gen.c"
+      ]
+    },
+    {
+      "name": "asn1_schema_grammar_stage",
+      "builtin": "copy",
+      "inputs": [
+        "parser/parser.y"
+      ],
+      "outputs": [
+        "$builddir/gen/asn1_schema/asn1_schema_grammar_gen.y"
+      ]
+    },
+    {
+      "name": "asn1_schema_grammar",
+      "program": "${env:SALTS_BUILD_LEMON_ROOT}/bin/lemon${host:exe}",
+      "args": [
+        "-q",
+        "-T${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c",
+        "$builddir/gen/asn1_schema/asn1_schema_grammar_gen.y"
+      ],
+      "inputs": [
+        "$builddir/gen/asn1_schema/asn1_schema_grammar_gen.y",
+        "${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c"
+      ],
+      "outputs": [
+        "$builddir/gen/asn1_schema/asn1_schema_grammar_gen.c",
+        "$builddir/gen/asn1_schema/asn1_schema_grammar_gen.h"
+      ]
+    }
+  ],
+  "targets": {
+    "mib_compiler": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "tools/mib_compiler_main.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "asn1",
+          "salts"
+        ],
+        "includeDirs": [
+          "src"
+        ]
+      }
+    }
+  }
+}

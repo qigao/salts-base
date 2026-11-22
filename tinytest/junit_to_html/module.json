@@ -1,0 +1,48 @@
+{
+  "kind": "executable",
+  "testOnly": false,
+  "sources": {
+    "files": [
+      "junit_to_html.c"
+    ]
+  },
+  "private": {
+    "deps": [
+      "salts",
+      "cmd_parser",
+      "xml_parser"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "dashboard",
+      "builtin": "copy",
+      "inputs": [
+        "dashboard.html"
+      ],
+      "outputs": [
+        "$builddir/bin/dashboard.html"
+      ]
+    }
+  ],
+  "test": {
+    "name": "junit_to_html_test",
+    "program": "cmake",
+    "args": [
+      "-DJUNIT_TO_HTML_EXECUTABLE=$target",
+      "-DJUNIT_INPUT=$moduledir/test/junit_to_html_input.xml",
+      "-DJUNIT_TEMPLATE=$builddir/bin/dashboard.html",
+      "-DHTML_OUTPUT=$builddir/junit_to_html_output.html",
+      "-P",
+      "$moduledir/test/junit_to_html_test.cmake"
+    ]
+  },
+  "install": {
+    "assets": [
+      {
+        "from": "dashboard.html",
+        "to": "bin"
+      }
+    ]
+  }
+}

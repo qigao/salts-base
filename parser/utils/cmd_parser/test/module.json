@@ -1,0 +1,16 @@
+{
+  "targets": {
+    "test_cmd_parser": {
+      "kind": "executable",
+      "sources": {
+        "files": ["test_cmd_parser.c"]
+      },
+      "private": {
+        "deps": ["cmd_parser", "tinytest"]
+      },
+      "test": {
+        "name": "test_cmd_parser"
+      }
+    }
+  }
+}

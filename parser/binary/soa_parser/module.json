@@ -1,0 +1,21 @@
+{
+  "include": ["test/module.json"],
+  "name": "soa_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/soa_parser.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "uri_parser"
+    ]
+  }
+}

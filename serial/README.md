@@ -34,6 +34,11 @@ Serial and all six examples are assembled unconditionally. `BUILD_TESTS`
 controls the formal module tests. Other platforms use their corresponding
 versioned user presets; no separate Serial build profile is required.
 
+The `salts-build` manifests select the same native backend for the shared
+library and its test archive. The
+[cross-platform profiles](../README.md#cross-platform-salts-build-profiles)
+also declare the pseudo-terminal test for POSIX builds.
+
 An installed application needs only the public target:
 
 ```cmake

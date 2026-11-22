@@ -1,0 +1,21 @@
+{
+  "targets": {
+    "test_modbus_parser": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_modbus_parser.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "modbus_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_modbus_parser"
+      }
+    }
+  }
+}

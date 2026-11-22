@@ -1,0 +1,192 @@
+{
+  "targets": {
+    "asn1_reader_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "reader.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "asn1",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "asn1.reader"
+      }
+    },
+    "asn1_value_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "value.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "asn1",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "asn1.value"
+      }
+    },
+    "asn1_scan_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "scan.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "asn1",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "asn1.scan"
+      }
+    },
+    "asn1_crypto_random_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_crypto_random.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "asn1",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "asn1.crypto_random"
+      }
+    },
+    "asn1_x509_integration_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_x509_integration.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "asn1",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "asn1.x509_integration",
+        "environment": [
+          "TZ=EST5"
+        ]
+      }
+    },
+    "asn1_mib_compiler_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_mib_compiler.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "asn1",
+          "tinytest"
+        ],
+        "includeDirs": [
+          "../src"
+        ]
+      },
+      "test": {
+        "name": "asn1.mib_compiler"
+      }
+    },
+    "asn1_header_cpp17": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "header_cpp.cpp"
+        ]
+      },
+      "private": {
+        "deps": [
+          "asn1",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "asn1.header_cpp17"
+      }
+    },
+    "asn1_mib_generated_test": {
+      "kind": "executable",
+      "when": {
+        "native": true
+      },
+      "sources": {
+        "files": [
+          "test_mib_generated.c",
+          "$builddir/gen/asn1-mib/Basic-MIB.c",
+          "$builddir/gen/asn1-mib/Basic-MIB_runtime.c",
+          "$builddir/gen/asn1-mib/Empty-MIB.c",
+          "$builddir/gen/asn1-mib/Empty-MIB_runtime.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "asn1",
+          "tinytest"
+        ],
+        "includeDirs": [
+          "$builddir/gen/asn1-mib"
+        ]
+      },
+      "test": {
+        "name": "asn1.mib_generated"
+      },
+      "preTasks": [
+        {
+          "name": "mib_basic",
+          "tool": "mib_compiler",
+          "inputs": [
+            "basic.mib"
+          ],
+          "args": [
+            "-o",
+            "$builddir/gen/asn1-mib",
+            "$moduledir/basic.mib"
+          ],
+          "outputs": [
+            "$builddir/gen/asn1-mib/Basic-MIB.h",
+            "$builddir/gen/asn1-mib/Basic-MIB.c",
+            "$builddir/gen/asn1-mib/Basic-MIB_runtime.c"
+          ]
+        },
+        {
+          "name": "mib_empty",
+          "tool": "mib_compiler",
+          "inputs": [
+            "empty.mib"
+          ],
+          "args": [
+            "-o",
+            "$builddir/gen/asn1-mib",
+            "$moduledir/empty.mib"
+          ],
+          "outputs": [
+            "$builddir/gen/asn1-mib/Empty-MIB.h",
+            "$builddir/gen/asn1-mib/Empty-MIB.c",
+            "$builddir/gen/asn1-mib/Empty-MIB_runtime.c"
+          ]
+        }
+      ]
+    }
+  }
+}

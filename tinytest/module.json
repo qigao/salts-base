@@ -1,0 +1,18 @@
+{
+  "include": ["examples/module.json", "junit_to_html/module.json", "test/module.json"],
+  "name": "tinytest",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/tinytest.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ]
+  }
+}

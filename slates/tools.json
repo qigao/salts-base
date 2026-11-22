@@ -1,0 +1,13 @@
+{
+  "env": ["SALTS_BUILD_7ZIP_EXECUTABLE"],
+  "tools": {
+    "curl": {
+      "program": "curl",
+      "args": ["--fail", "--location", "--silent", "--show-error", "--remove-on-error"]
+    },
+    "zip": {
+      "program": "${envPath:SALTS_BUILD_7ZIP_EXECUTABLE}",
+      "args": ["x", "-tzip", "-aoa"]
+    }
+  }
+}

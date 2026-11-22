@@ -1,0 +1,21 @@
+{
+  "targets": {
+    "test_soa_parser": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_soa_parser.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "soa_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_soa_parser"
+      }
+    }
+  }
+}

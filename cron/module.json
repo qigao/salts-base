@@ -1,0 +1,46 @@
+{
+  "include": ["tests/module.json"],
+  "name": "cron",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/cron.c",
+      "$builddir/gen/cron/cron_lexer_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "salts"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "src",
+      "$builddir/gen/cron"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "cron_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/cron/cron_lexer_gen.c",
+        "$moduledir/src/cron_lexer.re"
+      ],
+      "inputs": [
+        "src/cron_lexer.re",
+        "src/cron_lexer.h"
+      ],
+      "outputs": [
+        "$builddir/gen/cron/cron_lexer_gen.c"
+      ]
+    }
+  ]
+}

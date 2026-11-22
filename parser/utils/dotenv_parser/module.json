@@ -1,0 +1,56 @@
+{
+  "include": ["test/module.json"],
+  "name": "dotenv_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/dotenv.c",
+      "src/dotenv_environment.c",
+      "$builddir/gen/dotenv/dotenv_lexer_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [
+      {
+        "from": "include",
+        "to": "include"
+      }
+    ]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "salts"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "$builddir/gen/dotenv",
+      "src",
+      ".."
+    ],
+    "deps": [
+      "simde"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "dotenv_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/dotenv/dotenv_lexer_gen.c",
+        "$moduledir/src/dotenv_lexer.re"
+      ],
+      "inputs": [
+        "src/dotenv_lexer.re",
+        "src/dotenv_lexer.h"
+      ],
+      "outputs": [
+        "$builddir/gen/dotenv/dotenv_lexer_gen.c"
+      ]
+    }
+  ]
+}

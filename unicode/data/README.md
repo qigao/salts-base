@@ -23,6 +23,18 @@ SHA-256，升级需同时审查版本、哈希、生成表、公开契约及一�
 cmake -DSALTS_UNICODE_DATA_DIR=build/unicode-data/17.0.0 -P unicode/data/Download.cmake
 ```
 
+Slate 的 `unicode_data` 目标可以单独准备 `UnicodeData.txt` 和
+`CaseFolding.txt`。它使用 `slates/tools.json` 里的 `curl` 和 `zip`
+工具，先校验 Unicode 17 官方 ZIP 的 SHA-256，再由 7-Zip 解压到构建目录。
+在 `.env` 中设置 `SALTS_BUILD_7ZIP_EXECUTABLE` 为 7-Zip 命令行程序的路径。
+
+```powershell
+slate build --target unicode_data --build-dir out/unicode-data
+```
+
+输出文件位于 `out/unicode-data/unicode/17.0.0/`。完整的测试与再生成缓存
+仍由上面的 `Download.cmake` 恢复。
+
 下载失败会终止，诊断中保留文件 URL 和错误。受限网络需配置所在环境的 HTTPS 代理及
 可信 CA；CMake 支持 `CMAKE_TLS_CAINFO`。不得关闭 TLS 校验来绕过证书错误。
 离线构建前可在联网环境恢复后，将完整缓存复制到目标环境并通过该变量指定。

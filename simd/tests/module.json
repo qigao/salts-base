@@ -1,0 +1,54 @@
+{
+  "targets": {
+    "saltscore_simd_native_boundaries": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "simd_native_boundaries.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "simd"
+        ]
+      },
+      "test": {
+        "name": "saltscore.simd_native_boundaries"
+      }
+    },
+    "saltscore_simd_original_c11": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "simd_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "simd",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.simd_original_c11"
+      }
+    },
+    "saltscore_simd_original_cpp17": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "simd_header_cpp_test.cpp"
+        ]
+      },
+      "private": {
+        "deps": [
+          "simd",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.simd_original_cpp17"
+      }
+    }
+  }
+}

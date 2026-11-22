@@ -55,7 +55,9 @@ target_include_directories(salts
          $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
           "${CMAKE_CURRENT_SOURCE_DIR}/sds")
-target_link_libraries(salts PUBLIC Threads::Threads)
+if(NOT WIN32)
+  target_link_libraries(salts PUBLIC Threads::Threads)
+endif()
 find_path(CORE_SIMDE_INCLUDE_DIR "simde/x86/sse2.h"
   PATHS "${SALTS_DEPENDENCY_PREFIX}/include" NO_DEFAULT_PATH REQUIRED)
 target_include_directories(salts SYSTEM PRIVATE "${CORE_SIMDE_INCLUDE_DIR}")

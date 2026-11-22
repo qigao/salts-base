@@ -1,0 +1,343 @@
+{
+  "targets": {
+    "markdown_document_view_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_document_view_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser"
+        ]
+      },
+      "test": {
+        "name": "markdown_document_view_test"
+      }
+    },
+    "markdown_c11_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_c11_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_c11_test"
+      }
+    },
+    "markdown_entities_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_entities_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_entities_test"
+      }
+    },
+    "markdown_link_target_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_link_target_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_link_target_test"
+      }
+    },
+    "markdown_uri_policy_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_uri_policy_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_uri_policy_test"
+      }
+    },
+    "markdown_reference_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_reference_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_reference_test"
+      }
+    },
+    "markdown_reference_multiline_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_reference_multiline_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_reference_multiline_test"
+      }
+    },
+    "markdown_paragraph_inline_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_paragraph_inline_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_paragraph_inline_test"
+      }
+    },
+    "markdown_break_semantics_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_break_semantics_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_break_semantics_test"
+      }
+    },
+    "markdown_image_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_image_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_image_test"
+      }
+    },
+    "markdown_container_reference_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_container_reference_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_container_reference_test"
+      }
+    },
+    "markdown_raw_html_policy_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_raw_html_policy_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_raw_html_policy_test"
+      }
+    },
+    "markdown_golden_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_golden_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_golden_test"
+      }
+    },
+    "markdown_html_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_html_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_html_test"
+      }
+    },
+    "markdown_indented_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_indented_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_indented_test"
+      }
+    },
+    "markdown_containers_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_containers_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_containers_test"
+      }
+    },
+    "markdown_quote_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_quote_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_quote_test"
+      }
+    },
+    "markdown_nested_quote_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_nested_quote_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_nested_quote_test"
+      }
+    },
+    "markdown_quoted_list_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_quoted_list_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_quoted_list_test"
+      }
+    },
+    "markdown_unicode17_candidate_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "markdown_unicode17_candidate_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "markdown_parser",
+          "markdown_html"
+        ]
+      },
+      "test": {
+        "name": "markdown_unicode17_candidate_test"
+      }
+    }
+  }
+}

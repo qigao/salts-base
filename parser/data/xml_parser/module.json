@@ -1,0 +1,44 @@
+{
+  "include": ["test/module.json", "vendor/module.json"],
+  "name": "xml_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/xml_parser.c",
+      "src/xml_sax.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "query_vm"
+    ]
+  },
+  "private": {
+    "deps": [
+      "salts",
+      "salts_cxml"
+    ]
+  },
+  "variants": [
+    {
+      "when": {
+        "os": [
+          "linux",
+          "macos",
+          "android"
+        ]
+      },
+      "private": {
+        "libs": [
+          "m"
+        ]
+      }
+    }
+  ]
+}

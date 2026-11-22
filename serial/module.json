@@ -1,0 +1,74 @@
+{
+  "include": ["examples/module.json", "test/module.json"],
+  "name": "serial",
+  "kind": "shared",
+  "options": { "symbolVisibility": "hidden" },
+  "sources": {
+    "files": [
+      "src/serial.c",
+      "src/backend_posix.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "src"
+    ],
+    "deps": [
+      "salts"
+    ],
+    "defines": {
+      "SALTS_SERIAL_EXPORTS": null
+    }
+  },
+  "variants": [
+    {
+      "when": { "os": "windows" },
+      "sources": {
+        "files": ["src/backend_win32.c"],
+        "exclude": ["src/backend_posix.c"]
+      },
+      "private": { "libs": ["setupapi", "cfgmgr32", "advapi32"] }
+    },
+    {
+      "when": { "os": "linux" },
+      "private": {
+        "defines": { "_DEFAULT_SOURCE": "1", "_POSIX_C_SOURCE": "200809L" }
+      }
+    },
+    {
+      "when": { "os": "macos" },
+      "private": {
+        "defines": {
+          "_DEFAULT_SOURCE": "1",
+          "_POSIX_C_SOURCE": "200809L",
+          "_DARWIN_C_SOURCE": "1"
+        }
+      }
+    },
+    {
+      "when": { "os": "android" },
+      "private": {
+        "defines": { "_DEFAULT_SOURCE": "1", "_POSIX_C_SOURCE": "200809L" }
+      }
+    },
+    {
+      "when": { "os": "ios" },
+      "private": {
+        "defines": {
+          "_DEFAULT_SOURCE": "1",
+          "_POSIX_C_SOURCE": "200809L",
+          "_DARWIN_C_SOURCE": "1"
+        }
+      }
+    }
+  ],
+  "outputPrefix": "lib"
+}

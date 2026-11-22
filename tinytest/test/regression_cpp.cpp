@@ -1,5 +1,6 @@
 #include "tinytest.hpp"
 
+#include <cstring>
 #include <limits>
 #include <stdexcept>
 
@@ -50,15 +51,15 @@ suite("tinytest cpp regression") {
     check_ends_with(first, "test");
   }
 
-  it("three-argument equality compares memory") {
+  it("checks byte buffer comparisons") {
     const unsigned char same_a[] = {0u, 1u, 2u, 3u};
     const unsigned char same_b[] = {0u, 1u, 2u, 3u};
     const unsigned char different[] = {0u, 1u, 9u, 3u};
 
-    check_equal(same_a, same_b, sizeof(same_a));
-    check_equal_warn(same_a, same_b, sizeof(same_a));
-    check_not_equal(same_a, different, sizeof(same_a));
-    check_not_equal_warn(same_a, different, sizeof(same_a));
+    check_equal(std::memcmp(same_a, same_b, sizeof(same_a)), 0);
+    check_equal_warn(std::memcmp(same_a, same_b, sizeof(same_a)), 0);
+    check_not_equal(std::memcmp(same_a, different, sizeof(same_a)), 0);
+    check_not_equal_warn(std::memcmp(same_a, different, sizeof(same_a)), 0);
   }
 
   it("generic equality handles floating and mixed-sign values without warning suppression") {

@@ -1,0 +1,41 @@
+{
+  "targets": {
+    "xml_parser_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "xml_parser_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "xml_parser",
+          "tinytest"
+        ],
+        "includeDirs": [
+          "../vendor/cxml/include"
+        ]
+      },
+      "test": {
+        "name": "xml_parser_test"
+      }
+    },
+    "xml_sax_parser_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "xml_sax_parser_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "xml_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "xml_sax_parser_test"
+      }
+    }
+  }
+}

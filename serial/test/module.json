@@ -1,0 +1,248 @@
+{
+  "targets": {
+    "saltscore_serial_test_impl": {
+      "kind": "static",
+      "sources": {
+        "files": [
+          "../src/serial.c",
+          "../src/backend_posix.c"
+        ]
+      },
+      "public": {
+        "includeDirs": [
+          "../include"
+        ]
+      },
+      "private": {
+        "deps": [
+          "salts"
+        ],
+        "includeDirs": [
+          "../src",
+          "."
+        ],
+        "defines": {
+          "SALTS_SERIAL_EXPORTS": null,
+          "SALTS_SERIAL_TESTING": null
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "windows"
+          },
+          "sources": {
+            "files": [
+              "../src/backend_win32.c"
+            ],
+            "exclude": [
+              "../src/backend_posix.c"
+            ]
+          },
+          "private": {
+            "libs": [
+              "setupapi",
+              "cfgmgr32",
+              "advapi32"
+            ]
+          }
+        },
+        {
+          "when": {
+            "os": "linux"
+          },
+          "private": {
+            "defines": {
+              "_DEFAULT_SOURCE": "1",
+              "_POSIX_C_SOURCE": "200809L"
+            }
+          }
+        },
+        {
+          "when": {
+            "os": "macos"
+          },
+          "private": {
+            "defines": {
+              "_DEFAULT_SOURCE": "1",
+              "_POSIX_C_SOURCE": "200809L",
+              "_DARWIN_C_SOURCE": "1"
+            }
+          }
+        },
+        {
+          "when": {
+            "os": "android"
+          },
+          "private": {
+            "defines": {
+              "_DEFAULT_SOURCE": "1",
+              "_POSIX_C_SOURCE": "200809L"
+            }
+          }
+        },
+        {
+          "when": {
+            "os": "ios"
+          },
+          "private": {
+            "defines": {
+              "_DEFAULT_SOURCE": "1",
+              "_POSIX_C_SOURCE": "200809L",
+              "_DARWIN_C_SOURCE": "1"
+            }
+          }
+        }
+      ],
+      "testOnly": true
+    },
+    "saltscore_test_serial": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_serial.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "serial",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.serial_original_c11",
+        "timeout": 60
+      }
+    },
+    "saltscore_test_serial_public_abi": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_serial_public_abi.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "serial",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.serial_public_abi",
+        "timeout": 60
+      }
+    },
+    "saltscore_test_fixes": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_fixes.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "serial",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.serial_original_fixes",
+        "timeout": 60
+      }
+    },
+    "saltscore_test_serial_mock": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_serial_mock.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_serial_test_impl",
+          "salts",
+          "tinytest"
+        ],
+        "includeDirs": [
+          "../src"
+        ],
+        "defines": {
+          "SALTS_SERIAL_EXPORTS": null,
+          "SALTS_SERIAL_TESTING": null
+        }
+      },
+      "test": {
+        "name": "saltscore.serial_backend_contract",
+        "timeout": 60
+      }
+    },
+    "saltscore_test_serial_storage": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_serial_storage.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_serial_test_impl",
+          "salts",
+          "tinytest"
+        ],
+        "includeDirs": [
+          "../src"
+        ],
+        "defines": {
+          "SALTS_SERIAL_EXPORTS": null,
+          "SALTS_SERIAL_TESTING": null
+        }
+      },
+      "test": {
+        "name": "saltscore.serial_storage_ownership",
+        "timeout": 60
+      }
+    },
+    "saltscore_serial_pty": {
+      "kind": "executable",
+      "when": {
+        "os": [
+          "linux",
+          "macos",
+          "android"
+        ]
+      },
+      "sources": {
+        "files": [
+          "test_serial_pty.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "serial",
+          "tinytest"
+        ],
+        "defines": {
+          "_DEFAULT_SOURCE": "1",
+          "_DARWIN_C_SOURCE": "1",
+          "_XOPEN_SOURCE": "700"
+        }
+      },
+      "test": {
+        "name": "saltscore.serial_posix_pty",
+        "timeout": 30
+      },
+      "variants": [
+        {
+          "when": {
+            "os": "linux"
+          },
+          "private": {
+            "libs": [
+              "util"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

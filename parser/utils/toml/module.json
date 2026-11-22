@@ -1,0 +1,81 @@
+{
+  "include": ["tests/module.json"],
+  "name": "toml_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/toml.c",
+      "$builddir/gen/toml/toml_lexer_gen.c",
+      "$builddir/gen/toml/toml_grammar_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [
+      {
+        "from": "include",
+        "to": "include"
+      }
+    ]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ]
+  },
+  "private": {
+    "deps": [
+      "salts",
+      "simde"
+    ],
+    "includeDirs": [
+      "src",
+      "parser",
+      "..",
+      "$builddir/gen/toml"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "toml_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/toml/toml_lexer_gen.c",
+        "$moduledir/parser/toml_lexer.re"
+      ],
+      "inputs": [
+        "parser/toml_lexer.re"
+      ],
+      "outputs": [
+        "$builddir/gen/toml/toml_lexer_gen.c"
+      ]
+    },
+    {
+      "name": "toml_grammar_stage",
+      "builtin": "copy",
+      "inputs": [
+        "parser/toml_grammar.y"
+      ],
+      "outputs": [
+        "$builddir/gen/toml/toml_grammar_gen.y"
+      ]
+    },
+    {
+      "name": "toml_grammar",
+      "program": "${env:SALTS_BUILD_LEMON_ROOT}/bin/lemon${host:exe}",
+      "args": [
+        "-q",
+        "-T${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c",
+        "$builddir/gen/toml/toml_grammar_gen.y"
+      ],
+      "inputs": [
+        "$builddir/gen/toml/toml_grammar_gen.y",
+        "${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c"
+      ],
+      "outputs": [
+        "$builddir/gen/toml/toml_grammar_gen.c",
+        "$builddir/gen/toml/toml_grammar_gen.h"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "include": ["test/module.json"],
+  "name": "tlv_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/crc32.c",
+      "src/frame_parser.c",
+      "src/frame.c",
+      "src/parser_context.c",
+      "src/parser_error.c",
+      "src/parser_stats.c",
+      "src/stream_parser.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "salts",
+      "uri_parser"
+    ]
+  }
+}

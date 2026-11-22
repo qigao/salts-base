@@ -1,0 +1,56 @@
+{
+  "include": ["tests/module.json"],
+  "name": "coroutine",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/coro.c",
+      "src/coro_executor.c",
+      "src/coro_pool.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }],
+    "assets": [{ "from": "$root/vendor/minicoro/LICENSE", "to": "share/licenses/SaltsCore/minicoro" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "salts"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "$root/vendor/minicoro"
+    ]
+  },
+  "variants": [
+    {
+      "when": {
+        "os": [
+          "linux",
+          "android"
+        ]
+      },
+      "private": {
+        "defines": {
+          "_DEFAULT_SOURCE": "1",
+          "_POSIX_C_SOURCE": "200809L",
+          "_XOPEN_SOURCE": "700"
+        }
+      }
+    },
+    {
+      "when": {
+        "os": "macos"
+      },
+      "private": {
+        "defines": {
+          "_DARWIN_C_SOURCE": "1"
+        }
+      }
+    }
+  ]
+}

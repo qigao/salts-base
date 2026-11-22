@@ -1,0 +1,8 @@
+{
+  "include": [
+    "ltv_parser/module.json",
+    "modbus_parser/module.json",
+    "soa_parser/module.json",
+    "tlv_parser/module.json" 
+  ]
+}

@@ -1,0 +1,113 @@
+{
+  "include": ["tests/module.json"],
+  "name": "native_io",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/fs_file.c",
+      "src/native_io.c",
+      "src/native_io_accept_escrow.c",
+      "src/native_io_driver.c",
+      "src/native_io_sharded.c",
+      "src/native_io_socket.c",
+      "src/native_io_transport.c",
+      "src/native_io_transport_ipc.c",
+      "src/native_io_transport_pipe.c",
+      "src/native_io_transport_vsock.c",
+      "src/native_ipc.c",
+      "src/process_async.c",
+      "src/readiness/readiness.c",
+      "src/shell.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "salts"
+    ]
+  },
+  "private": {
+    "deps": [
+      "coroutine"
+    ]
+  },
+  "variants": [
+    {
+      "when": {
+        "os": "windows"
+      },
+      "sources": {
+        "files": [
+          "src/native_io_iocp.c",
+          "src/native_ipc_windows.c"
+        ]
+      },
+      "private": {
+        "libs": [
+          "ws2_32"
+        ],
+        "defines": {
+          "WIN32_LEAN_AND_MEAN": null,
+          "_WIN32_WINNT": "0x0600"
+        }
+      }
+    },
+    {
+      "when": {
+        "os": [
+          "linux",
+          "android"
+        ]
+      },
+      "sources": {
+        "files": [
+          "src/native_io_readiness.c",
+          "src/native_ipc_posix.c",
+          "src/readiness/readiness_poll_posix.c",
+          "src/native_io_linux.c",
+          "src/native_io_epoll.c",
+          "src/native_io_io_uring.c",
+          "src/readiness/readiness_epoll_linux.c"
+        ]
+      },
+      "private": {
+        "defines": {
+          "_DEFAULT_SOURCE": "1",
+          "_POSIX_C_SOURCE": "200809L",
+          "_XOPEN_SOURCE": "700",
+          "SALTS_ENABLE_POLL_READINESS": "1",
+          "SALTS_ENABLE_EPOLL_READINESS": "1"
+        }
+      }
+    },
+    {
+      "when": {
+        "os": "macos"
+      },
+      "sources": {
+        "files": [
+          "src/native_io_readiness.c",
+          "src/native_ipc_posix.c",
+          "src/readiness/readiness_poll_posix.c",
+          "src/native_io_bsd.c",
+          "src/native_io_kqueue.c",
+          "src/native_io_darwin_aio.c",
+          "src/readiness/readiness_kqueue_bsd.c"
+        ]
+      },
+      "private": {
+        "defines": {
+          "_DARWIN_C_SOURCE": "1",
+          "SALTS_ENABLE_POLL_READINESS": "1",
+          "SALTS_ENABLE_KQUEUE_READINESS": "1",
+          "SALTS_NATIVE_DARWIN_AIO": "1"
+        }
+      }
+    }
+  ]
+}

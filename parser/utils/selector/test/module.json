@@ -1,0 +1,21 @@
+{
+  "targets": {
+    "test_selector": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_selector.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "selector",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_selector"
+      }
+    }
+  }
+}

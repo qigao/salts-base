@@ -1,0 +1,100 @@
+{
+  "include": ["tests/module.json"],
+  "name": "toon",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "toonc.c",
+      "adapter/toon_json_adapter.c",
+      "$builddir/gen/toon/toon_lexer_gen.c",
+      "$builddir/gen/toon/toon_grammar_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [
+      {
+        "from": "include",
+        "to": "include"
+      }
+    ]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "salts",
+      "json_parser"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "parser",
+      "..",
+      "$builddir/gen/toon"
+    ],
+    "deps": [
+      "simde"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "toon_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/toon/toon_lexer_gen.c",
+        "$moduledir/parser/toon_lexer.re"
+      ],
+      "inputs": [
+        "parser/toon_lexer.re"
+      ],
+      "outputs": [
+        "$builddir/gen/toon/toon_lexer_gen.c"
+      ]
+    },
+    {
+      "name": "toon_grammar_stage",
+      "builtin": "copy",
+      "inputs": [
+        "parser/toon_grammar.y"
+      ],
+      "outputs": [
+        "$builddir/gen/toon/toon_grammar_gen.y"
+      ]
+    },
+    {
+      "name": "toon_grammar",
+      "program": "${env:SALTS_BUILD_LEMON_ROOT}/bin/lemon${host:exe}",
+      "args": [
+        "-q",
+        "-T${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c",
+        "$builddir/gen/toon/toon_grammar_gen.y"
+      ],
+      "inputs": [
+        "$builddir/gen/toon/toon_grammar_gen.y",
+        "${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c"
+      ],
+      "outputs": [
+        "$builddir/gen/toon/toon_grammar_gen.c",
+        "$builddir/gen/toon/toon_grammar_gen.h"
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "when": {
+        "os": [
+          "linux",
+          "macos",
+          "android"
+        ]
+      },
+      "private": {
+        "libs": [
+          "m"
+        ]
+      }
+    }
+  ]
+}

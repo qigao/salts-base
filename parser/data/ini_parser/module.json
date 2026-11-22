@@ -1,0 +1,115 @@
+{
+  "include": ["test/module.json"],
+  "name": "ini_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/ini_parser.c",
+      "$builddir/gen/ini/ini_lexer_gen.c",
+      "$builddir/gen/ini/ini_grammar_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [
+      {
+        "from": "include",
+        "to": "include"
+      }
+    ]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "salts"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "parser",
+      "$builddir/gen/ini",
+      ".."
+    ],
+    "deps": [
+      "simde"
+    ]
+  },
+  "variants": [
+    {
+      "when": {
+        "driver": [
+          "llvm-mingw",
+          "gcc",
+          "clang"
+        ]
+      },
+      "private": {
+        "flags": [
+          "-Wno-unused-parameter",
+          "-Wno-unused-function",
+          "-Wno-unused-variable",
+          "-Wno-unused-but-set-variable"
+        ]
+      }
+    },
+    {
+      "when": {
+        "driver": "msvc"
+      },
+      "private": {
+        "flags": [
+          "/wd4101",
+          "/wd4102",
+          "/wd4244",
+          "/wd4267",
+          "/wd4996"
+        ]
+      }
+    }
+  ],
+  "preTasks": [
+    {
+      "name": "ini_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/ini/ini_lexer_gen.c",
+        "$moduledir/parser/ini_lexer.re"
+      ],
+      "inputs": [
+        "parser/ini_lexer.re"
+      ],
+      "outputs": [
+        "$builddir/gen/ini/ini_lexer_gen.c"
+      ]
+    },
+    {
+      "name": "ini_grammar_stage",
+      "builtin": "copy",
+      "inputs": [
+        "parser/ini_grammar.y"
+      ],
+      "outputs": [
+        "$builddir/gen/ini/ini_grammar_gen.y"
+      ]
+    },
+    {
+      "name": "ini_grammar",
+      "program": "${env:SALTS_BUILD_LEMON_ROOT}/bin/lemon${host:exe}",
+      "args": [
+        "-q",
+        "-T${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c",
+        "$builddir/gen/ini/ini_grammar_gen.y"
+      ],
+      "inputs": [
+        "$builddir/gen/ini/ini_grammar_gen.y",
+        "${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c"
+      ],
+      "outputs": [
+        "$builddir/gen/ini/ini_grammar_gen.c",
+        "$builddir/gen/ini/ini_grammar_gen.h"
+      ]
+    }
+  ]
+}

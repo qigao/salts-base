@@ -1,0 +1,463 @@
+{
+  "targets": {
+    "test_unicode": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode",
+        "timeout": 300
+      }
+    },
+    "test_unicode_normalize": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_normalize.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ],
+        "defines": {
+          "SALTS_NFC_TEST_DATA": "\"${envPath:SALTS_UNICODE_DATA_DIR}/NormalizationTest.txt\""
+        }
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_normalize",
+        "timeout": 300
+      },
+      "preTasks": [
+        {
+          "name": "verify_fixture",
+          "program": "cmake",
+          "args": [
+            "-DSALTS_UNICODE_DATA_DIR=${envPath:SALTS_UNICODE_DATA_DIR}",
+            "-DSALTS_UNICODE_VERIFY_FIXTURE=NormalizationTest.txt",
+            "-DSALTS_UNICODE_VERIFY_STAMP=$builddir/gen/unicode/test/NormalizationTest.txt.verified",
+            "-P",
+            "$moduledir/../data/Download.cmake"
+          ],
+          "inputs": [
+            "${envPath:SALTS_UNICODE_DATA_DIR}/NormalizationTest.txt",
+            "../data/Download.cmake",
+            "../data/sources.lock.json"
+          ],
+          "outputs": [
+            "$builddir/gen/unicode/test/NormalizationTest.txt.verified"
+          ]
+        }
+      ]
+    },
+    "test_unicode_casefold": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_casefold.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ],
+        "defines": {
+          "SALTS_UNICODE_CASEFOLD_TEST_DATA": "\"${envPath:SALTS_UNICODE_DATA_DIR}/CaseFolding.txt\""
+        }
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_casefold",
+        "timeout": 300
+      },
+      "preTasks": [
+        {
+          "name": "verify_fixture",
+          "program": "cmake",
+          "args": [
+            "-DSALTS_UNICODE_DATA_DIR=${envPath:SALTS_UNICODE_DATA_DIR}",
+            "-DSALTS_UNICODE_VERIFY_FIXTURE=CaseFolding.txt",
+            "-DSALTS_UNICODE_VERIFY_STAMP=$builddir/gen/unicode/test/CaseFolding.txt.verified",
+            "-P",
+            "$moduledir/../data/Download.cmake"
+          ],
+          "inputs": [
+            "${envPath:SALTS_UNICODE_DATA_DIR}/CaseFolding.txt",
+            "../data/Download.cmake",
+            "../data/sources.lock.json"
+          ],
+          "outputs": [
+            "$builddir/gen/unicode/test/CaseFolding.txt.verified"
+          ]
+        }
+      ]
+    },
+    "test_unicode_ascii_simd": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_ascii_simd.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_ascii_simd",
+        "timeout": 300
+      }
+    },
+    "test_unicode_combined_abi": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_combined_abi.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_combined_abi",
+        "timeout": 300
+      }
+    },
+    "test_unicode_category_conformance": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_category_conformance.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ],
+        "defines": {
+          "SALTS_UNICODE_CATEGORY_TEST_DATA": "\"${envPath:SALTS_UNICODE_DATA_DIR}/UnicodeData.txt\""
+        }
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_category_conformance",
+        "timeout": 300
+      },
+      "preTasks": [
+        {
+          "name": "verify_fixture",
+          "program": "cmake",
+          "args": [
+            "-DSALTS_UNICODE_DATA_DIR=${envPath:SALTS_UNICODE_DATA_DIR}",
+            "-DSALTS_UNICODE_VERIFY_FIXTURE=UnicodeData.txt",
+            "-DSALTS_UNICODE_VERIFY_STAMP=$builddir/gen/unicode/test/UnicodeData.txt.verified",
+            "-P",
+            "$moduledir/../data/Download.cmake"
+          ],
+          "inputs": [
+            "${envPath:SALTS_UNICODE_DATA_DIR}/UnicodeData.txt",
+            "../data/Download.cmake",
+            "../data/sources.lock.json"
+          ],
+          "outputs": [
+            "$builddir/gen/unicode/test/UnicodeData.txt.verified"
+          ]
+        }
+      ]
+    },
+    "test_unicode_grapheme": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_grapheme.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_grapheme",
+        "timeout": 300
+      }
+    },
+    "test_unicode_grapheme_conformance": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_grapheme_conformance.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ],
+        "defines": {
+          "SALTS_UNICODE_GRAPHEME_TEST_DATA": "\"${envPath:SALTS_UNICODE_DATA_DIR}/GraphemeBreakTest.txt\""
+        }
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_grapheme_conformance",
+        "timeout": 300
+      },
+      "preTasks": [
+        {
+          "name": "verify_fixture",
+          "program": "cmake",
+          "args": [
+            "-DSALTS_UNICODE_DATA_DIR=${envPath:SALTS_UNICODE_DATA_DIR}",
+            "-DSALTS_UNICODE_VERIFY_FIXTURE=GraphemeBreakTest.txt",
+            "-DSALTS_UNICODE_VERIFY_STAMP=$builddir/gen/unicode/test/GraphemeBreakTest.txt.verified",
+            "-P",
+            "$moduledir/../data/Download.cmake"
+          ],
+          "inputs": [
+            "${envPath:SALTS_UNICODE_DATA_DIR}/GraphemeBreakTest.txt",
+            "../data/Download.cmake",
+            "../data/sources.lock.json"
+          ],
+          "outputs": [
+            "$builddir/gen/unicode/test/GraphemeBreakTest.txt.verified"
+          ]
+        }
+      ]
+    },
+    "test_unicode_word": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_word.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_word",
+        "timeout": 300
+      }
+    },
+    "test_unicode_word_conformance": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_word_conformance.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ],
+        "defines": {
+          "SALTS_UNICODE_WORD_TEST_DATA": "\"${envPath:SALTS_UNICODE_DATA_DIR}/WordBreakTest.txt\""
+        }
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_word_conformance",
+        "timeout": 300
+      },
+      "preTasks": [
+        {
+          "name": "verify_fixture",
+          "program": "cmake",
+          "args": [
+            "-DSALTS_UNICODE_DATA_DIR=${envPath:SALTS_UNICODE_DATA_DIR}",
+            "-DSALTS_UNICODE_VERIFY_FIXTURE=WordBreakTest.txt",
+            "-DSALTS_UNICODE_VERIFY_STAMP=$builddir/gen/unicode/test/WordBreakTest.txt.verified",
+            "-P",
+            "$moduledir/../data/Download.cmake"
+          ],
+          "inputs": [
+            "${envPath:SALTS_UNICODE_DATA_DIR}/WordBreakTest.txt",
+            "../data/Download.cmake",
+            "../data/sources.lock.json"
+          ],
+          "outputs": [
+            "$builddir/gen/unicode/test/WordBreakTest.txt.verified"
+          ]
+        }
+      ]
+    },
+    "test_unicode_line_break_conformance": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_line_break_conformance.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ],
+        "defines": {
+          "SALTS_UNICODE_LINE_BREAK_TEST_DATA": "\"${envPath:SALTS_UNICODE_DATA_DIR}/LineBreakTest.txt\""
+        }
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_line_break_conformance",
+        "timeout": 300
+      },
+      "preTasks": [
+        {
+          "name": "verify_fixture",
+          "program": "cmake",
+          "args": [
+            "-DSALTS_UNICODE_DATA_DIR=${envPath:SALTS_UNICODE_DATA_DIR}",
+            "-DSALTS_UNICODE_VERIFY_FIXTURE=LineBreakTest.txt",
+            "-DSALTS_UNICODE_VERIFY_STAMP=$builddir/gen/unicode/test/LineBreakTest.txt.verified",
+            "-P",
+            "$moduledir/../data/Download.cmake"
+          ],
+          "inputs": [
+            "${envPath:SALTS_UNICODE_DATA_DIR}/LineBreakTest.txt",
+            "../data/Download.cmake",
+            "../data/sources.lock.json"
+          ],
+          "outputs": [
+            "$builddir/gen/unicode/test/LineBreakTest.txt.verified"
+          ]
+        }
+      ]
+    },
+    "test_unicode_bidi": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_bidi.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_bidi",
+        "timeout": 300
+      }
+    },
+    "test_unicode_bidi_conformance": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_bidi_conformance.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ],
+        "defines": {
+          "SALTS_UNICODE_BIDI_PARAGRAPH_TEST_DATA": "\"$moduledir/data/BidiParagraphTest.txt\""
+        }
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_bidi_conformance",
+        "timeout": 300
+      }
+    },
+    "test_unicode_emoji": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_emoji.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_emoji",
+        "timeout": 300
+      }
+    },
+    "test_unicode_emoji_conformance": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_emoji_conformance.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ],
+        "defines": {
+          "SALTS_UNICODE_EMOJI_TEST_DATA": "\"${envPath:SALTS_UNICODE_DATA_DIR}/emoji-data.txt\""
+        }
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_emoji_conformance",
+        "timeout": 300
+      },
+      "preTasks": [
+        {
+          "name": "verify_fixture",
+          "program": "cmake",
+          "args": [
+            "-DSALTS_UNICODE_DATA_DIR=${envPath:SALTS_UNICODE_DATA_DIR}",
+            "-DSALTS_UNICODE_VERIFY_FIXTURE=emoji-data.txt",
+            "-DSALTS_UNICODE_VERIFY_STAMP=$builddir/gen/unicode/test/emoji-data.txt.verified",
+            "-P",
+            "$moduledir/../data/Download.cmake"
+          ],
+          "inputs": [
+            "${envPath:SALTS_UNICODE_DATA_DIR}/emoji-data.txt",
+            "../data/Download.cmake",
+            "../data/sources.lock.json"
+          ],
+          "outputs": [
+            "$builddir/gen/unicode/test/emoji-data.txt.verified"
+          ]
+        }
+      ]
+    },
+    "test_unicode_header_cpp": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_unicode_header_cpp.cpp"
+        ]
+      },
+      "private": {
+        "deps": [
+          "saltscore_unicode",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.native.test_unicode_header_cpp",
+        "timeout": 120
+      }
+    }
+  }
+}

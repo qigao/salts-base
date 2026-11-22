@@ -1,0 +1,118 @@
+{
+  "targets": {
+    "test_api": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_api.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "cyaml",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_api"
+      }
+    },
+    "test_sax": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_sax.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "cyaml",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_sax"
+      }
+    },
+    "test_ypath_lexer": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_ypath_lexer.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "cyaml",
+          "tinytest"
+        ],
+        "includeDirs": [
+          "../src"
+        ]
+      },
+      "test": {
+        "name": "test_ypath_lexer"
+      }
+    },
+    "test_ypath_ast": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_ypath_ast.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "cyaml",
+          "tinytest"
+        ],
+        "includeDirs": [
+          "../src"
+        ]
+      },
+      "test": {
+        "name": "test_ypath_ast"
+      }
+    },
+    "test_cyaml_json_adapter": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_json_adapter.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "cyaml_json_adapter",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_cyaml_json_adapter"
+      }
+    },
+    "ypath_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "ypath_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "cyaml"
+        ],
+        "defines": {
+          "CYAML_SOURCE_DIR": "\"$root/parser/data/cyaml\""
+        }
+      },
+      "test": {
+        "name": "ypath_test",
+        "labels": [
+          "cyaml",
+          "ypath"
+        ]
+      }
+    }
+  }
+}

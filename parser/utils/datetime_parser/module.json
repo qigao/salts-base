@@ -1,0 +1,70 @@
+{
+  "include": ["test/module.json"],
+  "name": "datetime_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/datetime_parser.c",
+      "$builddir/gen/datetime/datetime_lexer_gen.c",
+      "$builddir/gen/datetime/datetime_grammar_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "parser",
+      "$builddir/gen/datetime"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "datetime_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/datetime/datetime_lexer_gen.c",
+        "$moduledir/parser/datetime_lexer.re"
+      ],
+      "inputs": [
+        "parser/datetime_lexer.re"
+      ],
+      "outputs": [
+        "$builddir/gen/datetime/datetime_lexer_gen.c"
+      ]
+    },
+    {
+      "name": "datetime_grammar_stage",
+      "builtin": "copy",
+      "inputs": [
+        "parser/datetime_grammar.y"
+      ],
+      "outputs": [
+        "$builddir/gen/datetime/datetime_grammar_gen.y"
+      ]
+    },
+    {
+      "name": "datetime_grammar",
+      "program": "${env:SALTS_BUILD_LEMON_ROOT}/bin/lemon${host:exe}",
+      "args": [
+        "-q",
+        "-T${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c",
+        "$builddir/gen/datetime/datetime_grammar_gen.y"
+      ],
+      "inputs": [
+        "$builddir/gen/datetime/datetime_grammar_gen.y",
+        "${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c"
+      ],
+      "outputs": [
+        "$builddir/gen/datetime/datetime_grammar_gen.c",
+        "$builddir/gen/datetime/datetime_grammar_gen.h"
+      ]
+    }
+  ]
+}

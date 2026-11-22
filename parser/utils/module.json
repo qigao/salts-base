@@ -1,0 +1,12 @@
+{
+  "include": [ 
+    "cmd_parser/module.json",
+    "datetime_parser/module.json",
+    "dotenv_parser/module.json",
+    "query_vm/module.json",
+    "selector/module.json",
+    "toml/module.json",
+    "toon/module.json",
+    "uri/module.json"
+  ]
+}

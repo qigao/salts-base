@@ -1,0 +1,22 @@
+{
+  "targets": {
+    "saltscore_coroutine_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_coroutine.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "coroutine",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.coroutine",
+        "timeout": 30
+      }
+    }
+  }
+}

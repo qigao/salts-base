@@ -1,0 +1,37 @@
+{
+  "include": [
+    "slates/Platforms.json",
+    "slates/tools.json",
+    "slates/env.json",
+    "slates/DefaultPreset.json"
+  ],
+  "defaultPreset": "release",
+  "modules": [
+    "tinytest",
+    "cserde",
+    "simd",
+    "core",
+    "coroutine",
+    "native-io",
+    "serial",
+    "cron",
+    "parser",
+    "asn1",
+    "unicode",
+    "media",
+    "third_party"
+  ],
+  "presets": {
+    "debug-msvc": {
+      "inherits": "debug",
+      "targetPlatform": "windows-x64",
+      "toolchain": "msvc-win64",
+      "vsDevCmd": "${envPath:VSDEVCMD_BAT}"
+    },
+    "debug-mingw": {
+      "inherits": "debug",
+      "targetPlatform": "windows-x64",
+      "toolchain": "llvm-mingw-x64"
+    }
+  }
+}

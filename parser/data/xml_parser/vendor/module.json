@@ -1,0 +1,76 @@
+{
+  "name": "salts_cxml",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "cxml/src/core/cxconfig.c",
+      "cxml/src/core/cxdefs.c",
+      "cxml/src/core/cxgrptable.c",
+      "cxml/src/core/cxlist.c",
+      "cxml/src/core/cxliteral.c",
+      "cxml/src/core/cxlrucache.c",
+      "cxml/src/core/cxmem.c",
+      "cxml/src/core/cxmset.c",
+      "cxml/src/core/cxstack.c",
+      "cxml/src/core/cxstr.c",
+      "cxml/src/core/cxtable.c",
+      "cxml/src/cxml/cxml.c",
+      "cxml/src/query/cxqapi.c",
+      "cxml/src/query/cxql.c",
+      "cxml/src/utils/cxutf8hook.c",
+      "cxml/src/utils/cxutils.c",
+      "cxml/src/xml/cxlexer.c",
+      "cxml/src/xml/cxparser.c",
+      "cxml/src/xml/cxprinter.c",
+      "cxml/src/xml/cxscope.c",
+      "cxml/src/xml/cxstream.c",
+      "cxml/src/xpath/cxxpcontext.c",
+      "cxml/src/xpath/cxxpdata.c",
+      "cxml/src/xpath/cxxpeval.c",
+      "cxml/src/xpath/cxxplexer.c",
+      "cxml/src/xpath/cxxplib.c",
+      "cxml/src/xpath/cxxpmemdeb.c",
+      "cxml/src/xpath/cxxpopt.c",
+      "cxml/src/xpath/cxxpparser.c",
+      "cxml/src/xpath/cxxpresolver.c"
+    ]
+  },
+  "public": {
+    "includeDirs": [
+      "cxml/include"
+    ]
+  },
+  "private": {
+    "deps": [
+      "salts",
+      "query_vm"
+    ],
+    "defines": {
+      "CXML_USE_QUERY_MOD": null,
+      "CXML_USE_XPATH_MOD": null
+    }
+  },
+  "variants": [
+    {
+      "when": { "driver": ["llvm-mingw", "gcc", "clang"] },
+      "private": {
+        "flags": [
+          "-fvisibility=hidden",
+          "-Wall",
+          "-Wextra",
+          "-Wno-unused-parameter",
+          "-Wno-sign-conversion"
+        ]
+      }
+    },
+    {
+      "when": { "driver": "msvc" },
+      "private": {
+        "flags": ["/W4", "/wd4100", "/wd4244", "/wd4267"]
+      }
+    }
+  ],
+  "visibility": [
+    "xml_parser"
+  ]
+}

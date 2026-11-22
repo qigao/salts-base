@@ -49,7 +49,9 @@ set(SALTS_DEPENDENCY_PREFIX "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
 list(PREPEND CMAKE_PREFIX_PATH
   "${SALTS_DEPENDENCY_PREFIX}/$ENV{VCPKG_CONFIGURATION_SUBDIR}"
   "${SALTS_DEPENDENCY_PREFIX}")
-find_package(Threads REQUIRED)
+if(NOT WIN32)
+  find_package(Threads REQUIRED)
+endif()
 include(FindTools)
 add_subdirectory(vendor)
 add_subdirectory(tinytest)

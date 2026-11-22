@@ -1,0 +1,8 @@
+{
+  "include": [
+    "binary/module.json", 
+    "data/module.json", 
+    "markdown/module.json", 
+    "utils/module.json"
+  ]
+}

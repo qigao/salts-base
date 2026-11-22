@@ -1,0 +1,55 @@
+{
+  "include": ["tests/module.json"],
+  "name": "simd",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/simd.c",
+      "src/simd_types.c"
+    ]
+  },
+  "install": {
+    "headers": [
+      {
+        "from": "include",
+        "to": "include"
+      }
+    ]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ]
+  },
+  "private": {
+    "deps": [
+      "simde"
+    ]
+  },
+  "variants": [
+    {
+      "when": {
+        "driver": "gcc"
+      },
+      "private": {
+        "flags": [
+          "-fwrapv"
+        ]
+      }
+    },
+    {
+      "when": {
+        "os": [
+          "linux",
+          "macos",
+          "android"
+        ]
+      },
+      "private": {
+        "libs": [
+          "m"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,208 @@
+{
+  "targets": {
+    "capture_exposure_windows_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_capture_exposure_windows.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "media",
+          "tinytest",
+          "libyuv"
+        ]
+      },
+      "test": {
+        "name": "capture_exposure_windows_test",
+        "timeout": 15
+      },
+      "when": {
+        "os": "windows"
+      }
+    },
+    "capture_windows_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_capture_windows.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "media",
+          "tinytest"
+        ]
+      },
+      "when": {
+        "os": "windows"
+      },
+      "testOnly": true
+    },
+    "playback_buffer_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_playback_buffer.c",
+          "../src/playback_buffer.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "salts",
+          "tinytest"
+        ],
+        "includeDirs": [
+          "../src"
+        ]
+      },
+      "test": {
+        "name": "saltscore.playback_original_buffer",
+        "timeout": 30
+      }
+    },
+    "playback_null_test_impl": {
+      "kind": "static",
+      "sources": {
+        "files": [
+          "../src/playback.c",
+          "../src/playback_buffer.c",
+          "../src/miniaudio_impl.c"
+        ]
+      },
+      "public": {
+        "includeDirs": [
+          "../include"
+        ]
+      },
+      "private": {
+        "deps": [
+          "salts",
+          "miniaudio"
+        ],
+        "includeDirs": [
+          "../src"
+        ],
+        "defines": {
+          "SALTS_PLAYBACK_TEST_NULL_BACKEND": "1"
+        }
+      },
+      "variants": [
+        {
+          "when": {
+            "driver": "llvm-mingw"
+          },
+          "private": {
+            "flags": [
+              "-fvisibility=hidden"
+            ]
+          }
+        },
+        {
+          "when": {
+            "os": "linux"
+          },
+          "private": {
+            "libs": [
+              "m",
+              "dl"
+            ],
+            "linkFlags": [
+              "-pthread"
+            ]
+          }
+        },
+        {
+          "when": {
+            "os": "macos"
+          },
+          "sources": {
+            "objc": [
+              "../src/miniaudio_impl.c"
+            ]
+          },
+          "private": {
+            "libs": [
+              "objc"
+            ],
+            "linkFlags": [
+              "-Wl,-framework,AudioToolbox",
+              "-Wl,-framework,CoreAudio",
+              "-Wl,-framework,CoreFoundation",
+              "-Wl,-framework,Foundation",
+              "-Wl,-framework,AVFoundation"
+            ]
+          }
+        }
+      ],
+      "visibility": [
+        "playback_lifecycle_test"
+      ],
+      "testOnly": true
+    },
+    "playback_lifecycle_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_playback_lifecycle.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "playback_null_test_impl",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "saltscore.playback_original_lifecycle",
+        "timeout": 30
+      }
+    },
+    "capture_android_test": {
+      "kind": "executable",
+      "when": {
+        "os": "android"
+      },
+      "sources": {
+        "files": [
+          "test_capture_android.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "media",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "capture_android_test",
+        "timeout": 60
+      }
+    },
+    "capture_posix_test": {
+      "kind": "executable",
+      "when": {
+        "os": [
+          "linux",
+          "macos"
+        ]
+      },
+      "sources": {
+        "files": [
+          "test_capture_posix.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "media",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "capture_posix_test",
+        "timeout": 60
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "targets": {
+    "test_toml": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_toml.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "toml_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_toml"
+      }
+    }
+  }
+}

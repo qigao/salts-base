@@ -1,0 +1,9 @@
+{
+  "include": [ 
+    "csv_parser/module.json",
+    "cyaml/module.json",
+    "ini_parser/module.json",
+    "json_parser/module.json",
+    "xml_parser/module.json"
+  ]
+}

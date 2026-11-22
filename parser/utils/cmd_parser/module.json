@@ -1,0 +1,26 @@
+{
+  "include": ["test/module.json"],
+  "kind": "static",
+  "sources": {
+    "files": ["src/cmd_arger.c", "$builddir/gen/cmd/cmd_arger_gen.c"]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": ["include"]
+  },
+  "private": {
+    "deps": ["dotenv_parser"],
+    "includeDirs": ["src", "$builddir/gen/cmd"]
+  },
+  "preTasks": [
+    {
+      "name": "lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": ["-o", "$builddir/gen/cmd/cmd_arger_gen.c", "$moduledir/src/cmd_arger.re"],
+      "inputs": ["src/cmd_arger.re"],
+      "outputs": ["$builddir/gen/cmd/cmd_arger_gen.c"]
+    }
+  ]
+}

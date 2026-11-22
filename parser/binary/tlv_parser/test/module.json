@@ -1,0 +1,55 @@
+{
+  "targets": {
+    "test_edge_cases": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_edge_cases.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "tlv_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_edge_cases"
+      }
+    },
+    "test_frame_parser": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_frame_parser.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "tlv_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_frame_parser"
+      }
+    },
+    "test_production_features": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_production_features.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "tlv_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_production_features"
+      }
+    }
+  }
+}

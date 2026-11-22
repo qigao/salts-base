@@ -1,0 +1,55 @@
+{
+  "targets": {
+    "simde": {
+      "kind": "external",
+      "package": { "provider": "vcpkg", "name": "simde" }
+    },
+    "miniaudio": {
+      "kind": "external",
+      "package": { "provider": "vcpkg", "name": "miniaudio" }
+    },
+    "zstd": {
+      "kind": "prebuilt",
+      "public": { "includeDirs": ["$vcpkg/include"] },
+      "variants": [
+        {
+          "when": { "driver": ["clang", "gcc", "llvm-mingw"] },
+          "public": { "libs": ["$vcpkgConfig/lib/libzstd.a"] }
+        },
+        {
+          "when": { "driver": "msvc" },
+          "public": { "libs": ["$vcpkgConfig/lib/zstd_static.lib"] }
+        }
+      ]
+    },
+    "libjpeg-turbo": {
+      "kind": "external",
+      "when": { "os": ["windows", "linux", "android"] },
+      "package": { "provider": "vcpkg", "name": "libjpeg-turbo", "pc": "libjpeg" }
+    },
+    "libyuv": {
+      "kind": "prebuilt",
+      "when": { "os": ["windows", "linux", "android"] },
+      "public": {
+        "includeDirs": ["$vcpkg/include"],
+        "deps": ["libjpeg-turbo"]
+      },
+      "variants": [
+        {
+          "when": { "os": "windows", "driver": "llvm-mingw" },
+          "public": { "libs": ["$vcpkgConfig/lib/libyuv.dll.a"] },
+          "runtimeBins": ["$vcpkgConfig/bin/libyuv.dll"]
+        },
+        {
+          "when": { "os": "windows", "driver": "msvc" },
+          "public": { "libs": ["$vcpkgConfig/lib/libyuv.lib"] },
+          "runtimeBins": ["$vcpkgConfig/bin/libyuv.dll"]
+        },
+        {
+          "when": { "os": ["linux", "android"] },
+          "public": { "libs": ["$vcpkgConfig/lib/libyuv.a"] }
+        }
+      ]
+    }
+  }
+}

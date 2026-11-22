@@ -1,0 +1,55 @@
+{
+  "targets": {
+    "toon_debug_test": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "debug_test.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "toon",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "toon_debug_test"
+      }
+    },
+    "test_toonc": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_toonc.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "toon",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_toonc"
+      }
+    },
+    "test_toon_json_adapter": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_toon_json_adapter.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "toon",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_toon_json_adapter"
+      }
+    }
+  }
+}

@@ -172,6 +172,108 @@ Apply the same Python test-oracle setup described above.
 
 </details>
 
+### Build with Slate on Windows x64
+
+The [Slate preset](slate.json) builds Core, CSerde, SIMD, TinyTest,
+Coroutine, Native I/O, Serial, Cron, ASN.1, Unicode, Media and the parser
+modules, including Markdown. It also builds the TinyTest examples and the
+JUnit-to-HTML tool. `slate test` runs the native suite and the converter regression.
+
+Set `SALTS_BUILD_RE2C_ROOT`, `SALTS_BUILD_LEMON_ROOT`, and
+`SALTS_UNICODE_DATA_DIR` in `.env` or the process environment. Use absolute
+paths to the restored host tools and the Unicode 17.0.0 conformance cache.
+Ninja uses the same Unicode 17 data checks as CMake. [`.env.example`](.env.example)
+lists the keys for each platform.
+
+For LLVM-MinGW, set `LLVM_MINGW_ROOT` and `VCPKG_INSTALLED_DIR`, the root
+containing `qigao-x64-windows-llvm-mingw`. With
+`slate`, Ninja, CMake and `pkgconf` on `PATH`, run from the repository root.
+
+```sh
+slate doctor
+slate build
+slate test
+```
+
+Use `--preset debug` for full debug symbols, disabled optimization, and the
+Debug libraries from the same vcpkg tree. The default preset is `release`.
+
+```sh
+slate build --preset debug
+slate test --preset debug
+```
+
+For MSVC, run from an x64 Visual Studio developer shell. Set
+`SALTS_BUILD_MSVC_VCPKG_INSTALLED_DIR` to the installed root containing the
+`x64-windows` SDK.
+
+```sh
+slate doctor --compiler msvc
+slate build --compiler msvc --preset release
+slate test --compiler msvc --preset release
+
+slate build --compiler msvc --preset debug
+slate test --compiler msvc --preset debug
+```
+
+The module manifests carry the source lists for this build. Update them when
+targets gain or change sources. `slate.json` lists module directories in
+`modules`, each with a `module.json`. Module manifests use `include` for
+nested manifests, such as the Serial examples and tests. The
+[third-party manifest](third_party/module.json) resolves SIMDe and
+miniaudio from the installed file lists and JPEG from
+`libjpeg.pc`. The selected vcpkg root must contain its `vcpkg/info` directory
+alongside its triplet directory. Core selects the exact Zstd static archive
+and Media selects the exact libyuv import library or static archive.
+
+Use `slate install` to stage module libraries, public headers and declared
+runtime files. Core exports relocatable metadata for Salts Build and
+pkg-config.
+
+```sh
+slate install --preset release --target salts --components runtime,dev --prefix out/stage/core
+slate install --preset release --target junit_to_html --components runtime --prefix out/stage/junit-to-html
+```
+
+The CMake presets remain the release packaging workflow and cover the full test
+matrix, including Python oracles and benchmarks.
+
+### Cross-platform Slate profiles
+
+The [platform definitions](slates/Platforms.json) use the same
+`debug` and `release` presets on all targets. Select a different target
+from the host with `--platform`.
+
+| Platform | Compiler | Installed SDK root variable |
+| --- | --- | --- |
+| `windows-x64` | `llvm-mingw` / `msvc` | `VCPKG_INSTALLED_DIR` / `SALTS_BUILD_MSVC_VCPKG_INSTALLED_DIR` |
+| `windows-arm64` | `llvm-mingw` / `msvc` | `SALTS_BUILD_LLVM_MINGW_ARM64_VCPKG_INSTALLED_DIR` / `SALTS_BUILD_MSVC_ARM64_VCPKG_INSTALLED_DIR` |
+| `linux-x64`, `linux-arm64` | `gcc` / `clang` | `SALTS_BUILD_POSIX_VCPKG_INSTALLED_DIR` |
+| `macos-x64`, `macos-arm64` | `clang` | `SALTS_BUILD_POSIX_VCPKG_INSTALLED_DIR` |
+| `android-x64`, `android-arm64` | NDK `clang` | `SALTS_BUILD_ANDROID_VCPKG_INSTALLED_DIR` |
+
+Each root contains the matching vcpkg triplet directory. Linux and macOS
+profiles use a native compiler on the indicated architecture. Linux Media
+uses the system PipeWire, SPA, X11 and Xext development libraries. Set
+`SALTS_BUILD_PIPEWIRE_INCLUDE_DIR` and `SALTS_BUILD_SPA_INCLUDE_DIR` to the
+installed header directories. macOS Media uses
+the Xcode SDK's AVFoundation and ScreenCaptureKit frameworks.
+
+For Android, point `ANDROID_NDK_TOOLCHAIN_DIR` to
+`toolchains/llvm/prebuilt/<host-tag>` in the NDK. For Windows ARM64 MSVC use
+a Visual Studio developer shell that targets ARM64, with the ARM64 C++ tools
+installed. The Windows x64 LLVM-MinGW tools can cross-compile Windows ARM64.
+
+```sh
+slate gen --platform android-arm64 --preset release
+ninja -C out/release/android-arm64/ndk-arm64
+```
+
+Cross builds use re2c and Lemon from the configured host-tool roots.
+Cross builds include the libraries and tools by default.
+Use `--tests` to compile the target tests for a target device or runner.
+Run native tests with `slate test`.
+
 ### Platform profiles
 
 | Platform / compiler | CI user preset | Validation |

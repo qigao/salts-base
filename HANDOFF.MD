@@ -1,5 +1,85 @@
 # Native thread runtime verification
 
+## Slate platform matrix
+
+The Windows x64 Slate suite has 116 tests. `slate test --preset release`
+passed all 116 with both `--compiler llvm-mingw` and `--compiler msvc`.
+Use an x64 Visual Studio developer shell and
+`--compiler msvc` for MSVC's `x64-windows` SDK. The platform selects the ABI
+triplet, and module paths select the matching libraries and runtime DLLs for
+the build configuration.
+
+Windows ARM64 LLVM-MinGW Debug and Release cross-build the libraries and
+target tests with the restored Flowie ARM64 SDK. Android x64 and arm64 use NDK
+28.2 at API 26 and cross-link the complete graph, including the Media capture
+and Serial PTY tests. These target binaries require their corresponding
+runner. Linux and macOS require native validation. This machine's Visual
+Studio returns an x64 compiler in its ARM64 developer shell, and the
+generator rejects the mismatch before emitting Ninja rules.
+The generator tasks use the restored re2c and Lemon packages specified by
+the repository locks. Use `SALTS_BUILD_RE2C_ROOT` and
+`SALTS_BUILD_LEMON_ROOT` to select a different location for those packages.
+The existing CMake configure and the Ninja release task share the Unicode
+17 data verifier, and Ninja checks the restored conformance fixtures against
+`unicode/data/sources.lock.json` before the corresponding tests run.
+
+On Windows, Slate can emit a `c:/` script path while CMake reports
+`CMAKE_SCRIPT_MODE_FILE` as `C:/`. An exact string comparison skipped script
+initialization and produced a missing re2c table diagnostic with an empty path.
+Both Unicode scripts now detect the outer `cmake -P` invocation by checking
+for script mode and the absence of a parent list file. The Release LLVM-MinGW
+`saltscore_unicode` build and `test_unicode_category_conformance` passed with
+the lowercase drive path and the existing restored inputs.
+
+XML links the private `salts_cxml` archive transitively in the Ninja graph.
+CMake embeds the vendor objects in the XML archive it exports with the SDK.
+
+LLVM-MinGW keeps the timestamp of an unchanged import library after relinking
+its DLL. The Ninja link rule uses `restat` so a stale timestamp on that import
+library alone does not trigger repeated links.
+
+The Core manifest selects the Windows, Linux, Darwin, or Android sources.
+A targeted Android arm64 cross-build with NDK 28.2 at API 26 linked Core,
+Serial and the C11 thread suite using the restored `arm64-android` SDK.
+Android and Linux shared libraries declare a SONAME so dependent binaries
+record `libsalts.so` instead of a build-machine path.
+
+An LLVM-MinGW C++ test that exits with `0xc0000135` before reporting assertions
+needs its runtime DLLs. The migrated C++ targets declare `libc++.dll` and
+`libunwind.dll` as runtime inputs. Ninja stages them beside the executables, so
+`slate test` can run with the stock shell environment. The CMake
+baseline needs the matching LLVM-MinGW runtime directory on `PATH`.
+
+### Current module manifests and installation
+
+The module manifests use canonical target kinds, structured linker flags and
+explicit public header mappings. `third_party/module.json` owns the vcpkg
+declarations. SIMDe and miniaudio use the installed file lists, and JPEG uses
+`libjpeg.pc` for the selected triplet and configuration. Keep `vcpkg/info`
+beside the triplet directory when restoring a tree.
+
+The LLVM-MinGW SDK's `libzstd.pc` reports `-lzstd_static` while its installed
+archive is `libzstd.a`. The Zstd prebuilt selects the actual static archive
+for each driver. The libyuv prebuilt follows the Windows import library or
+the Linux/Android static library selected by the existing build.
+
+The LLVM-MinGW Core uses the Salts Windows thread backend. The restored x64
+and ARM64 Zstd archives define their own `ZSTD_pthread_*` wrappers and use
+`_beginthreadex`. Keep pthread linkage scoped to the POSIX backends and the
+opt-in MinGW thread comparison benchmark.
+
+If a restored SDK path contains spaces, quoted `${pcfiledir}` expansions in
+the vendor `.pc` files can produce doubled escapes. The updated generator
+queries pkgconf from the triplet directory with relative search paths. The
+Windows Media exposure test passed with a space-containing SDK path and the
+original libjpeg metadata.
+
+`slate install --target salts --components runtime,dev --prefix out/stage/core`
+installs the Core SDK with relocatable Salts Build and pkg-config metadata.
+Keep Core's `install.version` aligned with the SaltsBase release version.
+The full runtime and development install also stages the JUnit-to-HTML
+dashboard and declared license files.
+
 ## Reproducing short thread handoffs on ARM64
 
 - On Windows, count the initiating thread's committed keyed waits separately
@@ -238,6 +318,14 @@ revision and successive handoff experiments.
 
 # Root CMake and example verification
 
+- If the LLVM-MinGW preset reports `/bin/x86_64-w64-mingw32-clang.exe`,
+  the configure process is missing `LLVM_MINGW_ROOT`. Load the local `.env`
+  in the task launcher before CMake expands the preset. The local VS Code
+  PowerShell task preserves spaces in `.env` paths and gives the parent
+  environment precedence. Running its `cmake --preset
+  llvm-mingw-x64-release-user --fresh` command configured and generated the
+  Ninja graph with Clang 23.1.4. An explicitly blank `LLVM_MINGW_ROOT`
+  produced a named error before CMake ran.
 - `BUILD_TESTS=ON` does not compile example branches. Verify example CMake edits
   through the existing root preset with `-DBUILD_EXAMPLES=ON`; retain explicit
   `-DBUILD_TESTS=ON` because the Release preset resets tests to OFF.

@@ -1,0 +1,42 @@
+{
+  "include": ["tests/module.json"],
+  "name": "uri_parser",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/uri_parser.c",
+      "$builddir/gen/uri/uri_lexer_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "parser"
+    ]
+  },
+  "preTasks": [
+    {
+      "name": "uri_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/uri/uri_lexer_gen.c",
+        "$moduledir/parser/uri_lexer.re"
+      ],
+      "inputs": [
+        "parser/uri_lexer.re",
+        "parser/uri_parser_internal.h"
+      ],
+      "outputs": [
+        "$builddir/gen/uri/uri_lexer_gen.c"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "forEach": [
+    {
+      "files": [
+        "*.c"
+      ],
+      "namePrefix": "tinytest_",
+      "target": {
+        "kind": "executable",
+        "private": {
+          "deps": [
+            "tinytest"
+          ]
+        }
+      }
+    },
+    {
+      "files": [
+        "*.cpp"
+      ],
+      "namePrefix": "tinytest_cpp_",
+      "target": {
+        "kind": "executable",
+        "private": {
+          "deps": [
+            "tinytest"
+          ]
+        }
+      }
+    }
+  ]
+}

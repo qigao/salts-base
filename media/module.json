@@ -1,0 +1,198 @@
+{
+  "include": ["tests/module.json"],
+  "name": "media",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/capture_video.c",
+      "src/playback.c",
+      "src/playback_buffer.c",
+      "src/miniaudio_impl.c"
+    ]
+  },
+  "install": {
+    "headers": [
+      {
+        "from": "include",
+        "to": "include"
+      }
+    ]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "salts"
+    ]
+  },
+  "private": {
+    "includeDirs": [
+      "src"
+    ],
+    "deps": [
+      "miniaudio"
+    ]
+  },
+  "variants": [
+    {
+      "when": {
+        "os": "windows"
+      },
+      "sources": {
+        "files": [
+          "src/capture_audio_miniaudio.c",
+          "src/capture_screen_win32.c",
+          "src/capture_video_win32.c",
+          "src/capture_win32.c"
+        ]
+      },
+      "private": {
+        "libs": [
+          "mfplat",
+          "mf",
+          "mfuuid",
+          "mfreadwrite",
+          "strmiids",
+          "ole32",
+          "oleaut32",
+          "d3d11",
+          "dxgi",
+          "dxguid"
+        ],
+        "deps": [
+          "libyuv"
+        ]
+      },
+      "install": {
+        "assets": [
+          {
+            "from": "$vcpkg/share/libyuv/copyright",
+            "to": "share/licenses/SaltsCore/libyuv"
+          },
+          {
+            "from": "$vcpkg/share/libjpeg-turbo/copyright",
+            "to": "share/licenses/SaltsCore/libjpeg-turbo"
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "os": "linux"
+      },
+      "sources": {
+        "files": [
+          "src/capture_linux.c",
+          "src/capture_screen_linux.c",
+          "src/capture_video_linux.c",
+          "src/capture_audio_miniaudio.c"
+        ]
+      },
+      "private": {
+        "defines": {
+          "_GNU_SOURCE": "1",
+          "SALTS_HAS_PIPEWIRE": null,
+          "SALTS_HAS_X11": null
+        },
+        "requiredIncludeDirs": [
+          "${env:SALTS_BUILD_PIPEWIRE_INCLUDE_DIR}",
+          "${env:SALTS_BUILD_SPA_INCLUDE_DIR}"
+        ],
+        "flags": [
+          "-pthread"
+        ],
+        "libs": [
+          "pipewire-0.3",
+          "X11",
+          "Xext",
+          "dl",
+          "m"
+        ],
+        "deps": [
+          "libyuv"
+        ],
+        "linkFlags": [
+          "-pthread"
+        ]
+      },
+      "install": {
+        "assets": [
+          {
+            "from": "$vcpkg/share/libyuv/copyright",
+            "to": "share/licenses/SaltsCore/libyuv"
+          }
+        ]
+      }
+    },
+    {
+      "when": {
+        "os": "macos"
+      },
+      "sources": {
+        "files": [
+          "src/capture_macos.c",
+          "src/capture_screen_macos.m",
+          "src/capture_video_macos.m",
+          "src/capture_audio_miniaudio.c"
+        ],
+        "objc": [
+          "src/miniaudio_impl.c"
+        ]
+      },
+      "private": {
+        "libs": [
+          "objc"
+        ],
+        "linkFlags": [
+          "-Wl,-framework,Foundation",
+          "-Wl,-framework,AVFoundation",
+          "-Wl,-framework,CoreAudio",
+          "-Wl,-framework,AudioToolbox",
+          "-Wl,-framework,CoreFoundation",
+          "-Wl,-framework,CoreGraphics",
+          "-Wl,-framework,CoreMedia",
+          "-Wl,-framework,CoreVideo",
+          "-Wl,-framework,ScreenCaptureKit"
+        ]
+      }
+    },
+    {
+      "when": {
+        "os": "android"
+      },
+      "sources": {
+        "files": [
+          "src/android/capture_android.c",
+          "src/android/capture_audio_android.c",
+          "src/android/capture_screen_android.c",
+          "src/android/capture_video_android.c"
+        ]
+      },
+      "private": {
+        "defines": {
+          "_GNU_SOURCE": "1",
+          "SALTS_CAPTURE_ANDROID": "1"
+        },
+        "libs": [
+          "android",
+          "OpenSLES",
+          "mediandk",
+          "camera2ndk",
+          "dl"
+        ],
+        "deps": [
+          "libyuv"
+        ]
+      },
+      "install": {
+        "assets": [
+          {
+            "from": "$vcpkg/share/libyuv/copyright",
+            "to": "share/licenses/SaltsCore/libyuv"
+          }
+        ]
+      }
+    }
+  ]
+}

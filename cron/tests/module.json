@@ -1,0 +1,21 @@
+{
+  "targets": {
+    "test_cron": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_cron.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "cron",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_cron"
+      }
+    }
+  }
+}

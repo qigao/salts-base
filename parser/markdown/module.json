@@ -1,0 +1,52 @@
+{
+  "include": ["tests/module.json"],
+  "targets": {
+    "markdown_parser": {
+      "kind": "static",
+      "sources": {
+        "files": [
+          "src/markdown_c11.c",
+          "src/markdown_document.c",
+          "src/markdown_entities.c"
+        ]
+      },
+      "public": {
+        "includeDirs": [
+          "include"
+        ],
+        "deps": [
+          "saltscore_unicode"
+        ]
+      },
+      "private": {
+        "includeDirs": [
+          "src"
+        ]
+      },
+      "install": {
+        "headers": [
+          {
+            "from": "include",
+            "to": "include"
+          }
+        ]
+      }
+    },
+    "markdown_html": {
+      "kind": "static",
+      "sources": {
+        "files": [
+          "src/markdown_html.c"
+        ]
+      },
+      "public": {
+        "includeDirs": [
+          "include"
+        ],
+        "deps": [
+          "markdown_parser"
+        ]
+      }
+    }
+  }
+}

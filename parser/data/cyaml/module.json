@@ -1,0 +1,127 @@
+{
+  "include": ["tests/module.json"],
+  "name": "cyaml",
+  "kind": "static",
+  "sources": {
+    "files": [
+      "src/cyaml.c",
+      "src/cyaml_emitter.c",
+      "src/cyaml_events.c",
+      "src/cyaml_json.c",
+      "src/cyaml_modify.c",
+      "src/cyaml_parser.c",
+      "src/cyaml_path.c",
+      "src/cyaml_utf8.c",
+      "$builddir/gen/cyaml_ypath/cyaml_ypath_lexer_gen.c",
+      "$builddir/gen/cyaml_ypath/cyaml_ypath_grammar_gen.c"
+    ]
+  },
+  "install": {
+    "headers": [{ "from": "include", "to": "include" }]
+  },
+  "public": {
+    "includeDirs": [
+      "include"
+    ],
+    "deps": [
+      "query_vm"
+    ]
+  },
+  "private": {
+    "deps": [
+      "salts"
+    ],
+    "includeDirs": [
+      "src",
+      "$builddir/gen/cyaml_ypath"
+    ],
+    "defines": {
+      "CYAML_VERSION_STR": "\"0.1.8\""
+    }
+  },
+  "preTasks": [
+    {
+      "name": "cyaml_ypath_lexer",
+      "program": "${env:SALTS_BUILD_RE2C_ROOT}/bin/re2c${host:exe}",
+      "args": [
+        "-o",
+        "$builddir/gen/cyaml_ypath/cyaml_ypath_lexer_gen.c",
+        "$moduledir/src/cyaml_ypath_lexer.re"
+      ],
+      "inputs": [
+        "src/cyaml_ypath_lexer.re",
+        "src/cyaml_internal.h",
+        "src/cyaml_ypath_lexer.h"
+      ],
+      "outputs": [
+        "$builddir/gen/cyaml_ypath/cyaml_ypath_lexer_gen.c"
+      ]
+    },
+    {
+      "name": "cyaml_ypath_grammar_stage",
+      "builtin": "copy",
+      "inputs": [
+        "src/cyaml_ypath_expr_grammar.y"
+      ],
+      "outputs": [
+        "$builddir/gen/cyaml_ypath/cyaml_ypath_grammar_gen.y"
+      ]
+    },
+    {
+      "name": "cyaml_ypath_grammar",
+      "program": "${env:SALTS_BUILD_LEMON_ROOT}/bin/lemon${host:exe}",
+      "args": [
+        "-q",
+        "-T${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c",
+        "$builddir/gen/cyaml_ypath/cyaml_ypath_grammar_gen.y"
+      ],
+      "inputs": [
+        "$builddir/gen/cyaml_ypath/cyaml_ypath_grammar_gen.y",
+        "${env:SALTS_BUILD_LEMON_ROOT}/share/lemon/lempar.c"
+      ],
+      "outputs": [
+        "$builddir/gen/cyaml_ypath/cyaml_ypath_grammar_gen.c",
+        "$builddir/gen/cyaml_ypath/cyaml_ypath_grammar_gen.h"
+      ]
+    }
+  ],
+  "targets": {
+    "cyaml_json_adapter": {
+      "kind": "static",
+      "sources": {
+        "files": [
+          "adapter/cyaml_json_adapter.c"
+        ]
+      },
+      "public": {
+        "includeDirs": [
+          "include"
+        ],
+        "deps": [
+          "cyaml",
+          "json_parser"
+        ]
+      },
+      "private": {
+        "includeDirs": [
+          "src"
+        ]
+      }
+    }
+  },
+  "variants": [
+    {
+      "when": {
+        "os": [
+          "linux",
+          "android"
+        ]
+      },
+      "private": {
+        "libs": [
+          "m"
+        ]
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-if(CMAKE_SCRIPT_MODE_FILE STREQUAL CMAKE_CURRENT_LIST_FILE)
+if(DEFINED CMAKE_SCRIPT_MODE_FILE AND NOT DEFINED CMAKE_PARENT_LIST_FILE)
   cmake_minimum_required(VERSION 3.25)
 endif()
 
@@ -41,8 +41,28 @@ function(download_unicode_file name)
   file(RENAME "${destination}.download" "${destination}")
 endfunction()
 
+if(DEFINED CMAKE_SCRIPT_MODE_FILE AND NOT DEFINED CMAKE_PARENT_LIST_FILE AND
+   DEFINED SALTS_UNICODE_VERIFY_ARCHIVE)
+  file(READ "${CMAKE_CURRENT_LIST_DIR}/sources.lock.json" manifest)
+  string(JSON expected GET "${manifest}" archives "UCD.zip" sha256)
+  file(SHA256 "${SALTS_UNICODE_VERIFY_ARCHIVE}" actual)
+  if(NOT actual STREQUAL expected)
+    message(FATAL_ERROR "Unicode archive hash mismatch: ${SALTS_UNICODE_VERIFY_ARCHIVE}; expected ${expected}, got ${actual}")
+  endif()
+  file(TOUCH "${SALTS_UNICODE_VERIFY_STAMP}")
+  return()
+endif()
+
+if(DEFINED CMAKE_SCRIPT_MODE_FILE AND NOT DEFINED CMAKE_PARENT_LIST_FILE AND
+   DEFINED SALTS_UNICODE_VERIFY_FIXTURE)
+  set(ENV{QIGAO_PREPARED_INPUTS} 1)
+  download_unicode_file("${SALTS_UNICODE_VERIFY_FIXTURE}")
+  file(TOUCH "${SALTS_UNICODE_VERIFY_STAMP}")
+  return()
+endif()
+
 # Developer entry point: restore every generator input with cmake -P.
-if(CMAKE_SCRIPT_MODE_FILE STREQUAL CMAKE_CURRENT_LIST_FILE)
+if(DEFINED CMAKE_SCRIPT_MODE_FILE AND NOT DEFINED CMAKE_PARENT_LIST_FILE)
   file(READ "${CMAKE_CURRENT_LIST_DIR}/sources.lock.json" manifest)
   string(JSON count LENGTH "${manifest}" files)
   math(EXPR last "${count} - 1")

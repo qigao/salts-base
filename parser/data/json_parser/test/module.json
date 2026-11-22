@@ -1,0 +1,76 @@
+{
+  "targets": {
+    "test_json_parser": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_json_parser.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "json_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_json_parser"
+      }
+    },
+    "test_json_parser_re": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_re.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "json_parser",
+          "tinytest",
+          "simde"
+        ],
+        "includeDirs": [
+          "../parser"
+        ]
+      },
+      "test": {
+        "name": "test_json_parser_re"
+      }
+    },
+    "test_json_cserde_reader": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_json_cserde_reader.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "json_cserde_adapter",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_json_cserde_reader"
+      }
+    },
+    "test_json_cserde_writer": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_json_cserde_writer.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "json_cserde_adapter",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_json_cserde_writer"
+      }
+    }
+  }
+}

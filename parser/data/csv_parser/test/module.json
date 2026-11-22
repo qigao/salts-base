@@ -1,0 +1,72 @@
+{
+  "targets": {
+    "test_csv_parser": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_csv_parser.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "csv_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_csv_parser"
+      }
+    },
+    "test_csv_stream_processor": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_csv_stream_processor.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "csv_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_csv_stream_processor"
+      }
+    },
+    "test_dsv_filter": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_dsv_filter.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "csv_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_dsv_filter"
+      }
+    },
+    "test_dsv_index": {
+      "kind": "executable",
+      "sources": {
+        "files": [
+          "test_dsv_index.c"
+        ]
+      },
+      "private": {
+        "deps": [
+          "csv_parser",
+          "tinytest"
+        ]
+      },
+      "test": {
+        "name": "test_dsv_index"
+      }
+    }
+  }
+}
