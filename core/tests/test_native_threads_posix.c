@@ -5,6 +5,9 @@
 #include <time.h>
 #define TINYTEST_NO_MAIN
 #include <tinytest.h>
+#ifdef SALTS_TEST_DARWIN_MUTEX
+#include "c11_mutex_darwin.h"
+#endif
 
 static once_flag retry_once = ONCE_FLAG_INIT;
 static int attempts, published;
@@ -98,7 +101,100 @@ static int wait_past_dispatch_range(void *arg) {
 }
 #endif
 
+#ifdef SALTS_TEST_DARWIN_MUTEX
+struct darwin_handoff {
+    darwin_mutex mutex;
+    pthread_mutex_t guard;
+    pthread_cond_t changed;
+    unsigned enrolled;
+    int held, before_wake, resume_wake;
+};
+
+void darwin_mutex_test_hook(darwin_mutex *m, enum darwin_mutex_test_phase phase) {
+    struct darwin_handoff *p = (struct darwin_handoff *)m;
+    if (pthread_mutex_lock(&p->guard)) abort();
+    if (phase == DARWIN_MUTEX_ENROLLED) {
+        ++p->enrolled;
+        if (pthread_cond_broadcast(&p->changed)) abort();
+        /* Keep both registrations live until the releaser reserves a wake. */
+        while (!p->before_wake)
+            if (pthread_cond_wait(&p->changed, &p->guard)) abort();
+    } else if (!p->before_wake) {
+        p->before_wake = 1;
+        if (pthread_cond_broadcast(&p->changed)) abort();
+        while (!p->resume_wake)
+            if (pthread_cond_wait(&p->changed, &p->guard)) abort();
+    }
+    if (pthread_mutex_unlock(&p->guard)) abort();
+}
+
+static int handoff_owner(void *arg) {
+    struct darwin_handoff *p = arg;
+    if (darwin_mutex_trylock(&p->mutex) != SALTS_OK || pthread_mutex_lock(&p->guard)) abort();
+    p->held = 1;
+    if (pthread_cond_broadcast(&p->changed)) abort();
+    while (p->enrolled < 2)
+        if (pthread_cond_wait(&p->changed, &p->guard)) abort();
+    if (pthread_mutex_unlock(&p->guard)) abort();
+    darwin_mutex_unlock(&p->mutex);
+    return SALTS_OK;
+}
+
+static int handoff_timed_waiter(void *arg) {
+    struct darwin_handoff *p = arg;
+    struct timespec due = deadline_ms(500);
+    int rc = darwin_mutex_wait(&p->mutex, &due, CLOCK_REALTIME);
+    if (rc == SALTS_OK) darwin_mutex_unlock(&p->mutex);
+    return rc;
+}
+
+static int handoff_waiter(void *arg) {
+    struct darwin_handoff *p = arg;
+    int rc = darwin_mutex_wait(&p->mutex, NULL, CLOCK_MONOTONIC);
+    if (rc == SALTS_OK) darwin_mutex_unlock(&p->mutex);
+    return rc;
+}
+#endif
+
 spec("POSIX C11 blocking primitives") {
+#ifdef SALTS_TEST_DARWIN_MUTEX
+    it("retains nonblocking acquisition and expires a waiter while the native wake is paused") {
+        struct darwin_handoff p = {
+            .guard = PTHREAD_MUTEX_INITIALIZER, .changed = PTHREAD_COND_INITIALIZER,
+        };
+        thrd_t owner, timed, untimed;
+        int result;
+        check_equal(darwin_mutex_init(&p.mutex), SALTS_OK);
+        check_equal(thrd_create(&owner, handoff_owner, &p), thrd_success);
+        check_equal(pthread_mutex_lock(&p.guard), 0);
+        while (!p.held) check_equal(pthread_cond_wait(&p.changed, &p.guard), 0);
+        check_equal(pthread_mutex_unlock(&p.guard), 0);
+
+        check_equal(thrd_create(&timed, handoff_timed_waiter, &p), thrd_success);
+        check_equal(thrd_create(&untimed, handoff_waiter, &p), thrd_success);
+        check_equal(pthread_mutex_lock(&p.guard), 0);
+        while (!p.before_wake) check_equal(pthread_cond_wait(&p.changed, &p.guard), 0);
+        check_equal(pthread_mutex_unlock(&p.guard), 0);
+
+        check_equal(darwin_mutex_trylock(&p.mutex), SALTS_OK);
+        check_equal(darwin_mutex_trylock(&p.mutex), SALTS_ETIMEDOUT);
+        check_equal(thrd_join(timed, &result), thrd_success);
+        check_equal(result, SALTS_ETIMEDOUT);
+        darwin_mutex_unlock(&p.mutex);
+
+        check_equal(pthread_mutex_lock(&p.guard), 0);
+        p.resume_wake = 1;
+        check_equal(pthread_cond_broadcast(&p.changed), 0);
+        check_equal(pthread_mutex_unlock(&p.guard), 0);
+        check_equal(thrd_join(owner, &result), thrd_success);
+        check_equal(result, SALTS_OK);
+        check_equal(thrd_join(untimed, &result), thrd_success);
+        check_equal(result, SALTS_OK);
+        darwin_mutex_destroy(&p.mutex);
+        check_equal(pthread_cond_destroy(&p.changed), 0);
+        check_equal(pthread_mutex_destroy(&p.guard), 0);
+    }
+#endif
 #ifdef __APPLE__
     it("admits an unlock with a UTC deadline beyond the dispatch clock range") {
         struct far_deadline p = {0};

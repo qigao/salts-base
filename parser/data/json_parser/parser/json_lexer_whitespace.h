@@ -1,6 +1,7 @@
 #ifndef JSON_LEXER_WHITESPACE_H
 #define JSON_LEXER_WHITESPACE_H
 
+#include <stdatomic.h>
 #include <simde/x86/sse2.h>
 
 #include <stddef.h>

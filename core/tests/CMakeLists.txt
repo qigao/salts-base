@@ -363,6 +363,11 @@ if(WIN32)
   set_tests_properties(saltscore_thread_unload_test PROPERTIES TIMEOUT 45)
 elseif(UNIX)
   target_sources(saltscore_c11_threads_test PRIVATE test_c11_sleep_posix.c test_native_threads_posix.c)
+  if(APPLE)
+    target_sources(saltscore_c11_threads_test PRIVATE ../src/threads/c11_mutex_darwin.c)
+    target_compile_definitions(saltscore_c11_threads_test PRIVATE
+      _DARWIN_C_SOURCE=1 SALTS_TEST_DARWIN_MUTEX=1)
+  endif()
   if(APPLE OR ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(saltscore_c11_threads_test PRIVATE test_condition_permit.c
       ../src/threads/condition_permit_posix.c)

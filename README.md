@@ -492,8 +492,10 @@ and [upstream architecture accessors](https://github.com/lhmouse/mcfgthread/blob
   waiter. Broadcast selects the current queue under the same lock. Each
   selection publishes one notification to that waiter. On an untimed wait,
   the thread can yield once to a runnable peer and briefly poll its stack
-  record. If it commits to parking first, the signaler pairs with it through
-  the keyed event. After a kernel wait crosses a Windows clock tick, the
+  record. A parked ARM64 waiter uses its own native SRW lock and condition
+  variable. Salts still selects the FIFO waiter, and the private lock keeps
+  the stack record live through notification. On x64 a parked waiter pairs
+  with the notifier through a keyed event. After a kernel wait crosses a Windows clock tick, the
   same thread tries parking directly on its next untimed wait. A short
   handoff restores polling. A timed waiter shares an event record with the
   queue. Timeout and notification compete for its eligibility. The waiter
@@ -548,13 +550,16 @@ pthread timed mutex and condition operations with the corresponding clock.
 C11 mutexes on Android use pthreads directly. The older Bionic platform
 duration API uses a nonblocking semaphore-mode eventfd and waits for readiness
 with the remaining monotonic budget. Darwin uses pthreads for ordinary C11
-mutexes and a binary dispatch semaphore for timed mutexes and platform
-durations. Semaphore admission, including admission to a condition wait,
-uses the caller's original deadline.
+mutexes. Its timed and platform mutexes keep ownership in one atomic state
+and allocate a Mach semaphore to park contenders. An uncontended acquisition
+and release update the atomic state. A timed caller can withdraw its own
+registration while a release notification is pending. Each native timed
+wait uses the remaining budget from the caller's original clock and deadline.
 
 Conditions paired with native pthread mutexes release and reacquire them
-through pthreads. On the two semaphore paths, a condition enrolls each waiter
-in an open group. The first signal seals that group. New waiters then join
+through pthreads. Conditions paired with the Darwin timed/platform mutexes
+and the older Bionic platform mutexes enroll each waiter in an open group.
+The first signal seals that group. New waiters then join
 a new group, while remaining members of the sealed group retain priority.
 A signal grants one permit and broadcast grants the current outstanding permits
 in both groups. Timeout withdraws eligibility atomically. Each waiting call
