@@ -25,12 +25,17 @@ on:
       - '.gitattributes'
       - '.editorconfig'
   workflow_dispatch:
+    inputs:
+      vcpkg_cache_version:
+        description: Exact published vcpkg-cache version for this qualification
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 env:
-  VCPKG_CACHE_VERSION: ${{ vars.VCPKG_CACHE_VERSION }}
+  VCPKG_CACHE_VERSION: ${{ inputs.vcpkg_cache_version || vars.VCPKG_CACHE_VERSION }}
 
 jobs:
   changes:

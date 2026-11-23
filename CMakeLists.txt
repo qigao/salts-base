@@ -4,7 +4,7 @@ if(POLICY CMP0174)
 endif()
 
 include(CMakeOptions.cmake)
-project(SaltsBase VERSION 0.1.10
+project(SaltsBase VERSION 0.1.11
         DESCRIPTION
         "Higher-level utilities for cross-platform purpose and c11 developments"
         HOMEPAGE_URL "https://github.com/qigao/salts-base" LANGUAGES
