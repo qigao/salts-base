@@ -38,7 +38,7 @@
 #include <string.h>
 #ifdef _WIN32
   #include <windows.h>
-#else
+#elif !defined(__wasm__)
   #include <strings.h>
 #endif
 #include "sds.h"
@@ -339,7 +339,7 @@ void *sdsAllocPtr(sds s) { return (void *)(s - sdsHdrSize(s[-1])); }
  * ... check for nread <= 0 and handle it ...
  * sdsIncrLen(s, nread);
  */
-void sdsIncrLen(sds s, ssize_t incr) {
+void sdsIncrLen(sds s, ptrdiff_t incr) {
   unsigned char flags = s[-1];
   size_t len;
   switch (flags & SDS_TYPE_MASK) {
@@ -790,7 +790,7 @@ sds sdstrim(sds s, const char *cset) {
  * s = sdsnew("Hello World");
  * sdsrange(s,1,-1); => "ello World"
  */
-void sdsrange(sds s, ssize_t start, ssize_t end) {
+void sdsrange(sds s, ptrdiff_t start, ptrdiff_t end) {
   size_t newlen, len = sdslen(s);
 
   if (len == 0)
@@ -807,9 +807,9 @@ void sdsrange(sds s, ssize_t start, ssize_t end) {
   }
   newlen = (start > end) ? 0 : (end - start) + 1;
   if (newlen != 0) {
-    if (start >= (ssize_t)len) {
+    if (start >= (ptrdiff_t)len) {
       newlen = 0;
-    } else if (end >= (ssize_t)len) {
+    } else if (end >= (ptrdiff_t)len) {
       end = len - 1;
       newlen = (end - start) + 1;
     }
@@ -862,6 +862,9 @@ int sdscmp(const sds s1, const sds s2) {
 
 /* Case-insensitive string comparison. */
 int sdscasecmp(const char *s1, const char *s2) {
+#if defined(__wasm__)
+  return sdsncasecmp(s1, s2, SIZE_MAX);
+#else
   if (!s1 && !s2)
     return 0;
   if (!s1)
@@ -872,6 +875,7 @@ int sdscasecmp(const char *s1, const char *s2) {
   return _stricmp(s1, s2);
 #else
   return strcasecmp(s1, s2);
+#endif
 #endif
 }
 
@@ -887,6 +891,15 @@ int sdsncasecmp(const char *s1, const char *s2, size_t n) {
     return 1;
 #ifdef _WIN32
   return _strnicmp(s1, s2, n);
+#elif defined(__wasm__)
+  while (n > 0) {
+    int first = tolower((unsigned char)*s1++);
+    int second = tolower((unsigned char)*s2++);
+    if (first != second || first == '\0')
+      return first - second;
+    --n;
+  }
+  return 0;
 #else
   return strncasecmp(s1, s2, n);
 #endif
@@ -948,9 +961,9 @@ int sdscontains(const char *s, const char *substr) {
  * requires length arguments. sdssplit() is just the
  * same function but for zero-terminated strings.
  */
-sds *sdssplitlen(const char *s, ssize_t len, const char *sep, int seplen, int *count) {
+sds *sdssplitlen(const char *s, ptrdiff_t len, const char *sep, int seplen, int *count) {
   int elements = 0, slots = 5;
-  ssize_t start = 0, j;
+  ptrdiff_t start = 0, j;
   sds *tokens;
 
   if (seplen < 1 || len <= 0) {

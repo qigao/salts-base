@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && !defined(__wasm__)
 #include <strings.h>
 #endif
 
@@ -38,10 +38,6 @@ static int tstr_reserve_checked(tstr *s, size_t addlen) {
   if (!next) return 0;
   *s = next;
   return 1;
-}
-
-static size_t tstr_ssize_max_value(void) {
-  return (size_t)((~(size_t)0) >> 1);
 }
 
 static size_t tstr_utf8_encode_one(uint32_t codepoint, char out[4]) {
@@ -260,7 +256,9 @@ int tstr_casecmp(const char *s1, const char *s2) {
 }
 
 int tstr_ncasecmp(const char *s1, const char *s2, size_t n) {
-#ifdef _MSC_VER
+#if defined(__wasm__)
+  return sdsncasecmp(s1, s2, n);
+#elif defined(_MSC_VER)
   return _strnicmp(s1, s2, n);
 #else
   return strncasecmp(s1, s2, n);
@@ -640,11 +638,11 @@ tstr *tstr_split(tstr s, const char *sep, int *count) {
     return tokens;
   }
 
-  if (sep_len > (size_t)INT_MAX || sdslen(s) > tstr_ssize_max_value()) {
+  if (sep_len > (size_t)INT_MAX || sdslen(s) > (size_t)PTRDIFF_MAX) {
     *count = 0;
     return NULL;
   }
-  return sdssplitlen(s, (ssize_t)sdslen(s), sep, (int)sep_len, count);
+  return sdssplitlen(s, (ptrdiff_t)sdslen(s), sep, (int)sep_len, count);
 }
 
 void tstr_free_split(tstr *tokens, int count) {

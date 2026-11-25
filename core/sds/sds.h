@@ -37,7 +37,7 @@
 /* Sentinel for sdsnewlen(): leave payload uninitialized. */
 #define SDS_NOINIT ((const void *)-1)
 
-#include <sys/types.h>
+#include <stddef.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <assert.h>
@@ -51,8 +51,6 @@
     __pragma(pack(push, 1)) struct
 #define END_PACKED_STRUCT \
     __pragma(pack(pop))
-#include <BaseTsd.h>
-typedef SSIZE_T ssize_t;
 #else
 #define PACKED_STRUCT struct __attribute__((__packed__))
 #define END_PACKED_STRUCT
@@ -281,7 +279,7 @@ sds sdscatprintf(sds s, const char *fmt, ...);
 
 sds sdscatfmt(sds s, char const *fmt, ...);
 sds sdstrim(sds s, const char *cset);
-void sdsrange(sds s, ssize_t start, ssize_t end);
+void sdsrange(sds s, ptrdiff_t start, ptrdiff_t end);
 void sdsupdatelen(sds s);
 void sdsclear(sds s);
 int sdscmp(const sds s1, const sds s2);
@@ -291,7 +289,7 @@ int sdsstartswith(const char *s, const char *prefix);
 int sdsistartswith(const char *s, const char *prefix);
 int sdsendswith(const char *s, const char *suffix);
 int sdscontains(const char *s, const char *substr);
-sds *sdssplitlen(const char *s, ssize_t len, const char *sep, int seplen, int *count);
+sds *sdssplitlen(const char *s, ptrdiff_t len, const char *sep, int seplen, int *count);
 void sdsfreesplitres(sds *tokens, int count);
 void sdstolower(sds s);
 void sdstoupper(sds s);
@@ -304,7 +302,7 @@ sds sdsjoinsds(sds *argv, int argc, const char *sep, size_t seplen);
 
 /* Low level functions exposed to the user API */
 sds sdsMakeRoomFor(sds s, size_t addlen);
-void sdsIncrLen(sds s, ssize_t incr);
+void sdsIncrLen(sds s, ptrdiff_t incr);
 sds sdsRemoveFreeSpace(sds s);
 size_t sdsAllocSize(sds s);
 void *sdsAllocPtr(sds s);

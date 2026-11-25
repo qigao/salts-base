@@ -10,7 +10,7 @@
   #define ATOMIC_SIZE_T _Atomic size_t
   #define ATOMIC_UINT32_T _Atomic uint32_t
 #endif
-#include <threads/threads.h>
+#include <core/api.h>
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
